@@ -664,7 +664,7 @@ test('no signing key, certificate or profile is ever committed', () => {
 
 test('the F-Droid metadata allows the release certificate that docs/android-app.md publishes', () => {
   const fdroid = read('mobile/android/store/fdroid/app.opentodo.yml')
-  const cert = fdroid.match(/^AllowedAPKSigningKeys: \n {2}([0-9a-f]{64})$/m)?.[1]
+  const cert = fdroid.match(/^AllowedAPKSigningKeys: ([0-9a-f]{64})$/m)?.[1]
   assert.ok(cert, 'AllowedAPKSigningKeys names one SHA-256')
   assert.ok(read('docs/android-app.md').includes(cert), 'docs/android-app.md publishes the same certificate')
   assert.match(fdroid, /^Binaries: \n {2}https:\/\/github\.com\/OpenTodoApp\/OpenTodo\/releases\/download\/v%v\/opentodo-android-%v\.apk$/m)

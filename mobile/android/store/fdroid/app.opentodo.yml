@@ -29,8 +29,7 @@ Builds:
     commit: 0d4dd3f78e108fbe046fb8781c9e4d1eb33e729a
     subdir: mobile/android/app
     sudo:
-      - echo 'deb https://deb.debian.org/debian bookworm main' > 
-        /etc/apt/sources.list.d/bookworm.list
+      - echo 'deb https://deb.debian.org/debian bookworm main' > /etc/apt/sources.list.d/bookworm.list
       - apt-get update
       - apt-get install -y -t bookworm openjdk-17-jdk-headless
       - update-alternatives --auto java
@@ -40,11 +39,9 @@ Builds:
       - extension
       - internal/importer/testdata
       - internal/store/testdata
-    prebuild: sed -i -e 's/System.getenv("OPENTODO_VERSION")/"$$VERSION$$"/' 
-      build.gradle.kts
+    prebuild: sed -i -e 's/System.getenv("OPENTODO_VERSION")/"$$VERSION$$"/' build.gradle.kts
 
-AllowedAPKSigningKeys: 
-  ff2eacdf7e79712e44fdd9d2e3110891e712c170ea516bd3fbbecc291072befa
+AllowedAPKSigningKeys: ff2eacdf7e79712e44fdd9d2e3110891e712c170ea516bd3fbbecc291072befa
 
 AutoUpdateMode: Version v%v
 UpdateCheckMode: HTTP
