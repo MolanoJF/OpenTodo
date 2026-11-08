@@ -674,7 +674,8 @@ test('the F-Droid metadata allows the release certificate that docs/android-app.
   assert.match(fdroid, /^UpdateCheckData: \n {2}https:\/\/raw\.githubusercontent\.com\/OpenTodoApp\/OpenTodo\/main\/mobile\/android\/store\/fdroid\/app\.opentodo\.yml\|CurrentVersionCode:\\s\*\(\\d\+\)\|\.\|CurrentVersion:\\s\*\(\[0-9\.\]\+\)$/m)
   assert.match(fdroid, /^AutoUpdateMode: Version v%v$/m, "F-Droid's bot adds each final tag")
   // F-Droid takes the name, summary and description from fastlane/.
-  assert.doesNotMatch(fdroid, /^(AutoName|Name|Summary|Description):/m, 'the texts live in fastlane/metadata/android/')
+  // AutoName is the app's label, which F-Droid's checkupdates writes itself.
+  assert.doesNotMatch(fdroid, /^(Name|Summary|Description):/m, 'the texts live in fastlane/metadata/android/')
   const builds = [...fdroid.matchAll(/^ {2}- versionName: (\S+)\n {4}versionCode: (\d+)\n {4}commit: (\S+)$/gm)]
   assert.equal(builds.length, 1, 'Builds keeps only the latest version')
   const [, name, code, commit] = builds[0]

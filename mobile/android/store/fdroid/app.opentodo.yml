@@ -18,6 +18,8 @@ SourceCode: https://github.com/OpenTodoApp/OpenTodo
 IssueTracker: https://github.com/OpenTodoApp/OpenTodo/issues
 Changelog: https://github.com/OpenTodoApp/OpenTodo/blob/HEAD/CHANGELOG.md
 
+AutoName: OpenTodo
+
 RepoType: git
 Repo: https://github.com/OpenTodoApp/OpenTodo.git
 Binaries: 
