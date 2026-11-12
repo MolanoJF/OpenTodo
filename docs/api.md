@@ -1842,7 +1842,7 @@ Other calendars shown in Day and Week, and your tasks as a calendar that calenda
 | `PATCH` | `/api/v1/calendar-feeds/subscriptions/{id}` | session or full token | `{url?, name?, color?, enabled?}`; a new URL is checked and fetched; `enabled: true` restarts a subscription stopped for a private target |
 | `DELETE` | `/api/v1/calendar-feeds/subscriptions/{id}` | session or full token | `204`, its events go with it |
 | `POST` | `/api/v1/calendar-feeds/subscriptions/{id}/refresh` | session or full token | fetch now, `200 {subscription}` |
-| `GET` | `/api/v1/calendar-feeds/events?from=YYYY-MM-DD&to=YYYY-MM-DD` | session or token | at most 92 days; `{events: [{id, subscriptionId, uid, summary, location, start, end, allDay, free}], subscriptions: [{id, name, color, enabled, lastSuccessAt, managed?}]}` (`managed`: a calendar of a [calendar sync](#calendar-sync) connection); answers while calendar feeds or calendar sync is on; `start` and `end` are shaped like a task's `due` (`{date, time?, tz?}`; no `tz` means floating) |
+| `GET` | `/api/v1/calendar-feeds/events?from=YYYY-MM-DD&to=YYYY-MM-DD` | session or token | at most 92 days; `{events: [{id, subscriptionId, uid, summary, location, start, end, allDay, free, rev?, access?}], subscriptions: [{id, name, color, enabled, lastSuccessAt, managed?, connectionId?, calendarUrl?, caps?, editEvents?}]}` (`managed`: a calendar of a [calendar sync](#calendar-sync) connection, which also has `connectionId`, `calendarUrl`, `caps` (`{create, update, delete}`) and `editEvents`; `rev` and `access` (`{update, delete, reason?}`) belong to the events of such a calendar and are never served for a subscribed feed, see [Editing events](#editing-events-of-a-connected-calendar)); answers while calendar feeds or calendar sync is on; `start` and `end` are shaped like a task's `due` (`{date, time?, tz?}`; no `tz` means floating) |
 | `GET` | `/api/v1/calendar-feeds/feed` | session or token | `{feed: {createdAt, lastUsedAt} \| null}` |
 | `POST` | `/api/v1/calendar-feeds/feed` | session or full token, fresh sign-in | create or replace the feed URL: `201 {feed, url}`, the only time the URL is shown; recorded as `calendar_feed.created` or `calendar_feed.rotated` |
 | `DELETE` | `/api/v1/calendar-feeds/feed` | session or full token | `204`, `404` when there is none; recorded as `calendar_feed.revoked` |
@@ -1864,8 +1864,8 @@ The account's own calendar (any CalDAV server with an app password, Google Calen
 | `GET` | `/api/v1/calendar-sync/connections` | session or token | `{connections: [...]}`: `id`, `provider` (`caldav`, `google`, `microsoft`), `name`, `server_url`, `username`, `calendars` (`[{url, name, color, time_zone?, read_only, caps: {create, update, delete}}]`), `edit_events`, `target`, `read`, `include_date_only`, `scope` (see [Sync scope](#sync-scope)), `enabled`, `state` (`off`, `choose_calendar`, `pending`, `ok`, `failed`, `reconnect`, `stopped`), `next_sync_at`, `last_sync_at`, `last_success_at`, `last_error`, `last_error_at`, `stopped_reason`, `last_run` (`{moved, renamed, unscheduled, written, removed, conflicts, refused, partial}`), `password_set`, `event_count`. Never the password or token. |
 | `POST` | `/api/v1/calendar-sync/connections` | session or full token, fresh sign-in | `{server_url, username, password, name?}`: `server_url` is an address, a host name or an email address (then `/.well-known/caldav` of its domain); discovery runs at once; `201 {connection}` in the state `choose_calendar` |
 | `PATCH` | `/api/v1/calendar-sync/connections/{id}` | session or full token | any of `name`, `target` (a writable calendar of the connection), `read` (up to 10 of its calendars), `include_date_only`, `edit_events` (boolean, off by default: lets the events routes below change the connection's events), `scope` (see [Sync scope](#sync-scope); makes the connection due now), `enabled`, `password` (CalDAV only; Google and Microsoft reconnect instead; needs a fresh sign-in, `403 reauth_required`; checked by discovery, then clears a stop) |
-| `PATCH` | `/api/v1/calendar-sync/connections/{id}/events/{eventId}` | session or full token | move, resize or rename one event of the connection's calendars (OpenSpec change `calendar-event-edits`): `{rev, summary?, start?, end?, allDay?}`; `rev` is the one the event was served with, `summary` 1 to 500 characters, `start` and `end` go together as `{date, time?, tz?}` (all-day: dates, end exclusive; no `tz`: floating). `200 {event, replaces}`: the event as the calendar now holds it (new `id`, `rev`, `access`) and the id it had. Needs the connection's `edit_events` on; written with `If-Match`; records `calendar_event.changed`; wakes the other devices. Errors below |
-| `DELETE` | `/api/v1/calendar-sync/connections/{id}/events/{eventId}?rev=` | session or full token | delete one event: `204`; the same checks and errors as the `PATCH` |
+| `PATCH` | `/api/v1/calendar-sync/connections/{id}/events/{eventId}` | session or full token | move, resize or rename one event of the connection's calendars (OpenSpec change `calendar-event-edits`): `{rev, summary?, start?, end?, allDay?}`; `rev` is the one the event was served with, `summary` 1 to 500 characters, `start` and `end` go together as `{date, time?, tz?}` (all-day: dates, end exclusive; no `tz`: floating). `200 {event, replaces}`: the event as the calendar now holds it (new `id`, `rev`, `access`) and the id it had. Needs the connection's `edit_events` on; written with `If-Match`; records `calendar_event.changed`; wakes the other devices. Examples and errors: [Editing events](#editing-events-of-a-connected-calendar) |
+| `DELETE` | `/api/v1/calendar-sync/connections/{id}/events/{eventId}?rev=` | session or full token | delete one event: `204`; the same checks and errors as the `PATCH`, see [Editing events](#editing-events-of-a-connected-calendar) |
 | `DELETE` | `/api/v1/calendar-sync/connections/{id}` | session or full token | `204`; the secret is removed, tasks and events already written stay |
 | `POST` | `/api/v1/calendar-sync/connections/{id}/sync` | session or full token | discovery and a cycle now: `{ok, run?, reason?, connection}` |
 | `POST` | `/api/v1/calendar-sync/google/start` | session or full token, fresh sign-in | `{connection_id?}` (to reconnect); `{url}`: Google's consent page with a single-use state (10 minutes) and a PKCE challenge; `409 google_not_configured` without a Google client; `409 base_url_mismatch` when the request's `Origin` is not the origin of the redirect address (set `OPENTODO_BASE_URL`) |
@@ -1875,7 +1875,57 @@ The account's own calendar (any CalDAV server with an app password, Google Calen
 
 Validation answers `400 invalid_input` with the field in `error.field` (`server_url`, `username`, `password`, `name`, `target`, `read`). A server on a private network is refused with `400 private_target` unless the owner allows private targets for webhooks; a refused password answers `400 unauthorized_remote`, an account without event calendars `400 no_calendars`, any other discovery failure `502 calendar_unreachable` with the reason as message. A fourth connection answers `409 limit_reached`. Discovery (create, a new password) and Sync now share a limit of 12 per account per hour (`429 rate_limited`).
 
-Event edit errors (`calendar-event-edits`): `404 not_found` (not the caller's connection or event), `403 event_edits_off`, `403 calendar_read_only` (the calendar's capability, or the remote answered `403`), `422 event_not_editable` (the message names `recurring`, `has_guests`, `not_organizer` or `no_etag`), `400 invalid_input` (field `rev`, `summary`, `start`, `end` or `allDay`), `409 event_changed` (the `rev` is not the stored one, or the calendar answered `412`; nothing was written), `404 event_gone` (the calendar no longer has it; the cached event is dropped), `429 rate_limited` (600 changes per account per hour) and `502 calendar_unreachable` (the message is the reason; `unauthorized_remote` for a refused credential). The events route serves `rev` and `access` (`{update, delete, reason?}`) for events of connected calendars, never for subscribed ones.
+#### Editing events of a connected calendar
+
+OpenSpec change `calendar-event-edits`. Events of a connected calendar can be renamed, moved, resized and deleted through the connection, when its `edit_events` is on, the calendar allows writing and the event is a plain single event. Event edits are not operations: they never enter the op log, the export or a backup; the calendar is the source of truth. Each event of a connected calendar is served with a `rev` (the first 16 hex characters of the SHA-256 of its version in the calendar, never the version itself) and `access`: `update` and `delete` are true only when the connection has `edit_events`, the calendar's `caps` allow it and nothing locks the event. `reason`, the first thing that is not met, is one of `edits_off`, `calendar_read_only`, `recurring`, `has_guests`, `not_organizer`, `no_etag` or `refresh_pending` (the event was cached before it could be matched to the calendar; the next check settles it).
+
+```
+GET /api/v1/calendar-feeds/events?from=2026-11-12&to=2026-11-12
+# 200 {"events":[{"id":"7c1e5a90b2d4","subscriptionId":"sub_1","uid":"ab12@example.com","summary":"Standup",
+#   "location":"","start":{"date":"2026-11-12","time":"14:00","tz":"Europe/Berlin"},
+#   "end":{"date":"2026-11-12","time":"14:30","tz":"Europe/Berlin"},"allDay":false,"free":false,
+#   "rev":"a41c9d03e2b7f610","access":{"update":true,"delete":true}},
+#   {"id":"…","summary":"Weekly sync","rev":"…","access":{"update":false,"delete":false,"reason":"recurring"}}],
+#  "subscriptions":[{"id":"sub_1","name":"Work","color":"#3b82f6","enabled":true,"lastSuccessAt":1762900000000,"managed":true,
+#   "connectionId":"cc_9","calendarUrl":"https://cal.example.com/dav/work/","caps":{"create":true,"update":true,"delete":true},"editEvents":true}]}
+```
+
+```
+PATCH /api/v1/calendar-sync/connections/cc_9/events/7c1e5a90b2d4
+{"rev":"a41c9d03e2b7f610",
+ "summary":"Team standup",                                        # optional, 1 to 500 characters
+ "start":{"date":"2026-11-12","time":"14:30","tz":"Europe/Berlin"},  # start and end go together
+ "end":{"date":"2026-11-12","time":"15:00","tz":"Europe/Berlin"},
+ "allDay":false}                                                  # optional
+# 200 {"event":{"id":"e0b93f4a7716","subscriptionId":"sub_1","summary":"Team standup","start":{…},"end":{…},"allDay":false,
+#       "free":false,"rev":"5d02be8c91f3a477","access":{"update":true,"delete":true}},
+#      "replaces":"7c1e5a90b2d4"}
+```
+
+`rev` is required and is the one the event was served with. A body needs a `summary`, or a `start` with an `end`, or both. For an all-day event `start` and `end` are dates alone and the end is the day after the last day; `allDay` defaults to true when neither point has a `time`. A timed point is `{date, time, tz}`; without `tz` it is a floating time, and `start` and `end` must both have a zone or neither. The end must be after the start. A move gives the event a new `id` (it is derived from its start), so the answer names the old one in `replaces`. Only the title and the times are written; the rest of the event (description, alarms, other properties) is kept as the calendar has it, and nothing is sent to guests.
+
+```
+DELETE /api/v1/calendar-sync/connections/cc_9/events/e0b93f4a7716?rev=5d02be8c91f3a477
+# 204
+```
+
+Both routes need a session or a full token (a read or agent token gets `403 forbidden`), are refused on the public demo, answer while calendar sync is on, and write under the same lock as the sync cycle, with the calendar's version as a precondition (CalDAV `If-Match`, Microsoft Graph `If-Match`); after a write the other devices are told to refetch events.
+
+| Status | Code | When |
+| --- | --- | --- |
+| 400 | `invalid_input` | `error.field` names `rev`, `summary`, `start`, `end` or `allDay`: a missing `rev`, a title outside 1 to 500 characters, a malformed or unknown zone, `start` without `end`, an end that is not after the start, nothing to change |
+| 401 | `unauthorized` | no credentials |
+| 403 | `demo_restricted` | the public demo |
+| 403 | `forbidden` | a read or agent token |
+| 403 | `event_edits_off` | the connection's `edit_events` is off |
+| 403 | `calendar_read_only` | the calendar's `caps` forbid it, or the calendar answered `403` (its caps are then cleared until the next discovery) |
+| 404 | `calendar_sync_disabled` | the owner's switch is off |
+| 404 | `not_found` | the connection or the event is not the caller's, or the event is not cached |
+| 404 | `event_gone` | the calendar no longer has the event; the cached copy is dropped and devices are told |
+| 409 | `event_changed` | `rev` is not the stored one, or the calendar answered `412`; nothing was written, refetch and decide again |
+| 422 | `event_not_editable` | the event is locked; the message names `recurring`, `has_guests`, `not_organizer` or `no_etag` |
+| 429 | `rate_limited` | more than 600 event changes per account per hour |
+| 502 | `calendar_unreachable` | the calendar failed; the message is the reason (`timeout`, `connection_failed`, `unauthorized_remote` for a refused credential, …) |
 
 Cycles run on the jobs leader, at most two at a time, every 5 minutes and about 20 seconds after a task the account can see changes: a `PROPFIND` of the target's `getctag` and `sync-token`; when it changed, `sync-collection` (RFC 6578) or an ETag listing, and `calendar-multiget` of the changed events OpenTodo wrote; then `PUT` (`If-None-Match: *` to create, `If-Match` to replace) and `DELETE` (`If-Match`) of at most 200 events; then a `calendar-query` of each shown calendar that changed. Requests follow at most 3 redirects within the same site, time out after 20 seconds and read at most 4 MB. A Microsoft connection runs the same cycle through Microsoft Graph (`graph.microsoft.com`, tokens from `login.microsoftonline.com`, both only once the owner configured a client and the account connected): `calendarView/delta` per calendar over the sync window, its delta link kept per calendar and rebuilt from a full listing when the window moves by a day or Graph answers `410`; linked events read with OpenTodo's extended property (`String {6f1c1c9e-2c8b-4d0e-9a51-6f70656e746f} Name opentodoTaskId`); events created with that property and a `transactionId`, changed with `PATCH` and deleted with `If-Match`; every request with `Prefer: IdType="ImmutableId"`; no redirects. Task changes are ops with device `calsync:<connection-id>`. Reasons on a connection: `unauthorized`, `secret_missing`, `google_not_configured`, `microsoft_not_configured`, `microsoft_client_refused` (the owner's Microsoft client secret was refused: every Microsoft connection stops until the owner saves a new one), `private_target`, `calendar_missing` and `calendar_read_only` (the target can no longer be written) stop it; `timeout`, `connection_failed`, `redirect_refused`, `too_large`, `invalid_response`, `http_<status>` and `rate_limited` (at least the server's `Retry-After`, for `429` and `503`) double the wait from 5 minutes up to 6 hours. The events of shown calendars are served by `GET /api/v1/calendar-feeds/events` (which answers while calendar feeds or calendar sync is on) with `managed: true` on their subscription entries.
 

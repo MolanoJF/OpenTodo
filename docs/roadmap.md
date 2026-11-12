@@ -77,6 +77,7 @@ Why each milestone exists, and the order inside it, is in [ROADMAP.md](../ROADMA
 | `obsidian-vault-sync` | Vault sync from inside Obsidian (built; waiting for the manual runs on devices) | In progress (14 of 15) |
 | `voice-ramble` | Speak a brain dump or drop a photo of notes; review the proposed tasks | Shipped in 0.20 |
 | `outlook-calendar-sync` | Microsoft 365 and Outlook in calendar sync | Shipped in 0.20 |
+| `calendar-event-edits` | Move, resize, rename and delete the events of a connected calendar in Day and Week, off until turned on per connection; the calendar stays the source of truth (built; waiting for the manual run against a real calendar) | In progress (34 of 36) |
 | `play-production` | Google Play production, F-Droid and reproducible builds: reproducible builds, the F-Droid metadata and the Play upload are in; the store listings wait for the owner's Play Console and F-Droid steps | In progress (13 of 18) |
 | `agent-tools-complete` | Agent and MCP tools for reminders, project notes, sections, fields, time and Focus | Shipped in 0.20 |
 | `theme-engine` | A documented theme format, tokens derived from a few seeds, applied before the first paint, chosen per light and dark side and synced, with a contrast gate; OpenTodo Light and Dark become themes | Shipped in 0.21 |
