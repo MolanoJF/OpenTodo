@@ -40,6 +40,11 @@ type Event struct {
 	TaskID        string
 	TransactionID string
 	Modified      time.Time
+	// Type is Graph's event type ("" is singleInstance), NotOrganizer makes
+	// isOrganizer false, Attendees are the guests' addresses.
+	Type         string
+	NotOrganizer bool
+	Attendees    []string
 }
 
 // Calendar is one calendar of the account.
@@ -75,24 +80,25 @@ type Server struct {
 	// Now stamps changes (defaults to time.Now).
 	Now func() time.Time
 
-	mu        sync.Mutex
-	cals      map[string]*Calendar
-	order     []string
-	events    map[string]*Event
-	log       map[string][]change // calendar → changes
-	seq       int
-	tokens    map[string]bool // access tokens issued
-	refresh   map[string]bool
-	issued    int
-	throttle  int
-	skip      int
-	race      bool
-	throttleS int
-	retry     string
-	loseNext  int
-	requests  []string
-	prefers   []string
-	refreshes int
+	mu            sync.Mutex
+	cals          map[string]*Calendar
+	order         []string
+	events        map[string]*Event
+	log           map[string][]change // calendar → changes
+	seq           int
+	tokens        map[string]bool // access tokens issued
+	refresh       map[string]bool
+	issued        int
+	throttle      int
+	skip          int
+	race          bool
+	throttleS     int
+	retry         string
+	loseNext      int
+	unconditional int
+	requests      []string
+	prefers       []string
+	refreshes     int
 }
 
 // New starts a fake with one writable calendar "cal-work" named "Calendar".
@@ -170,6 +176,13 @@ func (s *Server) ThrottleAfter(k, n, status int, retryAfter string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.skip, s.throttle, s.throttleS, s.retry = k, n, status, retryAfter
+}
+
+// Unconditional counts PATCH and DELETE requests without If-Match.
+func (s *Server) Unconditional() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.unconditional
 }
 
 // RaceNextPatch changes the next patched event just before the patch arrives,
@@ -463,10 +476,24 @@ func (s *Server) render(e *Event, r *http.Request, expand bool) map[string]any {
 	out := map[string]any{"id": e.ID, "@odata.etag": e.ETag, "subject": e.Subject, "isAllDay": e.IsAllDay, "start": start, "end": end,
 		"showAs": "busy", "isCancelled": false, "lastModifiedDateTime": e.Modified.UTC().Format(time.RFC3339Nano),
 		"body": map[string]string{"contentType": "text", "content": e.Body}}
+	out["type"] = firstNonEmpty(e.Type, "singleInstance")
+	out["isOrganizer"] = !e.NotOrganizer
+	guests := []map[string]any{}
+	for _, a := range e.Attendees {
+		guests = append(guests, map[string]any{"type": "required", "emailAddress": map[string]string{"address": a}})
+	}
+	out["attendees"] = guests
 	if expand && e.TaskID != "" {
 		out["singleValueExtendedProperties"] = []map[string]string{{"id": s.Property, "value": e.TaskID}}
 	}
 	return out
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 func (s *Server) expands(r *http.Request) bool {
@@ -667,7 +694,10 @@ func (s *Server) get(w http.ResponseWriter, r *http.Request) {
 }
 
 // precondition answers 412 when If-Match names another version.
-func precondition(w http.ResponseWriter, r *http.Request, e *Event) bool {
+func (s *Server) precondition(w http.ResponseWriter, r *http.Request, e *Event) bool {
+	if r.Header.Get("If-Match") == "" {
+		s.unconditional++
+	}
 	if m := r.Header.Get("If-Match"); m != "" && m != "*" && m != e.ETag {
 		graphError(w, 412, "ErrorIrresolvableConflict")
 		return false
@@ -696,7 +726,7 @@ func (s *Server) patch(w http.ResponseWriter, r *http.Request) {
 		e.Modified = s.now()
 		s.store(e)
 	}
-	if !precondition(w, r, e) {
+	if !s.precondition(w, r, e) {
 		return
 	}
 	in.apply(e)
@@ -716,7 +746,7 @@ func (s *Server) remove(w http.ResponseWriter, r *http.Request) {
 	case s.cals[e.Calendar] != nil && !s.cals[e.Calendar].CanEdit:
 		graphError(w, 403, "ErrorAccessDenied")
 		return
-	case !precondition(w, r, e):
+	case !s.precondition(w, r, e):
 		return
 	}
 	s.drop(e.ID)

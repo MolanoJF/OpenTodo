@@ -49,6 +49,9 @@ type Result struct {
 	// BrowserAgent is true when the answer came to BrowserUserAgent; the
 	// subscription then remembers it.
 	BrowserAgent bool
+	// Refs are the remote addresses of a managed calendar's events by UID,
+	// stored with the occurrences (calendar-event-edits D2); nil for feeds.
+	Refs map[string]EventRemote
 }
 
 // FetchError is a failed fetch with the reason stored on the subscription.
