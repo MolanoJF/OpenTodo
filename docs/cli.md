@@ -3,7 +3,7 @@ title: Command-line client
 summary: The ot command: install, sign in, add and complete tasks, JSON output, exit codes, dry runs and safe use by AI agents.
 audience: developer
 section: Integrations
-specs: [cli-client]
+specs: [cli-client, calendar-event-edits]
 screens: []
 order: 20
 ---

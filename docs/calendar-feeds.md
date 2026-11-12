@@ -3,7 +3,7 @@ title: Calendar feeds
 summary: Show your other calendars next to your tasks in the calendar views, and subscribe to your tasks from Google Calendar, Outlook or Apple Calendar.
 audience: user
 section: Guides
-specs: [calendar-feeds]
+specs: [calendar-feeds, calendar-event-edits]
 screens: [settings/calendar-feeds]
 order: 63
 ---

@@ -3,7 +3,7 @@ title: AI assistants (MCP)
 summary: Give an AI assistant access to your tasks over the Model Context Protocol, read-only or, when you allow it, with changes you can undo.
 audience: developer
 section: Integrations
-specs: [mcp-server, local-mcp-decryption, agent-project-exclusion, assistant-blocks]
+specs: [mcp-server, local-mcp-decryption, agent-project-exclusion, assistant-blocks, calendar-event-edits]
 screens: []
 order: 40
 ---
