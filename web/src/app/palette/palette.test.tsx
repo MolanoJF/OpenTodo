@@ -423,3 +423,57 @@ describe('Notes in search (notes-overview 4.7)', () => {
     expect(`${location.pathname}${location.search}`).toBe('/notes?new=1')
   })
 })
+
+describe('New event (calendar-event-editor 5.5)', () => {
+  const cmd = (over: Partial<PaletteContext> = {}) => commands(ctxFor({ eventsWritable: true, ...over })).find((c) => c.id === 'new:event')
+  const clock = async (h: number, m: number) => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 14, h, m))
+    const store = await import('../calendar/eventEditorStore')
+    store.closeEventEditor()
+    return store
+  }
+  afterEach(() => { vi.useRealTimers() })
+
+  it('is absent without a writable calendar and present with one', () => {
+    expect(commands(ctxFor()).some((c) => c.id === 'new:event')).toBe(false)
+    expect(commands(ctxFor({ eventsWritable: false })).some((c) => c.id === 'new:event')).toBe(false)
+    expect(cmd()?.label).toBe('New event')
+  })
+
+  it('opens the editor in create mode at the next free half hour and shows the Day view from another screen', async () => {
+    const store = await clock(10, 7)
+    navigate({ view: 'inbox' })
+    cmd()!.run()
+    await waitFor(() => store.currentEventEditor() !== null, 'the editor request')
+    expect(store.currentEventEditor()).toMatchObject({ mode: 'create', place: { date: '2026-10-14', start: 10 * 60 + 30, end: 11 * 60 } })
+    expect(location.pathname).toBe('/day')
+  })
+
+  it('skips a busy half hour, and stays in Week when the app is in Week', async () => {
+    const store = await clock(10, 7)
+    await db.calendarEvents.put({ id: 'e', subscriptionId: 's', uid: 'u', summary: 'Busy', location: '', start: { date: '2026-10-14', time: '10:30' }, end: { date: '2026-10-14', time: '11:00' }, allDay: false, free: false })
+    navigate({ view: 'week' })
+    cmd({ route: { view: 'week' } })!.run()
+    await waitFor(() => store.currentEventEditor() !== null, 'the editor request')
+    expect(store.currentEventEditor()).toMatchObject({ place: { date: '2026-10-14', start: 11 * 60 } })
+    expect(location.pathname).toBe('/week')
+  })
+
+  it('late in the day it opens tomorrow at 09:00, and shows calendars when the device hides them', async () => {
+    const store = await clock(23, 40)
+    const { setShowEvents, showEvents } = await import('../../lib/calendarFeeds')
+    await setShowEvents(false)
+    cmd()!.run()
+    await waitFor(() => store.currentEventEditor() !== null, 'the editor request')
+    expect(store.currentEventEditor()).toMatchObject({ place: { date: '2026-10-15', start: 9 * 60, end: 9 * 60 + 30 } })
+    expect(await showEvents()).toBe(true)
+  })
+
+  it('creates nothing until the person saves', async () => {
+    const store = await clock(10, 7)
+    cmd()!.run()
+    await waitFor(() => store.currentEventEditor() !== null, 'the editor request')
+    expect(await db.eventOutbox.count()).toBe(0)
+  })
+})

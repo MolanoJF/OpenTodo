@@ -362,6 +362,17 @@
   "story": "Screens/Calendar"
  },
  {
+  "id": "event-panel",
+  "route": "day",
+  "kind": "overlay",
+  "seed": "layout-check",
+  "frequency": "rare",
+  "core": false,
+  "layoutCheck": "event-panel",
+  "on": "day",
+  "story": "Screens/Calendar"
+ },
+ {
   "id": "month",
   "route": "month",
   "kind": "screen",

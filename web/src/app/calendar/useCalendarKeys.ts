@@ -70,6 +70,8 @@ export interface CalendarKeyContext {
   replan?: { apply: () => void; cancel: () => void } | null
   /** `q`: the add dialog for the focused day (calendar-clarity D2). */
   onQuickAdd?: (date: string) => void
+  /** Shift+Q: an event on the focused day; absent while no calendar allows new events (calendar-event-editor D10). */
+  onNewEvent?: (date: string) => void
   /** Whether the user may move a task (multi-day-tasks D4: a viewer's spans do not move). */
   canEdit?: (task: Task) => boolean
   /** Events of connected calendars (calendar-event-edits D7): a selected one moves, resizes and deletes with the keys. */
@@ -227,6 +229,10 @@ export function useCalendarKeys(c: CalendarKeyContext) {
     'calendar.quick-add': unlessPlacing(() => {
       if (!c.onQuickAdd) return false
       c.onQuickAdd(focusedDay(c.days.map((d) => d.date), today, task?.due?.date ?? slot?.slot.date))
+    }),
+    'calendar.new-event': unlessPlacing(() => {
+      if (!c.onNewEvent) return false
+      c.onNewEvent(focusedDay(c.days.map((d) => d.date), today, task?.due?.date ?? slot?.slot.date))
     }),
     'calendar.complete': unlessPlacing(() => {
       if (!task?.due || task.completed_at) return false

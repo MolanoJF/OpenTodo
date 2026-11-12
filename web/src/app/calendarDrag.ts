@@ -4,11 +4,11 @@
 // Hit testing finds the day column or unscheduled lane under the pointer through
 // data attributes; the pure slot math in lib/calendar turns pixels into minutes.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { dropStart, resizeEstimate, resizeStart } from '../lib/calendar'
+import { dropStart, resizeEstimate, resizeStart, sweepRange } from '../lib/calendar'
 import { registerShortcutScope } from './shortcuts/dispatch'
 import { tick } from './motion'
 
-export type DragKind = 'move' | 'resize' | 'resize-start'
+export type DragKind = 'move' | 'resize' | 'resize-start' | 'create'
 
 export type DropTarget =
   | { type: 'slot'; date: string; start: number }
@@ -18,9 +18,11 @@ export type DropTarget =
   | { type: 'resize-start'; date: string; start: number; estimate: number }
   /** Over a calendar slot: the task is added to it (calendar-slots D3). */
   | { type: 'into-slot'; slotId: string }
+  /** A sweep over an empty stretch of a day column: the range a new task or event covers (calendar-event-editor D10). */
+  | { type: 'range'; date: string; start: number; end: number }
 
 /** What is dragged: a task block (or lane task, slot, projection), or an event of a connected calendar (calendar-event-edits D7). */
-export type DragEntity = 'task' | 'event'
+export type DragEntity = 'task' | 'event' | 'range'
 
 export interface DragState {
   taskId: string
@@ -52,6 +54,8 @@ interface Pending {
 }
 
 const MOUSE_THRESHOLD = 4
+/** A sweep waits for this many pixels of vertical movement, so a click or a double-click never starts one. */
+const SWEEP_THRESHOLD = 6
 const TOUCH_SLOP = 8
 const LONG_PRESS_MS = 350
 const EDGE = 48
@@ -87,6 +91,10 @@ export function useCalendarDrag(opts: { pxPerMinute: number; scroller: React.Ref
 
   const targetAt = useCallback((x: number, y: number, p: Pending): DropTarget | null => {
     const { pxPerMinute } = optsRef.current
+    if (p.kind === 'create') {
+      const col = document.querySelector<HTMLElement>(`[data-drop-day="${p.blockDate}"]`)
+      return col ? { type: 'range', date: p.blockDate, ...sweepRange(p.blockStart, y - col.getBoundingClientRect().top, pxPerMinute) } : null
+    }
     if (p.kind === 'resize' || p.kind === 'resize-start') {
       const col = document.querySelector<HTMLElement>(`[data-drop-day="${p.blockDate}"]`)
       if (!col) return null
@@ -129,7 +137,10 @@ export function useCalendarDrag(opts: { pxPerMinute: number; scroller: React.Ref
       if (!p || e.pointerId !== p.pointerId) return
       const dist = Math.hypot(e.clientX - p.startX, e.clientY - p.startY)
       if (!p.lifted) {
-        if (p.pointerType === 'mouse') {
+        if (p.kind === 'create') {
+          if (Math.abs(e.clientY - p.startY) < SWEEP_THRESHOLD) return
+          lift(p, e.clientX, e.clientY)
+        } else if (p.pointerType === 'mouse') {
           if (dist < MOUSE_THRESHOLD) return
           lift(p, e.clientX, e.clientY)
         } else {
@@ -186,13 +197,14 @@ export function useCalendarDrag(opts: { pxPerMinute: number; scroller: React.Ref
   /** Call from a draggable's onPointerDown. */
   const start = useCallback((e: React.PointerEvent, o: StartOptions) => {
     if (e.button !== 0 || pending.current) return
+    if (o.kind === 'create' && e.pointerType === 'touch') return // a vertical drag on touch scrolls: the long press keeps its menu
     if (o.kind !== 'move') e.stopPropagation()
     const p: Pending = {
       taskId: o.taskId, entity: o.entity ?? 'task', kind: o.kind, pointerId: e.pointerId, pointerType: e.pointerType, startX: e.clientX, startY: e.clientY,
       grabOffset: o.grabOffset ?? 0, blockStart: o.blockStart ?? 0, blockEnd: o.blockEnd ?? 0, blockDate: o.blockDate ?? '', lifted: false,
     }
     pending.current = p
-    if (e.pointerType !== 'mouse') {
+    if (e.pointerType !== 'mouse' && o.kind !== 'create') {
       const x = e.clientX
       const y = e.clientY
       p.timer = setTimeout(() => {
