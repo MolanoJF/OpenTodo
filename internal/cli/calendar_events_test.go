@@ -411,3 +411,16 @@ func TestCalendarEventEditTextFlags(t *testing.T) {
 		t.Fatalf("free and busy: exit %d", code)
 	}
 }
+
+// The "Usage:" block `ot calendar event` prints lists every subcommand, add included.
+func TestCalendarUsageListsEventAdd(t *testing.T) {
+	c := findCommand("calendar")
+	if c == nil {
+		t.Fatal("no calendar command")
+	}
+	for _, want := range []string{"ot calendar event add <title>", "ot calendar event edit <id>", "ot calendar event delete <id>"} {
+		if !strings.Contains(c.usage, want) {
+			t.Errorf("usage lacks %q:\n%s", want, c.usage)
+		}
+	}
+}
