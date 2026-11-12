@@ -11,10 +11,12 @@ package graphtest
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,8 +36,12 @@ type DT struct {
 type Event struct {
 	ID, Calendar, ETag string
 	Subject, Body      string
-	Start, End         DT
-	IsAllDay           bool
+	// BodyType is the body's contentType, "" or "text" for plain text and "html"
+	// for a rich body; Location is the location's displayName; ShowAs is Graph's
+	// showAs ("" is busy).
+	BodyType, Location, ShowAs string
+	Start, End                 DT
+	IsAllDay                   bool
 	// TaskID is the value of OpenTodo's extended property, "" without it.
 	TaskID        string
 	TransactionID string
@@ -474,8 +480,9 @@ func (s *Server) render(e *Event, r *http.Request, expand bool) map[string]any {
 		end = DT{instant(e.End, false).UTC().Format("2006-01-02T15:04:05") + ".0000000", "UTC"}
 	}
 	out := map[string]any{"id": e.ID, "@odata.etag": e.ETag, "subject": e.Subject, "isAllDay": e.IsAllDay, "start": start, "end": end,
-		"showAs": "busy", "isCancelled": false, "lastModifiedDateTime": e.Modified.UTC().Format(time.RFC3339Nano),
-		"body": map[string]string{"contentType": "text", "content": e.Body}}
+		"isCancelled": false, "lastModifiedDateTime": e.Modified.UTC().Format(time.RFC3339Nano),
+		"body": renderBody(e, r), "location": map[string]string{"displayName": e.Location}}
+	out["showAs"] = firstNonEmpty(e.ShowAs, "busy")
 	out["type"] = firstNonEmpty(e.Type, "singleInstance")
 	out["isOrganizer"] = !e.NotOrganizer
 	guests := []map[string]any{}
@@ -604,9 +611,14 @@ func (s *Server) delta(w http.ResponseWriter, r *http.Request) {
 
 // input is an event as a client sends it.
 type input struct {
-	Subject *string `json:"subject"`
-	Body    *struct {
-		Content string `json:"content"`
+	Subject  *string `json:"subject"`
+	ShowAs   *string `json:"showAs"`
+	Location *struct {
+		DisplayName string `json:"displayName"`
+	} `json:"location"`
+	Body *struct {
+		ContentType string `json:"contentType"`
+		Content     string `json:"content"`
 	} `json:"body"`
 	Start         *DT    `json:"start"`
 	End           *DT    `json:"end"`
@@ -619,11 +631,17 @@ type input struct {
 }
 
 func (in *input) apply(e *Event) {
+	if in.ShowAs != nil {
+		e.ShowAs = *in.ShowAs
+	}
+	if in.Location != nil {
+		e.Location = in.Location.DisplayName
+	}
 	if in.Subject != nil {
 		e.Subject = *in.Subject
 	}
 	if in.Body != nil {
-		e.Body = in.Body.Content
+		e.Body, e.BodyType = in.Body.Content, in.Body.ContentType
 	}
 	if in.Start != nil {
 		e.Start = *in.Start
@@ -751,4 +769,21 @@ func (s *Server) remove(w http.ResponseWriter, r *http.Request) {
 	}
 	s.drop(e.ID)
 	w.WriteHeader(204)
+}
+
+var tagRE = regexp.MustCompile(`(?s)<style.*?</style>|<[^>]*>`)
+
+// renderBody is the event's body as Graph answers it: an html body comes back
+// as html, or as its text when the request has Prefer
+// outlook.body-content-type="text" (markup stripped; an Outlook skeleton with no
+// words comes back empty).
+func renderBody(e *Event, r *http.Request) map[string]string {
+	if e.BodyType != "html" {
+		return map[string]string{"contentType": "text", "content": e.Body}
+	}
+	if strings.Contains(strings.Join(r.Header.Values("Prefer"), ","), `outlook.body-content-type="text"`) {
+		text := strings.TrimSpace(html.UnescapeString(tagRE.ReplaceAllString(e.Body, "")))
+		return map[string]string{"contentType": "text", "content": text}
+	}
+	return map[string]string{"contentType": "html", "content": e.Body}
 }

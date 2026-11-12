@@ -276,7 +276,7 @@ var allowedDetailKeys = map[string]bool{
 	"to":                true, // new value of a setting or role
 	"provider":          true, // identity provider name, or github | gitlab for an issue connection
 	"connection_id":     true, // id of an issue or calendar connection (never its host, username or secret)
-	"event_action":      true, // what was done to a calendar event: updated | deleted (never its title or time)
+	"event_action":      true, // what was done to a calendar event: created | updated | deleted (never its title or time)
 	// OAuth clients (mcp-oauth): the client's id, never its secret or a token it
 	// was given, and never a client name it chose for itself.
 	"oauth_client_id": true,
@@ -529,7 +529,7 @@ func CalendarConnectionDeleted(userID, connID, provider string) Event {
 }
 
 // CalendarEventChanged records an event of a connected calendar changed from
-// OpenTodo: the connection id, its provider and the action (updated or
+// OpenTodo: the connection id, its provider and the action (created, updated or
 // deleted), never the title, the time or the calendar.
 func CalendarEventChanged(userID, connID, provider, action string) Event {
 	return ev(CalendarEventChangedName, Success, userID, "", "connection_id", connID, "provider", provider, "event_action", action)

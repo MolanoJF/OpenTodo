@@ -22,8 +22,21 @@ type EventRef struct {
 
 // EventEdit is a change; a nil field stays as it is.
 type EventEdit struct {
-	Summary *string
-	When    *EventWhen
+	Summary     *string
+	When        *EventWhen
+	Location    *string // "" clears it
+	Description *string // plain text; "" clears it
+	Free        *bool   // true: free (TRANSP:TRANSPARENT, showAs free); false: busy
+}
+
+// EventNew is an event to create in a calendar (calendar-event-editor D5).
+type EventNew struct {
+	UID         string // the client id: the CalDAV UID and object name, the Graph transaction id
+	Summary     string
+	When        EventWhen
+	Location    string
+	Description string
+	Free        bool
 }
 
 // EventWhen is a start and end as the event keeps them: a zoned point keeps its
@@ -39,13 +52,23 @@ type EventState struct {
 	Ref    EventRef
 	Event  calfeed.Event
 	Locked string // "" or a reason of design D2
+	// Description and DescriptionLocked are filled by Detail only. DescriptionLocked
+	// is true when the description is a rich-text body that plain text would flatten.
+	Description       string
+	DescriptionLocked bool
 }
 
 // EventWriter changes events of one connection's calendars. Every write is
-// conditional on ref.ETag.
+// conditional on ref.ETag, and a create on the event not existing yet.
 type EventWriter interface {
 	// Read returns the event as the remote holds it now.
 	Read(ctx context.Context, ref EventRef) (EventState, error)
+	// Detail is Read with the description.
+	Detail(ctx context.Context, ref EventRef) (EventState, error)
+	// Create writes ev into the calendar (its URL, or the Graph calendar id) and
+	// returns it as the account holds it. When ev.UID was created before it returns
+	// the existing event's state together with ErrEventExists.
+	Create(ctx context.Context, calendar string, ev EventNew) (EventState, error)
 	// Update applies edit while the event still has ref.ETag; ErrEventChanged
 	// when it does not (HTTP 412, or an ETag that differs on the pre-read).
 	Update(ctx context.Context, ref EventRef, edit EventEdit) (EventState, error)
@@ -59,6 +82,8 @@ var (
 	ErrEventGone    = errors.New("calendar event gone")    // 404
 	ErrEventLocked  = errors.New("calendar event locked")  // recurring, guests, not organizer
 	ErrCalendarRO   = errors.New("calendar is read only")  // 403 on a write
+	// ErrEventExists is a create that met the same UID: the state returned with it is the existing event.
+	ErrEventExists = errors.New("calendar event exists")
 )
 
 // lockedError is ErrEventLocked with the reason of design D2.

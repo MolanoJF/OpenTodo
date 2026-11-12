@@ -123,7 +123,12 @@ func (g *Graph) do(ctx context.Context, method, target string, header map[string
 // get reads a JSON answer; 404 is ReasonCalendarMissing (callers only ask for
 // calendars and their events).
 func (g *Graph) get(ctx context.Context, target string, out any) error {
-	resp, err := g.do(ctx, http.MethodGet, target, nil, nil)
+	return g.getWith(ctx, target, nil, out)
+}
+
+// getWith is get with extra request headers (a Prefer for the body format).
+func (g *Graph) getWith(ctx context.Context, target string, header map[string]string, out any) error {
+	resp, err := g.do(ctx, http.MethodGet, target, header, nil)
 	if err != nil {
 		return err
 	}
