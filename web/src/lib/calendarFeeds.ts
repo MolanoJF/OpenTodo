@@ -6,7 +6,8 @@
 import { api } from './api'
 import { addDaysISO, daysBetweenISO, logicalToday } from './dates'
 import { db, getMeta, setMeta } from './db'
-import type { CalendarEvent, CalendarSubscription } from './types'
+import { resettable } from './moduleState'
+import type { CalendarEvent, CalendarEventChange, CalendarSubscription, EventCommand } from './types'
 
 const WINDOW_KEY = 'calendar.events.window'
 const SHOW_KEY = 'calendar.showEvents'
@@ -28,6 +29,52 @@ export interface EventsWindow {
 export interface DayRange {
   from: string
   to: string
+}
+
+// ---- queued event edits over fetched rows (OpenSpec change calendar-event-edits D6) ----
+
+/** The event with an edit applied: the fields the change names, nothing else. */
+export function applyEventPatch(ev: CalendarEvent, patch: CalendarEventChange): CalendarEvent {
+  return {
+    ...ev,
+    ...(patch.summary !== undefined ? { summary: patch.summary } : {}),
+    ...(patch.start && patch.end ? { start: patch.start, end: patch.end, allDay: patch.allDay ?? ev.allDay } : {}),
+  }
+}
+
+const pointKey = (p: CalendarEvent['start']) => `${p.date}|${p.time ?? ''}|${p.tz ?? ''}`
+
+/** The edit that turns `from` into `to` (empty when they are the same): the Undo of a change and the rest of a delete. */
+export function eventPatchBetween(from: CalendarEvent, to: CalendarEvent): CalendarEventChange {
+  const out: CalendarEventChange = {}
+  if (from.summary !== to.summary) out.summary = to.summary
+  if (pointKey(from.start) !== pointKey(to.start) || pointKey(from.end) !== pointKey(to.end) || from.allDay !== to.allDay) {
+    out.start = to.start
+    out.end = to.end
+    out.allDay = to.allDay
+  }
+  return out
+}
+
+/** Draws the queued edits over fetched rows, matched by event id: a queued delete hides the event. */
+export function overlayQueued(events: Map<string, CalendarEvent>, commands: readonly EventCommand[]): void {
+  for (const cmd of commands) {
+    const ev = events.get(cmd.eventId)
+    if (!ev) continue
+    if ('delete' in cmd.patch) { events.delete(cmd.eventId); continue }
+    const next = cmd.next
+    if (next && 'delete' in next) { events.delete(cmd.eventId); continue }
+    events.set(cmd.eventId, applyEventPatch(applyEventPatch(ev, cmd.patch), next ?? {}))
+  }
+}
+
+const afterRefresh = new Set<() => void>()
+resettable('calendarFeedsRefreshHooks', () => afterRefresh.clear())
+
+/** Calls `fn` after every refresh that replaced the cache (the event outbox sends what waits then). */
+export function onEventsRefreshed(fn: () => void): () => void {
+  afterRefresh.add(fn)
+  return () => { afterRefresh.delete(fn) }
 }
 
 export function cachedWindow(): Promise<EventsWindow | null> {
@@ -115,13 +162,16 @@ export async function refreshEvents(range?: DayRange): Promise<boolean> {
         for (const ev of res.events) events.set(ev.id, ev)
         for (const sub of res.subscriptions) subs.set(sub.id, sub)
       }
-      await db.transaction('rw', [db.calendarEvents, db.calendarSubscriptions, db.meta], async () => {
+      await db.transaction('rw', [db.calendarEvents, db.calendarSubscriptions, db.meta, db.eventOutbox], async () => {
+        // A refresh in the middle of an edit keeps the edit (calendar-event-edits D6).
+        overlayQueued(events, await db.eventOutbox.toArray())
         await db.calendarEvents.clear()
         await db.calendarSubscriptions.clear()
         await db.calendarEvents.bulkPut([...events.values()])
         await db.calendarSubscriptions.bulkPut([...subs.values()])
         await setMeta(WINDOW_KEY, { from: target.from, to: target.to, fetchedAt: Date.now() } satisfies EventsWindow)
       })
+      for (const fn of [...afterRefresh]) fn()
       return true
     } catch {
       return false

@@ -1317,6 +1317,26 @@ export interface CalendarEvent {
   end: CalendarWhen
   allDay: boolean
   free: boolean
+  /** The version the server saw (calendar-event-edits D4): sent back with an edit. Absent on ICS feed events and older servers. */
+  rev?: string
+  /** What may be done to a connected calendar's event; absent on ICS feed events. */
+  access?: CalendarEventAccess
+}
+
+/** Why a connected calendar's event cannot be changed (calendar-event-edits D3); the first unmet condition. */
+export type CalendarEventReason = 'edits_off' | 'calendar_read_only' | 'recurring' | 'has_guests' | 'not_organizer' | 'no_etag' | 'refresh_pending'
+
+export interface CalendarEventAccess {
+  update: boolean
+  delete: boolean
+  reason?: string
+}
+
+/** What an account lets OpenTodo do in one calendar (calendar-event-edits D3). */
+export interface CalendarCaps {
+  create: boolean
+  update: boolean
+  delete: boolean
 }
 
 /** A subscribed calendar and its status. */
@@ -1333,6 +1353,11 @@ export interface CalendarSubscription {
   eventCount?: number
   /** A calendar of a calendar sync connection (calendar-two-way), not one of the user's subscriptions. */
   managed?: boolean
+  /** Managed calendars only (calendar-event-edits D4): the connection, the calendar's address, its capabilities and the connection's switch. */
+  connectionId?: string
+  calendarUrl?: string
+  caps?: CalendarCaps
+  editEvents?: boolean
 }
 
 /** One calendar of a calendar sync account, as discovery found it. */
@@ -1342,6 +1367,7 @@ export interface SyncCalendar {
   color: string
   time_zone?: string
   read_only: boolean
+  caps?: CalendarCaps
 }
 
 /** What one calendar sync cycle did. */
@@ -1369,6 +1395,8 @@ export interface CalendarConnection {
   include_date_only: boolean
   /** The part of the account written to the calendar (sync-scope); absent from older servers: all. */
   scope?: SyncScope
+  /** "Edit events in OpenTodo" (calendar-event-edits); absent from older servers: off. */
+  edit_events?: boolean
   enabled: boolean
   state: 'off' | 'choose_calendar' | 'pending' | 'ok' | 'failed' | 'reconnect' | 'stopped'
   next_sync_at: number
@@ -1413,6 +1441,7 @@ export interface CalendarConnectionPatch {
   enabled?: boolean
   password?: string
   scope?: SyncScope
+  edit_events?: boolean
 }
 
 /**
@@ -1974,7 +2003,7 @@ export const AUDIT_EVENT_NAMES = [
   'project.member_added', 'project.grant_added', 'project.grant_changed', 'project.grant_removed',
   'workspace_invite.created', 'workspace_invite.accepted', 'workspace_invite.revoked',
   'member_invitation.created', 'member_invitation.accepted', 'member_invitation.declined', 'member_invitation.cancelled',
-  'calendar_connection.created', 'calendar_connection.updated', 'calendar_connection.deleted',
+  'calendar_connection.created', 'calendar_connection.updated', 'calendar_connection.deleted', 'calendar_event.changed',
   'project.agent_access',
   'task_page.published', 'task_page.revoked',
   'mcp_oauth.client_created', 'mcp_oauth.client_deleted', 'mcp_oauth.granted', 'mcp_oauth.revoked', 'mcp_oauth.refresh_reused',
@@ -2554,3 +2583,30 @@ export interface PublicList {
   serverTime: number
 }
 
+
+/** The body of changing a connected calendar's event (calendar-event-edits D4): `start` and `end` go together. */
+export interface CalendarEventChange {
+  summary?: string
+  start?: CalendarWhen
+  end?: CalendarWhen
+  allDay?: boolean
+}
+
+/** One queued edit of a connected calendar's event (calendar-event-edits D6): a device-local command, never an op. */
+export interface EventCommand {
+  /** `${connectionId}:${eventId}`: one row per event. */
+  key: string
+  connectionId: string
+  eventId: string
+  /** The rev the user saw, kept from the first edit. */
+  rev: string
+  /** The row before the first queued edit (rollback, Undo). */
+  base: CalendarEvent
+  patch: CalendarEventChange | { delete: true }
+  /** An edit made while this one is in flight. */
+  next?: CalendarEventChange | { delete: true }
+  /** A delete waits so the toast's Undo can cancel it. */
+  notBefore: number
+  sending?: boolean
+  tries: number
+}

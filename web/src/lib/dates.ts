@@ -285,6 +285,18 @@ export function dueFromView(original: Due | null | undefined, view: Due | null, 
   }
 }
 
+/**
+ * The point to store for an event edited as displayed (calendar-event-edits D6), the
+ * inverse of `localDueOf`: `local` is a wall time in the viewer's zone, `zone` the zone the
+ * event keeps. A zoned event stays in its zone (the wall time is converted into it), a
+ * floating one (no `zone`) keeps the wall time as it is, an all-day point (no time) is a date.
+ */
+export function eventPointIn(zone: string | undefined, local: { date: string; time?: string }, viewer = viewerZone()): Due {
+  if (!local.time) return { date: local.date }
+  if (!zone) return { date: local.date, time: local.time }
+  return dueFromView({ date: local.date, time: local.time, tz: zone }, local, viewer) ?? { date: local.date, time: local.time }
+}
+
 /** A task (or any row with a due) as displayed: its due converted to the viewer's zone. */
 export function viewedTask<T extends { due: Due | null }>(item: T, zone?: string): T {
   if (!isZoned(item.due)) return item
