@@ -21,7 +21,7 @@ OpenTodo is used every day, often for hours, by people who use a keyboard only, 
 
 ## What is covered
 
-- Every screen and overlay of the app: the 107 entries of the screen inventory (`scripts/ux-audit/screens.json`), from the Inbox to the settings pages, the signed-out screens and the shared pages. 59 of them are core (used daily or weekly).
+- Every screen and overlay of the app: the 112 entries of the screen inventory (`scripts/ux-audit/screens.json`), from the Inbox to the settings pages, the signed-out screens and the shared pages. 59 of them are core (used daily or weekly).
 - This documentation, the docs website and the help inside the app.
 - The native screens of the Android and iOS shells (connecting to a server, settings, widgets).
 - The browser extension's popup.
@@ -128,6 +128,7 @@ The automated gate runs on every pull request; "not toured" screens are only rea
 | `day` | core | pass | 2 of 6 passes done, 4 pending |
 | `week` | core | pass | 2 of 6 passes done, 4 pending |
 | `event-editor` | rare | pass | not in the manual audit |
+| `event-panel` | rare | pass | not in the manual audit |
 | `month` | core | pass | 2 of 6 passes done, 4 pending |
 | `year` | core | pass | 2 of 6 passes done, 4 pending |
 | `plan` | core | pass | 2 of 6 passes done, 4 pending |

@@ -32,7 +32,7 @@ Each of them sees every [workspace](workspaces.md) you belong to and can be told
 
 ## What every option has in common
 
-Every option is off until someone says yes, can reach only tasks (with their [custom field](custom-fields.md) values and [tracked time](time-tracking.md), which an assistant over MCP or `ot` can log and time but never delete or rewrite when you tracked it), projects, labels, comments and your reminders (and, over MCP or `ot` only, the events of a connected calendar when you turned on [editing events](calendar-sync.md#edit-events-in-opentodo) for it, which are changed in your calendar and not recorded in history), records every change in history where you can undo it, has limits on how much it may change, treats text in tasks as data rather than instructions, and respects end-to-end encryption. The details are in [What AI assistants can and can't do](ai-limits.md).
+Every option is off until someone says yes, can reach only tasks (with their [custom field](custom-fields.md) values and [tracked time](time-tracking.md), which an assistant over MCP or `ot` can log and time but never delete or rewrite when you tracked it), projects, labels, comments and your reminders (and, over MCP or `ot` only, the events of a connected calendar when you turned on [editing events](calendar-sync.md#edit-events-in-opentodo) for it, which are created and changed in your calendar and not recorded in history), records every change in history where you can undo it, has limits on how much it may change, treats text in tasks as data rather than instructions, and respects end-to-end encryption. The details are in [What AI assistants can and can't do](ai-limits.md).
 
 ## Privacy
 
