@@ -10,7 +10,7 @@ import (
 	"github.com/OpenTodoApp/opentodo/internal/calfeed"
 )
 
-// davEvents edits events of a CalDAV account (and Google's CalDAV API,
+// davEvents edits and creates events of a CalDAV account (and Google's CalDAV API,
 // calendar-event-edits D5). An update reads the object, changes only SUMMARY,
 // DTSTART and DTEND (plus the bookkeeping properties), and writes the whole
 // calendar object back with If-Match, so unknown properties, alarms and other
@@ -124,6 +124,7 @@ func editObject(root, ev *caldav.Component, edit EventEdit, now time.Time) {
 	if edit.Summary != nil {
 		setProp(ev, caldav.Prop{Name: "SUMMARY", Value: caldav.EscapeText(*edit.Summary)}, true)
 	}
+	editText(ev, edit)
 	if edit.When != nil {
 		var start, end caldav.Prop
 		start = pointProp("DTSTART", edit.When.Start, zones)
@@ -225,4 +226,44 @@ func addZone(root *caldav.Component, p caldav.Prop) {
 	if vt := caldav.VTimezone(tz, date, clock); vt != nil {
 		root.Children = append([]*caldav.Component{vt}, root.Children...)
 	}
+}
+
+// editText applies the location, description and busy or free members of an
+// edit (calendar-event-edits D6): an empty text deletes the property, and a
+// changed description drops X-ALT-DESC so no client keeps showing the old HTML.
+func editText(ev *caldav.Component, edit EventEdit) {
+	if edit.Location != nil {
+		setOrDelete(ev, "LOCATION", *edit.Location)
+	}
+	if edit.Description != nil {
+		setOrDelete(ev, "DESCRIPTION", *edit.Description)
+		dropProp(ev, "X-ALT-DESC")
+	}
+	if edit.Free != nil {
+		transp := "OPAQUE"
+		if *edit.Free {
+			transp = "TRANSPARENT"
+		}
+		setProp(ev, caldav.Prop{Name: "TRANSP", Value: transp}, true)
+	}
+}
+
+// setOrDelete sets a text property, keeping its parameters, or removes it for "".
+func setOrDelete(c *caldav.Component, name, text string) {
+	if text == "" {
+		dropProp(c, name)
+		return
+	}
+	setProp(c, caldav.Prop{Name: name, Value: caldav.EscapeText(text)}, true)
+}
+
+// dropProp removes every property of that name.
+func dropProp(c *caldav.Component, name string) {
+	out := c.Props[:0]
+	for _, p := range c.Props {
+		if p.Name != name {
+			out = append(out, p)
+		}
+	}
+	c.Props = out
 }

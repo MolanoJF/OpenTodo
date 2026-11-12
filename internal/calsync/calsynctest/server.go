@@ -62,6 +62,9 @@ type Server struct {
 	NoSyncToken bool
 	// NoETagOnPut answers PUT without an ETag header.
 	NoETagOnPut bool
+	// NoETagOnGet answers GET without an ETag header (with NoETagOnPut: a server
+	// that never says the version of an object).
+	NoETagOnGet bool
 	// Prefix is where the account lives ("/dav" by default).
 	Prefix string
 
@@ -71,6 +74,7 @@ type Server struct {
 	Requests      map[string]int
 	etagCount     int
 	unconditional int
+	ifNoneMatch   []string
 }
 
 // New starts a server with one calendar "work" holding events.
@@ -446,10 +450,13 @@ func (s *Server) object(w http.ResponseWriter, r *http.Request, c *Calendar, id,
 			http.NotFound(w, r)
 			return
 		}
-		w.Header().Set("ETag", o.ETag)
+		if !s.NoETagOnGet {
+			w.Header().Set("ETag", o.ETag)
+		}
 		w.Header().Set("Content-Type", "text/calendar")
 		_, _ = io.WriteString(w, o.Data)
 	case http.MethodPut:
+		s.ifNoneMatch = append(s.ifNoneMatch, r.Header.Get("If-None-Match"))
 		if r.Header.Get("If-Match") == "" && r.Header.Get("If-None-Match") == "" {
 			s.unconditional++
 		}
@@ -505,4 +512,23 @@ func precondition(w http.ResponseWriter, r *http.Request, o *Object) bool {
 		return false
 	}
 	return true
+}
+
+// IfNoneMatches lists the If-None-Match header of every PUT served, in order
+// ("" for a PUT that sent none), so a test can see that a create was conditional.
+func (s *Server) IfNoneMatches() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.ifNoneMatch...)
+}
+
+// SetReadOnly makes a calendar refuse writes with 403 (or accept them again)
+// without changing the privileges it advertises, as a server whose claim is wrong.
+func (s *Server) SetReadOnly(cal string, ro bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cals[cal].ReadOnly = ro
+	if ro {
+		s.cals[cal].Privileges, s.cals[cal].privilegesSet = []string{"write"}, true
+	}
 }

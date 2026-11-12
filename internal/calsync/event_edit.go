@@ -52,6 +52,8 @@ type EventResult struct {
 	// Calendar is the URL of the calendar holding the event.
 	Calendar string
 	Provider string
+	// Created is true when the call made the event, false for a replay of a create.
+	Created bool
 }
 
 // AccessOf is what the user may do to a connected calendar's event (design
@@ -229,4 +231,19 @@ func (w *Worker) DeleteEvent(ctx context.Context, userID, connID, eventID, rev s
 	}
 	w.notify(userID)
 	return &EventResult{Replaces: t.ref.EventID, ConnectionID: connID, Calendar: t.sub.CalendarURL, Provider: t.conn.Provider}, nil
+}
+
+// Added by calendar-event-editor to the phase-1 sets.
+const (
+	LockRichDescription = "description_rich" // an EventError reason for EventNotEditable
+	EventInvalid        = "invalid_input"    // an EventError code; Reason names the field
+	ReasonHrefTaken     = "href_taken"       // a CalDAV object address held by another UID
+)
+
+// EventDetail is an event with the description the editor shows.
+type EventDetail struct {
+	EventResult
+	Description string
+	// DescriptionEditable is false for a rich-text body the editor shows read-only.
+	DescriptionEditable bool
 }

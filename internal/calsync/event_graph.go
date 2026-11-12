@@ -59,7 +59,7 @@ func (e graphEvents) Update(ctx context.Context, ref EventRef, edit EventEdit) (
 	if ref.ETag == "" {
 		return EventState{}, locked(LockNoETag)
 	}
-	cur, err := e.read(ctx, ref)
+	cur, err := e.current(ctx, ref, edit)
 	if err != nil {
 		return EventState{}, err
 	}
@@ -69,10 +69,14 @@ func (e graphEvents) Update(ctx context.Context, ref EventRef, edit EventEdit) (
 	if cur.Locked != "" {
 		return EventState{}, locked(cur.Locked)
 	}
+	if edit.Description != nil && cur.DescriptionLocked {
+		return EventState{}, locked(LockRichDescription)
+	}
 	body := map[string]any{}
 	if edit.Summary != nil {
 		body["subject"] = *edit.Summary
 	}
+	e.editMembers(body, edit)
 	if edit.When != nil {
 		body["start"] = e.point(edit.When.Start)
 		body["end"] = e.point(edit.When.End)
@@ -126,4 +130,31 @@ func (e graphEvents) point(p calfeed.Point) graphDateTime {
 		return graphDateTime{DateTime: p.T.In(loc).Format(layout), TimeZone: win}
 	}
 	return graphDateTime{DateTime: p.T.UTC().Format(layout), TimeZone: "UTC"}
+}
+
+// current reads the event before an update. An edit of the description reads
+// the body too, so Update can refuse a rich-text body (plain text would flatten it).
+func (e graphEvents) current(ctx context.Context, ref EventRef, edit EventEdit) (EventState, error) {
+	if edit.Description == nil {
+		return e.read(ctx, ref)
+	}
+	st, err := e.Detail(ctx, ref)
+	if err != nil {
+		return EventState{}, err
+	}
+	return st, nil
+}
+
+// editMembers adds the members of location, description and busy or free that
+// the edit changes.
+func (e graphEvents) editMembers(body map[string]any, edit EventEdit) {
+	if edit.Location != nil {
+		body["location"] = map[string]string{"displayName": *edit.Location}
+	}
+	if edit.Description != nil {
+		body["body"] = textBody(*edit.Description)
+	}
+	if edit.Free != nil {
+		body["showAs"] = showAs(*edit.Free)
+	}
 }
