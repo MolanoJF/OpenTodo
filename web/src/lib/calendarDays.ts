@@ -12,6 +12,7 @@ import { heldTaskIds, type SlotView } from './slots'
 import type { CalendarEvent, Task } from './types'
 import { daysBetweenISO } from './dates'
 import { spanCovers, spanOf, type Span } from './span'
+import { eventEditable } from './eventDrop'
 
 export interface DayData {
   date: string
@@ -92,10 +93,14 @@ export function calendarDays(dates: readonly string[], shown: readonly Task[], e
   })
 }
 
-/** Keyboard order: each day's spans, lane, then its blocks in time order (tasks only: events and projections are read-only, slots have their own rows). */
-export function calendarOrder(days: readonly DayData[]): string[] {
+/**
+ * Keyboard order: each day's spans, lane, then its blocks in time order: tasks, and the events of connected
+ * calendars that can be changed (calendar-event-edits D7). Other events and projections are read-only and stay
+ * Tab-only; slots have their own rows.
+ */
+export function calendarOrder(days: readonly DayData[], zone?: string): string[] {
   // A span task takes its place once, on its first shown day, before the day's lane (multi-day-tasks D4).
   const seen = new Set<string>()
   const spansOf = (d: DayData) => d.spans.flatMap((x) => (x.kind === 'task' && !seen.has(x.id) ? (seen.add(x.id), [x.id]) : []))
-  return days.flatMap((d) => [...spansOf(d), ...d.lane.map((task) => task.id), ...d.layout.blocks.filter((b) => !isEventId(b.id) && !isProjectionId(b.id) && !d.slots.has(b.id)).map((b) => b.id)])
+  return days.flatMap((d) => [...spansOf(d), ...d.lane.map((task) => task.id), ...d.layout.blocks.filter((b) => (isEventId(b.id) ? eventEditable(d.events.get(b.id)!.event, zone) : !isProjectionId(b.id) && !d.slots.has(b.id))).map((b) => b.id)])
 }

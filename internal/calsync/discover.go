@@ -129,7 +129,7 @@ func (d *DAV) ListCalendars(ctx context.Context, home string) ([]Calendar, error
 		if rt == nil || rt.Child(caldav.NSCalDAV, "calendar") == nil || !holdsEvents(r) {
 			continue
 		}
-		cal := Calendar{URL: r.Href, Name: r.Text(caldav.NSDAV, "displayname"), Color: color(r.Text(caldav.NSApple, "calendar-color")), ReadOnly: readOnly(r)}
+		cal := Calendar{URL: r.Href, Name: r.Text(caldav.NSDAV, "displayname"), Color: color(r.Text(caldav.NSApple, "calendar-color")), ReadOnly: readOnly(r), Caps: capsOf(r)}
 		if cal.Name == "" {
 			cal.Name = lastSegment(r.Href)
 		}
@@ -175,6 +175,33 @@ func readOnly(r *Resource) bool {
 		}
 	}
 	return true
+}
+
+// capsOf reads what the privilege set lets the user do with events (design D3):
+// bind creates, write-content changes, unbind deletes; write and all give all
+// three; no privilege set gives all three (a server that does not say is
+// believed until a write is refused).
+func capsOf(r *Resource) *Caps {
+	set := r.Prop(caldav.NSDAV, "current-user-privilege-set")
+	if set == nil {
+		return &Caps{Create: true, Update: true, Delete: true}
+	}
+	c := &Caps{}
+	for _, p := range set.Children {
+		for _, g := range p.Children {
+			switch g.Local {
+			case "write", "all":
+				return &Caps{Create: true, Update: true, Delete: true}
+			case "bind":
+				c.Create = true
+			case "write-content":
+				c.Update = true
+			case "unbind":
+				c.Delete = true
+			}
+		}
+	}
+	return c
 }
 
 // color normalises an Apple calendar colour (#RRGGBBAA) to #RRGGBB.

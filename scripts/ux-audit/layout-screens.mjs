@@ -517,6 +517,13 @@ export const OVERLAYS = {
     if (!(await editor.waitFor({ timeout: 3000 }).then(() => true, () => false))) { await p.keyboard.press('Escape'); return null }
     return { overlay: editor, kind: 'inline', after: async () => p.keyboard.press('Escape') }
   },
+  // The popover of an event of a connected calendar, with its title, date and times, Save and Delete (calendar-event-edits D7).
+  async 'event-editor'(p) {
+    const trigger = p.locator('[data-event="layout-edit"]')
+    await trigger.click()
+    await p.locator('[data-event-edit]').waitFor()
+    return { overlay: overlayLoc(p), trigger, kind: 'popover' }
+  },
   // The When popover, one segment at a time (task-panel-facets D3).
   async 'when-popover'(p) {
     await p.locator('[data-task-id]').filter({ hasText: 'Get three quotes' }).first().locator('[data-row-open]').press('Enter')

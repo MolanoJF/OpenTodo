@@ -351,6 +351,17 @@
   "story": "Screens/Calendar"
  },
  {
+  "id": "event-editor",
+  "route": "day",
+  "kind": "overlay",
+  "seed": "layout-check",
+  "frequency": "rare",
+  "core": false,
+  "layoutCheck": "event-editor",
+  "on": "day",
+  "story": "Screens/Calendar"
+ },
+ {
   "id": "month",
   "route": "month",
   "kind": "screen",

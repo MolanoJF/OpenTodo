@@ -24,13 +24,18 @@ type graphEvent struct {
 	Removed *struct {
 		Reason string `json:"reason"`
 	} `json:"@removed"`
-	Subject      string         `json:"subject"`
-	Start        *graphDateTime `json:"start"`
-	End          *graphDateTime `json:"end"`
-	IsAllDay     bool           `json:"isAllDay"`
-	IsCancelled  bool           `json:"isCancelled"`
-	ShowAs       string         `json:"showAs"`
-	LastModified string         `json:"lastModifiedDateTime"`
+	Subject     string         `json:"subject"`
+	Start       *graphDateTime `json:"start"`
+	End         *graphDateTime `json:"end"`
+	IsAllDay    bool           `json:"isAllDay"`
+	IsCancelled bool           `json:"isCancelled"`
+	Type        string         `json:"type"`
+	IsOrganizer *bool          `json:"isOrganizer"`
+	Attendees   []struct {
+		Type string `json:"type"`
+	} `json:"attendees"`
+	ShowAs       string `json:"showAs"`
+	LastModified string `json:"lastModifiedDateTime"`
 	Location     *struct {
 		DisplayName string `json:"displayName"`
 	} `json:"location"`
@@ -97,7 +102,23 @@ func (e *graphEvent) event() (calfeed.Event, bool) {
 	if t, err := time.Parse(time.RFC3339Nano, e.LastModified); err == nil {
 		ev.LastModified = t.UnixMilli()
 	}
+	ev.Guests = len(e.Attendees) > 0
 	return ev, true
+}
+
+// locked is the reason the event can not be edited, "" when it can (design D2).
+func (e *graphEvent) locked() string {
+	switch {
+	case e.Type != "" && !strings.EqualFold(e.Type, "singleInstance"):
+		return LockRecurring
+	case len(e.Attendees) > 0:
+		return LockGuests
+	case e.IsOrganizer != nil && !*e.IsOrganizer:
+		return LockNotOrganizer
+	case e.ETag == "":
+		return LockNoETag
+	}
+	return ""
 }
 
 // remote is the event as the cycle reads it.
@@ -111,6 +132,7 @@ func (e *graphEvent) remote() (remote, bool) {
 		when = e.Start.DateTime + e.Start.TimeZone + e.End.DateTime + e.End.TimeZone
 	}
 	return remote{Href: e.ID, ETag: e.ETag, Events: []calfeed.Event{ev}, TaskID: e.taskID(),
+		Locked:  e.locked(),
 		Version: e.ETag + "\x00" + hash16(e.Subject+"\x00"+when)}, true
 }
 

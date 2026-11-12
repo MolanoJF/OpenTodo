@@ -2594,9 +2594,11 @@
   ],
   "Busy": [
     "web/src/app/CalendarEvents.tsx",
+    "web/src/app/CalendarView.tsx",
     "web/src/app/calendar/DayColumn.tsx",
     "web/src/app/calendar/SidebarSchedule.tsx",
-    "web/src/app/calendar/TodayAgenda.tsx"
+    "web/src/app/calendar/TodayAgenda.tsx",
+    "web/src/lib/calendarEventEdits.ts"
   ],
   "Busy calendar events add to each day in Day, Week and Month.": [
     "web/src/lib/settingsCopy.ts"
@@ -2672,6 +2674,9 @@
   "Calendar disconnected": [
     "web/src/app/auditFormat.ts"
   ],
+  "Calendar event changed": [
+    "web/src/app/auditFormat.ts"
+  ],
   "Calendar events": [
     "web/src/app/calendar/UpcomingAgenda.tsx"
   ],
@@ -2715,6 +2720,9 @@
   ],
   "Calendar sync is not enabled on this server.": [
     "web/src/lib/i18n/errors.ts"
+  ],
+  "Calendar sync settings": [
+    "web/src/app/calendar/EventEditor.tsx"
   ],
   "Calendar, {date}": [
     "web/src/lib/assistantBlocks.ts"
@@ -4396,6 +4404,7 @@
   "Date": [
     "web/src/app/RuleEditor.tsx",
     "web/src/app/bulk/BulkActions.tsx",
+    "web/src/app/calendar/EventEditor.tsx",
     "web/src/app/editorCommands.ts",
     "web/src/app/filter/ConditionEditor.tsx",
     "web/src/app/review/CloseDay.tsx",
@@ -4634,6 +4643,7 @@
     "web/src/app/RestoreSection.tsx",
     "web/src/app/WebhooksPanel.tsx",
     "web/src/app/WorkspaceGeneral.tsx",
+    "web/src/app/calendar/EventEditor.tsx",
     "web/src/app/calendar/FrameBand.tsx",
     "web/src/app/notes/NoteRow.tsx",
     "web/src/app/task-detail/CommentsTab.tsx",
@@ -4717,6 +4727,9 @@
   ],
   "Delete the field “{name}”?": [
     "web/src/app/FieldsDialog.tsx"
+  ],
+  "Delete the selected event of a connected calendar (Undo for 8 seconds)": [
+    "web/src/lib/shortcuts.ts"
   ],
   "Delete the selected task (d alone does nothing after 1 s)": [
     "web/src/lib/shortcuts.ts"
@@ -5397,6 +5410,9 @@
   "Edit delivery channel": [
     "web/src/app/NotificationChannelEditor.tsx"
   ],
+  "Edit events in OpenTodo": [
+    "web/src/app/CalendarSyncPanel.tsx"
+  ],
   "Edit frame": [
     "web/src/app/calendar/FramesDialog.tsx"
   ],
@@ -5477,6 +5493,12 @@
   ],
   "Edit “{text}”": [
     "web/src/app/assistant/MemorySettings.tsx"
+  ],
+  "Editing events is off for this connection": [
+    "web/src/lib/calendarEventEdits.ts"
+  ],
+  "Editing events is turned off for this calendar connection.": [
+    "web/src/lib/i18n/errors.ts"
   ],
   "Editing. Enter saves, Escape cancels, Shift+Enter opens the details.": [
     "web/src/app/task-list/InlineEditor.tsx"
@@ -5684,6 +5706,9 @@
   ],
   "End the run here": [
     "web/src/lib/rules/sentence.ts"
+  ],
+  "End time": [
+    "web/src/app/calendar/EventEditor.tsx"
   ],
   "End-to-end encryption": [
     "web/src/app/settingsIndex.ts",
@@ -5902,6 +5927,18 @@
     "web/src/app/AuditPanel.tsx",
     "web/src/app/CalendarEvents.tsx",
     "web/src/app/calendar/TodayAgenda.tsx"
+  ],
+  "Event deleted": [
+    "web/src/app/calendar/eventActions.ts"
+  ],
+  "Event moved": [
+    "web/src/app/calendar/eventActions.ts"
+  ],
+  "Event renamed": [
+    "web/src/app/calendar/eventActions.ts"
+  ],
+  "Event updated": [
+    "web/src/app/calendar/eventActions.ts"
   ],
   "Events": [
     "web/src/app/WebhooksPanel.tsx"
@@ -9759,13 +9796,13 @@
   "Move the selected task (and its subtasks), or the ticked tasks, to the Trash": [
     "web/src/lib/shortcuts.ts"
   ],
-  "Move the selected task 15 minutes earlier / later (a lane task gets a time); with nothing selected, select the first task": [
-    "web/src/lib/shortcuts.ts"
-  ],
   "Move the selected task down one place (with a count, that many; manually ordered views only)": [
     "web/src/lib/shortcuts.ts"
   ],
-  "Move the selected task one day earlier / later": [
+  "Move the selected task or event 15 minutes earlier / later (a lane task gets a time); with nothing selected, select the first task": [
+    "web/src/lib/shortcuts.ts"
+  ],
+  "Move the selected task or event one day earlier / later": [
     "web/src/lib/shortcuts.ts"
   ],
   "Move the selected task to the next column": [
@@ -9964,6 +10001,9 @@
   ],
   "Moves to {date}": [
     "web/src/app/review/CarryOver.tsx"
+  ],
+  "Moving, resizing, renaming or deleting an event in OpenTodo changes it in your calendar": [
+    "web/src/app/CalendarSyncPanel.tsx"
   ],
   "Multi-day": [
     "web/src/app/task-detail/WhenControl.tsx"
@@ -11853,6 +11893,9 @@
   "Only the addresses you list below.": [
     "web/src/app/assistant/AssistantDevice.tsx"
   ],
+  "Only the organizer can change this event": [
+    "web/src/lib/calendarEventEdits.ts"
+  ],
   "Only the owner and admins can change the name, colour and icon.": [
     "web/src/app/WorkspaceGeneral.tsx"
   ],
@@ -13535,6 +13578,9 @@
   "Read-only events next to your tasks in Day and Week. Paste a calendar's iCal (.ics) address.": [
     "web/src/app/CalendarFeedsPanel.tsx"
   ],
+  "Read-only in your account: {names}": [
+    "web/src/app/CalendarSyncPanel.tsx"
+  ],
   "Read-only: you are a viewer of this shared project.": [
     "web/src/app/task-list/ListChrome.tsx"
   ],
@@ -13991,6 +14037,9 @@
   ],
   "Repeat rule": [
     "web/src/app/RecurrenceField.tsx"
+  ],
+  "Repeating events are read-only for now": [
+    "web/src/lib/calendarEventEdits.ts"
   ],
   "Repeating occurrences": [
     "web/src/app/task-list/ProjectedGroupRows.tsx"
@@ -14615,6 +14664,7 @@
     "web/src/app/SecurityPanel.tsx",
     "web/src/app/ShareCapture.tsx",
     "web/src/app/WebhooksPanel.tsx",
+    "web/src/app/calendar/EventEditor.tsx",
     "web/src/app/calendar/FramesDialog.tsx",
     "web/src/app/filter/ConditionEditor.tsx",
     "web/src/app/locations/LocationEditor.tsx",
@@ -15401,7 +15451,7 @@
   "Shortcuts": [
     "web/src/app/ShortcutHelp.tsx"
   ],
-  "Shorten / lengthen the estimate by 15 minutes": [
+  "Shorten / lengthen the estimate of the selected task, or the end of the selected event, by 15 minutes": [
     "web/src/lib/shortcuts.ts"
   ],
   "Show": [
@@ -16173,9 +16223,6 @@
     "web/src/lib/rules/proposal.ts",
     "web/src/lib/rules/sentence.ts"
   ],
-  "Start 15 minutes earlier / later, keeping the end": [
-    "web/src/lib/shortcuts.ts"
-  ],
   "Start a new sandbox": [
     "web/src/app/App.tsx"
   ],
@@ -16248,11 +16295,17 @@
   "Start the next session": [
     "web/src/app/focus/FocusView.tsx"
   ],
+  "Start the selected task or event 15 minutes earlier / later, keeping the end": [
+    "web/src/lib/shortcuts.ts"
+  ],
   "Start the timer on {task}": [
     "web/src/lib/rules/sentence.ts"
   ],
   "Start the weekly review": [
     "web/src/app/method/LoopHome.tsx"
+  ],
+  "Start time": [
+    "web/src/app/calendar/EventEditor.tsx"
   ],
   "Start tracking": [
     "web/src/app/bulk/BulkActions.tsx",
@@ -18226,6 +18279,15 @@
   "This browser refused the push subscription ({detail}). Private windows and some browsers cannot receive push; reminders still appear inside the app.": [
     "web/src/lib/push.ts"
   ],
+  "This calendar did not give a version for this event": [
+    "web/src/lib/calendarEventEdits.ts"
+  ],
+  "This calendar does not allow changing events.": [
+    "web/src/lib/i18n/errors.ts"
+  ],
+  "This calendar is read-only": [
+    "web/src/lib/calendarEventEdits.ts"
+  ],
   "This change could not be saved.": [
     "web/src/app/PublicListScreen.tsx"
   ],
@@ -18346,6 +18408,18 @@
     "web/src/app/TaskRow.tsx",
     "web/src/app/filter/conditionText.ts",
     "web/src/lib/assistant.ts"
+  ],
+  "This event can’t be changed from OpenTodo.": [
+    "web/src/lib/i18n/errors.ts"
+  ],
+  "This event changed in your calendar. Your edit was not applied.": [
+    "web/src/lib/i18n/errors.ts"
+  ],
+  "This event has guests": [
+    "web/src/lib/calendarEventEdits.ts"
+  ],
+  "This event is no longer in your calendar.": [
+    "web/src/lib/i18n/errors.ts"
   ],
   "This file could not be opened.": [
     "web/src/app/task-detail/AttachmentsRow.tsx"
@@ -19016,6 +19090,7 @@
     "web/src/app/TriageView.tsx",
     "web/src/app/assistant/ItemEditor.tsx",
     "web/src/app/assistant/blocks/BeforeAfter.tsx",
+    "web/src/app/calendar/EventEditor.tsx",
     "web/src/app/calendar/FramesDialog.tsx",
     "web/src/app/notes/NoteEditor.tsx",
     "web/src/app/task-detail/TaskHead.tsx",
@@ -19622,6 +19697,7 @@
     "web/src/app/assistant/AssistantRoot.tsx",
     "web/src/app/assistant/ChangeSetReview.tsx",
     "web/src/app/bulk/UndoToast.tsx",
+    "web/src/app/calendar/eventActions.ts",
     "web/src/app/focus/startFocus.ts",
     "web/src/app/palette/routineCommand.ts",
     "web/src/app/routines/ProposalReview.tsx",
@@ -20284,6 +20360,9 @@
   ],
   "Waiting for one of your devices": [
     "web/src/app/routines/RunHistory.tsx"
+  ],
+  "Waiting for the calendar to refresh": [
+    "web/src/lib/calendarEventEdits.ts"
   ],
   "Waiting for the first poll": [
     "web/src/app/IssuesPanel.tsx"
@@ -21556,7 +21635,8 @@
   ],
   "changed": [
     "web/src/app/assistant/ChangeSetReview.tsx",
-    "web/src/app/assistant/blocks/ProposalShapes.tsx"
+    "web/src/app/assistant/blocks/ProposalShapes.tsx",
+    "web/src/app/auditFormat.ts"
   ],
   "changed since proposed": [
     "web/src/app/assistant/ChangeSetReview.tsx",
@@ -21719,6 +21799,7 @@
     "web/src/lib/rules/summary.ts"
   ],
   "deleted": [
+    "web/src/app/auditFormat.ts",
     "web/src/app/task-detail/HistoryTab.tsx"
   ],
   "deleted a comment": [
@@ -24948,6 +25029,9 @@
     "web/src/app/MonthView.tsx",
     "web/src/app/YearView.tsx"
   ],
+  "{title} changed in your calendar; your edit was not applied.": [
+    "web/src/lib/calendarEventEdits.ts"
+  ],
   "{title} is already on the list": [
     "web/src/app/reuseList.ts"
   ],
@@ -24963,6 +25047,9 @@
   ],
   "{title} left today’s focus.": [
     "web/src/lib/focusEdit.ts"
+  ],
+  "{title} was deleted in your calendar.": [
+    "web/src/lib/calendarEventEdits.ts"
   ],
   "{title}, open task": [
     "web/src/app/Briefing.tsx"

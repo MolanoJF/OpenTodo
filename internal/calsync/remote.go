@@ -244,3 +244,12 @@ func masterEvent(data []byte) (calfeed.Event, bool) {
 	}
 	return calfeed.Event{}, false
 }
+
+// getObject reads one calendar object with its ETag (calendar-event-edits).
+func (d *DAV) getObject(ctx context.Context, href string) (status int, etag string, data []byte, err error) {
+	resp, err := d.Do(ctx, http.MethodGet, href, map[string]string{"Accept": "text/calendar"}, nil)
+	if err != nil {
+		return 0, "", nil, err
+	}
+	return resp.Status, resp.Header.Get("ETag"), resp.Body, nil
+}

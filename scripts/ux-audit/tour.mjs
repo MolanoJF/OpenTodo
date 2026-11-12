@@ -41,7 +41,7 @@ import {
   chromeRows, credentialFields, focusWalk, horizontalOverflow, installHelpers, layoutShift, LAYOUT_SHIFT_INIT, motionSeen,
   overlaps, primaryDestinations, reflow, rowMetaItems, targetSize, targetSizeWcag, TEXT_SPACING_CSS, textSpacingClip, truncation, watchMotion,
 } from './audit-measures.mjs'
-import { seed } from './seed.mjs'
+import { calendarEvents, seed } from './seed.mjs'
 import { OVERLAYS, chooseLayout, openScreen, screens as layoutScreens } from './layout-screens.mjs'
 import { inventory } from './inventory.mjs'
 import { A11Y_RULES, STRICT_RULES, summarize, writeReport } from './report.mjs'
@@ -78,7 +78,8 @@ const freePort = () => new Promise((ok) => { const s = createServer(); s.listen(
 const dataDir = mkdtempSync(join(tmpdir(), 'opentodo-ux-audit-'))
 const port = await freePort()
 const base = `http://127.0.0.1:${port}`
-const server = spawn(BIN, [], { env: { ...process.env, OPENTODO_ADDR: `127.0.0.1:${port}`, OPENTODO_DATA_DIR: dataDir }, stdio: 'ignore' })
+// OPENTODO_CALENDAR_FEEDS turns the calendars on, so the views ask for events (answered by withEvents below).
+const server = spawn(BIN, [], { env: { ...process.env, OPENTODO_ADDR: `127.0.0.1:${port}`, OPENTODO_DATA_DIR: dataDir, OPENTODO_CALENDAR_FEEDS: 'true' }, stdio: 'ignore' })
 const stopServer = () => { if (server.exitCode === null) server.kill() }
 process.on('exit', () => { stopServer(); rmSync(dataDir, { recursive: true, force: true }) })
 for (let i = 0; ; i++) {
@@ -268,6 +269,9 @@ function serial(key, fn) {
   locks.set(key, run.catch(() => {}))
   return run
 }
+// Subscribed and connected calendars' events, answered here as the layout check does (a real feed
+// needs an outbound fetch): the Day, Week and Month screens show them and the event editor opens.
+const withEvents = (c) => c.route('**/api/v1/calendar-feeds/events?*', (route) => route.fulfill({ json: calendarEvents(Date.now()) }))
 const launch = () => pw.chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {})
 
 async function runCombo(combo, ids) {
@@ -280,6 +284,7 @@ async function runCombo(combo, ids) {
   try {
     const anonCtx = await browser.newContext(opts)
     const ctx = await browser.newContext({ ...opts, storageState: ids.storageState })
+    await withEvents(ctx)
     for (const c of [anonCtx, ctx]) {
       await c.addInitScript(LAYOUT_SHIFT_INIT)
       await c.addInitScript((code) => { try { localStorage.setItem('opentodo.lang', code) } catch { /* storage blocked */ } }, combo.lang)
@@ -334,6 +339,7 @@ async function reducedMotion(ids) {
     try {
       const touch = width < 1280
       const ctx = await browser.newContext({ viewport: { width, height: HEIGHTS[width] ?? 900 }, hasTouch: touch, isMobile: touch, reducedMotion: 'reduce', storageState: ids.storageState, bypassCSP: true, locale: 'en-GB', timezoneId: 'UTC' })
+      await withEvents(ctx)
       await ctx.addInitScript((code) => { try { localStorage.setItem('opentodo.lang', code) } catch { /* storage blocked */ } }, 'en')
       const p = await ctx.newPage()
       p.on('dialog', (d) => d.dismiss())

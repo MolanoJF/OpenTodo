@@ -46,6 +46,9 @@ type Event struct {
 	Cancelled    bool
 	Free         bool // TRANSP:TRANSPARENT
 	Sequence     int
+	// Guests: the VEVENT has an ATTENDEE, so editing it would make the server
+	// send updates to people (calendar-event-edits D2).
+	Guests bool
 	// LastModified is LAST-MODIFIED in Unix ms, 0 when absent (calendar sync
 	// compares it with the task's last change, calendar-two-way D8).
 	LastModified int64
@@ -143,6 +146,8 @@ func parseEvent(c *caldav.Component, defaultLoc *time.Location, w warnings) (Eve
 			ev.Cancelled = strings.EqualFold(strings.TrimSpace(p.Value), "CANCELLED")
 		case "TRANSP":
 			ev.Free = strings.EqualFold(strings.TrimSpace(p.Value), "TRANSPARENT")
+		case "ATTENDEE":
+			ev.Guests = true
 		case "SEQUENCE":
 			ev.Sequence, _ = strconv.Atoi(strings.TrimSpace(p.Value))
 		case "LAST-MODIFIED":
