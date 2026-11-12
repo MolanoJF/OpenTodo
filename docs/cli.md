@@ -326,15 +326,18 @@ steps:
 
 ## Calendar events
 
-The events of your [connected calendars](calendar-sync.md#edit-events-in-opentodo) and [calendar feeds](calendar-feeds.md), and, for a connected calendar with **Edit events in OpenTodo** on, a way to rename, move and delete them:
+The events of your [connected calendars](calendar-sync.md#edit-events-in-opentodo) and [calendar feeds](calendar-feeds.md), and, for a connected calendar with **Edit events in OpenTodo** on, a way to create, rename, move and delete them:
 
 ```bash
 ot calendar events [--from today --to friday]                 # id, date, time, title, calendar, access
-ot calendar event edit 4f2a --title "Standup" --start 2026-11-12T14:00 --end 2026-11-12T14:30
+ot calendar event add "Call Ana" --start 2026-11-13T14:00 --for 30m [--calendar Work] [--location "Café Central"] [--description TEXT] [--free]
+ot calendar event edit 4f2a --title "Standup" --start 2026-11-12T14:00 --end 2026-11-12T14:30 [--location TEXT] [--description TEXT] [--free | --busy]
 ot calendar event delete 4f2a [--yes]
 ```
 
-`ot calendar` alone is `ot calendar events`; `--from` and `--to` take `YYYY-MM-DD`, `today`, `tomorrow` or a weekday (default today and the six days after, at most 92 days). ACCESS says `edit`, or `read-only` with the reason (`edits_off`, `recurring`, `has_guests`, `not_organizer`, `calendar_read_only`). `edit` and `delete` take an event's id or a unique prefix of it, looked up within 45 days of today (`--on <day>` looks around another day). `--start` alone keeps the event's length and a date alone keeps its clock time; a timed event keeps its time zone; `--all-day` makes it an all-day event, whose `--end` is the day after its last day. Moving an event changes its id, and the command prints the new one. `edit` and `delete` write to your calendar, so `--dry-run`, `--read-only` and token scope apply (a `read` or `agent` token exits 5, before anything is sent; a `read` token can list). `event_edits_off` and `calendar_read_only` exit 5; `event_changed` (the event changed in the calendar since the listing: list again), `event_not_editable`, `event_gone` and `calendar_unreachable` exit 1. `--json` prints the events as [`calendar-feeds/events`](api.md#calendar-feeds) serves them.
+`add` creates one event. `--start` is `DATE` or `DATEThh:mm`; a timed event needs `--end` or `--for` (`45m`, `1h30m`) and has no default length, an all-day event (`--all-day`, dates only) takes `--end`, the day after its last day (default one day), and refuses `--for`. Times carry your local time zone. `--calendar` is a calendar's name or address, matched exactly and then as part of the name, over the shown calendars that allow new events; a single such calendar needs no flag, and no match or several exits 2 and lists the choices. Each run makes a fresh client id, so retrying by hand never doubles an event; scripts that retry pass `--client-id`. `edit` applies `--location` and `--description` when given (`--location ""` clears it); `--free` and `--busy` exclude each other. `add` needs a full token, like `edit`.
+
+`ot calendar` alone is `ot calendar events`; `--from` and `--to` take `YYYY-MM-DD`, `today`, `tomorrow` or a weekday (default today and the six days after, at most 92 days). ACCESS says `edit`, or `read-only` with the reason (`edits_off`, `recurring`, `has_guests`, `not_organizer`, `calendar_read_only`). `edit` and `delete` take an event's id or a unique prefix of it, looked up within 45 days of today (`--on <day>` looks around another day). `--start` alone keeps the event's length and a date alone keeps its clock time; a timed event keeps its time zone; `--all-day` makes it an all-day event, whose `--end` is the day after its last day. Moving an event changes its id, and the command prints the new one. `add`, `edit` and `delete` write to your calendar, so `--dry-run`, `--read-only` and token scope apply (a `read` or `agent` token exits 5, before anything is sent; a `read` token can list). `event_edits_off` and `calendar_read_only` exit 5; `event_changed` (the event changed in the calendar since the listing: list again), `event_not_editable`, `event_gone` and `calendar_unreachable` exit 1. `--json` prints the events as [`calendar-feeds/events`](api.md#calendar-feeds) serves them.
 
 ## Calendar frames
 
