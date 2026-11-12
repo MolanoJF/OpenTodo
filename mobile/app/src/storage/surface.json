@@ -236,6 +236,7 @@
     "Table.toArray": [
       "web/src/lib/activity.ts",
       "web/src/lib/attachments.ts",
+      "web/src/lib/calendarFeeds.ts",
       "web/src/lib/dependencies.ts",
       "web/src/lib/favourites.ts",
       "web/src/lib/feed.ts",
