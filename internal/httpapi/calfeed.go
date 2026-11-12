@@ -286,6 +286,9 @@ func (s *Server) handleCalendarEvents(w http.ResponseWriter, r *http.Request) {
 		CalendarURL  string        `json:"calendarUrl,omitempty"`
 		Caps         *calsync.Caps `json:"caps,omitempty"`
 		EditEvents   *bool         `json:"editEvents,omitempty"`
+		// MaxReminders is how many reminders an event of the connection takes
+		// (calendar-event-series D3): 5, or 1 for Microsoft.
+		MaxReminders int `json:"maxReminders,omitempty"`
 	}
 	info := []subInfo{}
 	for i, sub := range subs {
@@ -293,6 +296,7 @@ func (s *Server) handleCalendarEvents(w http.ResponseWriter, r *http.Request) {
 		if l, ok := links[sub.ID]; ok && si.Managed {
 			caps, on := l.caps(), l.conn.EditEvents
 			si.ConnectionID, si.CalendarURL, si.Caps, si.EditEvents = l.conn.ID, l.calendar, &caps, &on
+			si.MaxReminders = calsync.MaxReminders(l.conn.Provider)
 		}
 		info = append(info, si)
 	}

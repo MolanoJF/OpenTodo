@@ -135,7 +135,7 @@ func TestEditEventRefusalsWriteNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	check("calendar read only", edit("alice", e.c.ID, plan.ID, plan.Rev), EventReadOnly, "")
-	_, err := e.w.DeleteEvent(e.ctx, "alice", e.c.ID, plan.ID, plan.Rev)
+	_, err := e.w.DeleteEvent(e.ctx, "alice", e.c.ID, plan.ID, plan.Rev, "")
 	check("delete on a read only calendar", err, EventReadOnly, "")
 	if got := e.srv.Get("work", "a.ics"); !strings.Contains(got, "SUMMARY:Plan") {
 		t.Fatalf("remote changed:\n%s", got)
@@ -197,7 +197,7 @@ func TestEditEventRefusedByCalendarClearsCaps(t *testing.T) {
 func TestDeleteEvent(t *testing.T) {
 	e := newEditEnv(t, true)
 	plan := e.row("Plan")
-	res, err := e.w.DeleteEvent(e.ctx, "alice", e.c.ID, plan.ID, plan.Rev)
+	res, err := e.w.DeleteEvent(e.ctx, "alice", e.c.ID, plan.ID, plan.Rev, "")
 	if err != nil || res.Replaces != plan.ID {
 		t.Fatalf("delete = %+v %v", res, err)
 	}
@@ -231,7 +231,8 @@ func TestAccessReasonOrder(t *testing.T) {
 		"editable":   {func(*Connection, *calfeed.EventRow) {}, calfeed.Access{Update: true, Delete: true}},
 		"edits off":  {func(c *Connection, _ *calfeed.EventRow) { c.EditEvents = false }, calfeed.Access{Reason: EventEditsOffReason}},
 		"read only":  {func(c *Connection, _ *calfeed.EventRow) { c.Calendars[0].Caps = &Caps{} }, calfeed.Access{Reason: EventReadOnly}},
-		"locked":     {func(_ *Connection, r *calfeed.EventRow) { r.Locked = LockRecurring }, calfeed.Access{Reason: LockRecurring}},
+		"locked":     {func(_ *Connection, r *calfeed.EventRow) { r.Locked = LockSeriesUnsupported }, calfeed.Access{Reason: LockSeriesUnsupported}},
+		"legacy":     {func(_ *Connection, r *calfeed.EventRow) { r.Locked = lockRecurringLegacy }, calfeed.Access{Reason: ReasonRefreshPending}},
 		"pending":    {func(_ *Connection, r *calfeed.EventRow) { r.Known = false }, calfeed.Access{Reason: ReasonRefreshPending}},
 		"off+locked": {func(c *Connection, r *calfeed.EventRow) { c.EditEvents, r.Locked = false, LockGuests }, calfeed.Access{Reason: EventEditsOffReason}},
 		"no delete": {func(c *Connection, _ *calfeed.EventRow) { c.Calendars[0].Caps = &Caps{Update: true} },

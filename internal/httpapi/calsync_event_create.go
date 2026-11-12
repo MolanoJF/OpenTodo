@@ -27,6 +27,10 @@ type eventCreate struct {
 	Location    string      `json:"location"`
 	Description string      `json:"description"`
 	Free        bool        `json:"free"`
+	// Repeat makes a repeating event (the REST repeat object, null is none); Reminders are
+	// the minutes before the start (calendar-event-series D3). No scope: nothing is a series yet.
+	Repeat    repeatField `json:"repeat"`
+	Reminders []int       `json:"reminders"`
 }
 
 // eventOf validates a create body and returns the event to make; field and
@@ -58,7 +62,17 @@ func (in eventCreate) eventOf() (calsync.EventNew, string, string) {
 	if field != "" {
 		return ev, field, msg
 	}
-	return calsync.EventNew{UID: in.ClientID, Summary: summary, When: *when, Location: location, Description: description, Free: in.Free}, "", ""
+	made := calsync.EventNew{UID: in.ClientID, Summary: summary, When: *when, Location: location, Description: description, Free: in.Free, Reminders: in.Reminders}
+	if in.Repeat.Rule != nil {
+		if msg := checkRepeat(*in.Repeat.Rule); msg != "" {
+			return ev, "repeat", msg
+		}
+		made.Repeat = in.Repeat.Rule
+	}
+	if msg := checkReminders(in.Reminders); msg != "" {
+		return ev, "reminders", msg
+	}
+	return made, "", ""
 }
 
 func (s *Server) handleCreateCalendarEvent(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +100,7 @@ func (s *Server) handleCreateCalendarEvent(w http.ResponseWriter, r *http.Reques
 	status := http.StatusOK // a replay
 	if res.Created {
 		status = http.StatusCreated
-		s.audit.Record(ctx, audit.CalendarEventChanged(uid, connID, res.Provider, "created"))
+		s.audit.Record(ctx, audit.CalendarEventChanged(uid, connID, res.Provider, "created", ""))
 	}
 	writeJSON(w, status, map[string]any{"event": res.Event, "clientId": in.ClientID})
 }
@@ -97,9 +111,20 @@ func (s *Server) handleGetCalendarEvent(w http.ResponseWriter, r *http.Request) 
 		s.eventFailure(w, err)
 		return
 	}
-	out := map[string]any{"event": d.Event, "description": d.Description, "descriptionEditable": d.DescriptionEditable}
+	out := map[string]any{"event": d.Event, "description": d.Description, "descriptionEditable": d.DescriptionEditable,
+		"reminders": nonNilInts(d.Reminders), "remindersMax": d.RemindersMax, "remindersOther": d.RemindersOther}
 	if d.Replaces != "" {
 		out["replaces"] = d.Replaces
 	}
+	if sd := d.SeriesDetail; sd != nil {
+		out["series"] = map[string]any{"rrule": sd.RRule, "repeat": sd.Repeat, "custom": sd.Custom, "exceptions": sd.Exceptions}
+	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+func nonNilInts(l []int) []int {
+	if l == nil {
+		return []int{}
+	}
+	return l
 }

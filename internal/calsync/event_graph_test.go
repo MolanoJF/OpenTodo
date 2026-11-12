@@ -160,7 +160,7 @@ func TestGraphLockedEventsAreRefused(t *testing.T) {
 	}{
 		"guests":    {func(e *graphtest.Event) { e.Attendees = []string{"a@example.org"} }, LockGuests},
 		"organizer": {func(e *graphtest.Event) { e.NotOrganizer = true }, LockNotOrganizer},
-		"series":    {func(e *graphtest.Event) { e.Type = "occurrence" }, LockRecurring},
+		"series":    {func(e *graphtest.Event) { e.Type = "occurrence" }, LockSeriesUnsupported},
 	} {
 		t.Run(name, func(t *testing.T) {
 			h, ms, _, w, ref, _ := graphSetup(t, tc.f)

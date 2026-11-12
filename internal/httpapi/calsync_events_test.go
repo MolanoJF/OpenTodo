@@ -162,8 +162,11 @@ func TestCalendarEventsServeRevAndAccess(t *testing.T) {
 	if a := accessOf(evs["Guests"]); a["update"] != false || a["reason"] != "has_guests" {
 		t.Fatalf("guests = %v", a)
 	}
-	if a := accessOf(evs["Weekly"]); a["update"] != false || a["reason"] != "recurring" {
+	if a := accessOf(evs["Weekly"]); a["update"] != true || a["delete"] != true || a["reason"] != nil {
 		t.Fatalf("weekly = %v", a)
+	}
+	if sv, _ := evs["Weekly"]["series"].(map[string]any); sv == nil || sv["id"] == "" || sv["custom"] != false || sv["rev"] != evs["Weekly"]["rev"] || evs["Plain"]["series"] != nil {
+		t.Fatalf("series of the weekly event = %v, of the plain one = %v", evs["Weekly"]["series"], evs["Plain"]["series"])
 	}
 	// The subscription entry names its connection, calendar and caps.
 	resp, out := e.do("GET", "/api/v1/calendar-feeds/events?from="+v.day+"&to="+v.day, nil)
@@ -218,7 +221,7 @@ func TestSubscribedFeedEventsHaveNoRevOrAccess(t *testing.T) {
 	resp, out = e.do("PUT", "/api/v1/settings/calendar-sync", map[string]any{"enabled": false})
 	e.mustStatus(resp, 200, out)
 	evs := v.events(e)
-	if evs["Plain"] != nil || evs["Subscribed"] == nil || evs["Subscribed"]["access"] != nil {
+	if evs["Plain"] != nil || evs["Subscribed"] == nil || evs["Subscribed"]["access"] != nil || evs["Subscribed"]["series"] != nil {
 		t.Fatalf("with calendar sync off: %v", evs)
 	}
 }
@@ -312,7 +315,7 @@ func TestCalendarEventRefusals(t *testing.T) {
 		t.Fatalf("the message does not name the reason: %v", out)
 	}
 	weekly := v.events(e)["Weekly"]
-	expect("weekly", e, "DELETE", v.path(weekly["id"].(string))+"?rev="+weekly["rev"].(string), nil, 422, "event_not_editable")
+	expect("weekly without scope", e, "DELETE", v.path(weekly["id"].(string))+"?rev="+weekly["rev"].(string), nil, 400, "scope_required")
 	// Body rules.
 	badBodies := map[string]map[string]any{
 		"no rev":           {"summary": "x"},

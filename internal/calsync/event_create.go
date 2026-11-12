@@ -110,9 +110,15 @@ func (w *Worker) CreateEvent(ctx context.Context, userID, connID, calendarURL st
 		return nil, w.remoteError(ctx, &eventTarget{conn: conn, sub: sub}, err)
 	}
 	occ := calfeed.OccurrenceOf(st.Event)
-	remote := calfeed.EventRemote{Href: st.Ref.Href, ETag: st.Ref.ETag, Locked: st.Locked}
-	if _, err := w.Feeds.AddEvent(ctx, sub.SubscriptionID, occ, remote, connID, ev.UID); err != nil {
-		return nil, err
+	if len(st.Wrote.Written) > 0 { // it repeats: the cache takes the occurrences of the window
+		if occ, err = w.addSeries(ctx, sub, st, connID, ev.UID); err != nil {
+			return nil, err
+		}
+	} else {
+		remote := calfeed.EventRemote{Href: st.Ref.Href, ETag: st.Ref.ETag, Locked: st.Locked}
+		if _, err := w.Feeds.AddEvent(ctx, sub.SubscriptionID, occ, remote, connID, ev.UID); err != nil {
+			return nil, err
+		}
 	}
 	res, err := w.resultOf(ctx, conn, sub, occ.UID, occ.Instance, "")
 	if err != nil {
@@ -142,23 +148,29 @@ func (w *Worker) EventDetail(ctx context.Context, userID, connID, eventID string
 	if err != nil {
 		return nil, w.remoteError(ctx, t, err)
 	}
-	st, err := writer.Detail(ctx, EventRef{Calendar: t.sub.CalendarURL, Href: t.ref.Href, ETag: t.ref.ETag})
+	st, err := writer.Detail(ctx, t.remoteRef())
 	if err != nil {
 		return nil, w.remoteError(ctx, t, err)
 	}
-	uid, instance, replaces := t.ref.UID, t.ref.Instance, ""
-	if st.Ref.ETag != t.ref.ETag {
-		occ := calfeed.OccurrenceOf(st.Event)
-		remote := calfeed.EventRemote{Href: firstOf(st.Ref.Href, t.ref.Href), ETag: st.Ref.ETag, Locked: st.Locked}
-		if _, err := w.Feeds.ReplaceEvent(ctx, t.sub.SubscriptionID, t.ref, &occ, remote); err != nil {
-			return nil, err
+	var res *EventResult
+	switch {
+	case st.Ref.ETag == t.ref.ETag:
+		res, err = w.resultOf(ctx, t.conn, t.sub, t.ref.UID, t.ref.Instance, "")
+	case len(st.Wrote.Written) > 0: // a series the cache is behind: it takes the object as read
+		if res, err = w.cacheWrite(ctx, t, calfeed.ScopeAll, st.Wrote); err == nil && res.Gone {
+			return nil, &EventError{Code: EventGone, Err: calfeed.ErrNotFound}
 		}
-		uid, instance, replaces = occ.UID, occ.Instance, t.ref.EventID
-		w.notify(userID)
+	default:
+		occ := calfeed.OccurrenceOf(st.Event)
+		remote := calfeed.EventRemote{Href: firstOf(st.Ref.Href, t.ref.Href), ETag: st.Ref.ETag, Locked: st.Locked, Series: t.ref.Series}
+		if _, err = w.Feeds.ReplaceEvent(ctx, t.sub.SubscriptionID, t.ref, &occ, remote); err == nil {
+			w.notify(userID)
+			res, err = w.resultOf(ctx, t.conn, t.sub, occ.UID, occ.Instance, t.ref.EventID)
+		}
 	}
-	res, err := w.resultOf(ctx, t.conn, t.sub, uid, instance, replaces)
 	if err != nil {
 		return nil, err
 	}
-	return &EventDetail{EventResult: *res, Description: st.Description, DescriptionEditable: !st.DescriptionLocked}, nil
+	return &EventDetail{EventResult: *res, Description: st.Description, DescriptionEditable: !st.DescriptionLocked,
+		SeriesDetail: st.Series, Reminders: st.Reminders, RemindersMax: st.RemindersMax, RemindersOther: st.RemindersOther}, nil
 }
