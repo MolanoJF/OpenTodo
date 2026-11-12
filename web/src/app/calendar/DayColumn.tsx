@@ -17,7 +17,7 @@ import type { useCalendarDrag } from '../calendarDrag'
 import { ALL_DAY_CAP, toggleAllDay, useAllDayExpanded } from './allDayExpanded'
 import { laneShape, setLaneFold, useLaneFold } from './laneFold'
 import { CapacityLine, capacityTooltip, hiddenByFilter } from './CapacityLine'
-import { isEmptyPlace, startAddHold, type AddHere } from './addHere'
+import { isEmptyPlace, startAddHold, type AddGestures } from './addHere'
 import { DeadlineDiamond, deadlineMark, DeadlineMarker } from './DeadlineMarker'
 import { FrameBands } from './FrameBand'
 import { SlotBlock } from './SlotBlock'
@@ -37,10 +37,10 @@ export const dayProjections = (day: DayData): Projection[] => [...[...day.projec
 /** The projections a day's capacity counts: its drawn ones and the span projections due that day (multi-day-tasks D3). */
 export const dayLoadProjections = (day: DayData): Projection[] => [...dayProjections(day), ...day.spans.flatMap((x) => (x.kind === 'projected' && x.projection.date === day.date ? [x.projection] : []))]
 /** Adding with the pointer (calendar-clarity D2): the dialog and the menu of the view. */
-export type AddGestures = Pick<AddHere, 'add' | 'menuAt'>
+export type { AddGestures } from './addHere'
 
 /** Double-click, right-click and long press on an empty part of an element add at the place `at` reads from the pointer. */
-export function addHandlers(gestures: AddGestures | undefined, at: (e: React.MouseEvent | React.PointerEvent, el: HTMLElement) => { date: string; start?: number }) {
+export function addHandlers(gestures: AddGestures | undefined, at: (e: React.MouseEvent | React.PointerEvent, el: HTMLElement) => { date: string; start?: number }): React.HTMLAttributes<HTMLElement> {
   if (!gestures) return {}
   return {
     onDoubleClick: (e: React.MouseEvent<HTMLElement>) => { if (isEmptyPlace(e.target, e.currentTarget)) gestures.add(at(e, e.currentTarget)) },
@@ -52,6 +52,7 @@ export function addHandlers(gestures: AddGestures | undefined, at: (e: React.Mou
     onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
       if (!isEmptyPlace(e.target, e.currentTarget)) return
       const place = at(e, e.currentTarget)
+      if (gestures.sweep && place.start !== undefined && e.button === 0) gestures.sweep(e, { date: place.date, start: place.start })
       startAddHold(e, (x, y) => gestures.menuAt(place, x, y))
     },
   }
@@ -225,6 +226,7 @@ export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, tas
   const hover = useRef<HTMLDivElement>(null)
   /** The quarter hour under the pointer. */
   const slotOf = (e: React.MouseEvent | React.PointerEvent, el: HTMLElement) => slotFromOffset(e.clientY - el.getBoundingClientRect().top, PX_PER_MIN)
+  const add = addHandlers(gestures, (e, el) => ({ date: day.date, start: slotOf(e, el) }))
   // A faint highlight of the quarter hour under a fine pointer (calendar-clarity D2), moved without a re-render.
   const track = (e: React.PointerEvent<HTMLDivElement>) => {
     const h = hover.current
@@ -236,7 +238,9 @@ export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, tas
   return (
     <div
       data-drop-day={day.date}
-      {...addHandlers(gestures, (e, el) => ({ date: day.date, start: slotOf(e, el) }))}
+      {...add}
+      data-drag-id="calendar-create"
+      onPointerDown={add.onPointerDown}
       onPointerMove={gestures ? track : undefined}
       onPointerLeave={() => { if (hover.current) hover.current.hidden = true }}
       className="relative min-w-0 flex-1 border-l border-default"
@@ -303,6 +307,7 @@ export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, tas
           style={{ top: preview.start * PX_PER_MIN, height: Math.max(SLOT_MINUTES, Math.min(preview.length, DAY_MINUTES - preview.start)) * PX_PER_MIN }}
         >
           <span className="text-hint tabular-nums">{formatTime(preview.start)}</span> <span className="truncate">{preview.title || t('Untitled')}</span>
+          {preview.announce && <span role="status" className="sr-only">{preview.announce}</span>}
         </div>
       )}
 

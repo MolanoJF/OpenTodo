@@ -9,6 +9,7 @@ import { formatTime as toHHMM, type EventBlock } from '../lib/calendar'
 import { eventAccessText } from '../lib/calendarEventEdits'
 import { eventEditable } from '../lib/eventDrop'
 import { EventLocked } from './calendar/EventLocked'
+import { openEventEditor } from './calendar/eventEditorStore'
 import { onOpenEventRequest } from './calendar/eventOpen'
 import { RESIZE_ZONE_PX } from './calendar/grid'
 import type { useCalendarDrag } from './calendarDrag'
@@ -19,6 +20,11 @@ import { formatMinutes } from '../lib/duration'
 
 // The editor is only needed when a changeable event's popover opens: not part of the first load.
 const EventEditor = lazy(() => import('./calendar/EventEditor').then((m) => ({ default: m.EventEditor })))
+// "All details", Duplicate and Convert to task load with the popover (calendar-event-editor D11).
+const EventPopoverActions = lazy(() => import('./calendar/EventPopoverActions').then((m) => ({ default: m.EventPopoverActions })))
+
+/** Opens the full editor on an event the calendar lets the person change. */
+const openEditor = (ev: CalendarEvent) => { if (ev.access?.update) openEventEditor({ mode: 'edit', eventId: ev.id }) }
 
 /** Wall time of a timed point in the viewer's zone ("10:00"), or the date for all-day points. */
 function whenText(p: CalendarWhen, zone?: string): string {
@@ -37,7 +43,7 @@ export function eventLabel(ev: CalendarEvent, sub: CalendarSubscription | undefi
   return [ev.summary || t('Busy'), eventTimeText(ev, zone), ev.location, sub?.name].filter(Boolean).join(', ')
 }
 
-export function EventDetails({ ev, sub, zone, onDone }: { ev: CalendarEvent; sub?: CalendarSubscription; zone?: string; onDone?: () => void }) {
+export function EventDetails({ ev, sub, zone, onDone, onClose }: { ev: CalendarEvent; sub?: CalendarSubscription; zone?: string; onDone?: () => void; onClose?: () => void }) {
   const editing = !!ev.access?.update && !!onDone
   return (
     <div className="space-y-1 text-body" data-event-details>
@@ -53,6 +59,7 @@ export function EventDetails({ ev, sub, zone, onDone }: { ev: CalendarEvent; sub
       )}
       {ev.free && <p className="text-meta text-faint">{t('Shown as free')}</p>}
       {ev.access ? !editing && <EventLocked reason={ev.access.reason} /> : <p className="text-meta text-faint">{t('From a subscribed calendar. Edit it in its own app.')}</p>}
+      <Suspense fallback={null}><EventPopoverActions ev={ev} sub={sub} onClose={onDone ?? onClose} /></Suspense>
     </div>
   )
 }
@@ -117,6 +124,7 @@ export function EventBlockView({ block, lane, lanes, overlap, pxPerMinute, minHe
         aria-busy={edit?.saving || undefined}
         onPointerDown={pointerDown}
         onClick={() => { edit?.onSelect(block.id); setOpen((o) => !o) }}
+        onDoubleClick={() => { setOpen(false); openEditor(ev) }}
         className={`absolute z-10 overflow-hidden px-1.5 text-left ${editable ? 'cursor-grab touch-manipulation' : ''} ${height < 20 ? 'py-0 text-hint leading-none' : 'py-0.5 text-meta'} ${ev.free ? 'rounded-control border border-dashed border-hue-solid bg-transparent text-hue' : 'ui-block ui-block--event'} ${edit?.selected ? 'ring-2 ring-accent' : ''} ${faded} focus-visible:outline-2 focus-visible:outline-focus`}
         style={{
           top: block.start * pxPerMinute, height,
@@ -155,13 +163,15 @@ export function EventChip({ ev, sub, zone }: { ev: CalendarEvent; sub?: Calendar
         aria-haspopup="dialog"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={() => setOpen((o) => !o)}
+        onDoubleClick={() => { setOpen(false); openEditor(ev) }}
+        onKeyDown={(e) => { if (e.key === 'Enter' && ev.access?.update) { e.preventDefault(); setOpen(false); openEditor(ev) } }}
         className={`flex w-full min-w-0 items-center gap-1 px-1.5 py-0.5 text-left text-hint ${ev.free ? 'rounded-chip border border-dashed border-hue-solid text-hue' : 'ui-block ui-block--row ui-block--event'} focus-visible:outline-2 focus-visible:outline-focus`}
       >
         {!ev.free && <span aria-hidden className="ui-block-dot" />}
         <span className="truncate">{ev.summary || t('Busy')}</span>
       </button>
       <Popover open={open} onClose={() => setOpen(false)} anchor={ref} label={ev.summary || t('Event')} width="sm:w-72" className="p-3" align="start">
-        <EventDetails ev={ev} sub={sub} zone={zone} />
+        <EventDetails ev={ev} sub={sub} zone={zone} onClose={() => setOpen(false)} />
       </Popover>
     </>
   )
@@ -201,6 +211,7 @@ export function EventRow({ ev, start, end, sub, zone, variant = 'plan' }: { ev: 
         aria-haspopup="dialog"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }}
+        onDoubleClick={(e) => { e.stopPropagation(); setOpen(false); openEditor(ev) }}
         className={`flex w-full min-w-0 items-center text-left ${ROW_CLASS[variant]} ${ev.free ? 'rounded-chip border border-dashed border-hue-solid text-hue' : 'ui-block ui-block--row ui-block--event'} focus-visible:outline-2 focus-visible:outline-focus`}
       >
         {/* Named by its visible content (WCAG 2.5.3 Label in Name); the location and calendar are not shown, so they follow as hidden text. */}
@@ -211,7 +222,7 @@ export function EventRow({ ev, start, end, sub, zone, variant = 'plan' }: { ev: 
         {(ev.location || sub?.name) && <span className="sr-only">{`, ${[ev.location, sub?.name].filter(Boolean).join(', ')}`}</span>}
       </button>
       <Popover open={open} onClose={() => setOpen(false)} anchor={ref} label={ev.summary || t('Event')} width="sm:w-72" className="p-3" align="start">
-        <EventDetails ev={ev} sub={sub} zone={zone} />
+        <EventDetails ev={ev} sub={sub} zone={zone} onClose={() => setOpen(false)} />
       </Popover>
     </>
   )

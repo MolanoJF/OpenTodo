@@ -20,6 +20,8 @@ Right-click an empty place instead, or press and hold it on a touch screen, for 
 
 From the keyboard, <kbd>q</kbd> adds a task on the focused day: in Day and Week the selected task's day, else today. A time you type, like `at 4pm`, sets the time on that day.
 
+With a [connected calendar](calendar-sync.md#edit-events-in-opentodo) that allows editing, adding also offers **Event**, and <kbd>Shift</kbd>+<kbd>Q</kbd> adds one: [Add events to your calendar](add-calendar-events.md).
+
 ## Colour by project, label or priority
 
 Blocks and rows take their project's colour. To see something else at a glance, open the calendar's **More actions** menu and choose **Colour by**: **Project**, **Label** or **Priority**. The choice applies to Day, Week, Month and Plan, and this device remembers it.

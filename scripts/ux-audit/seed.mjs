@@ -35,6 +35,12 @@ export function calendarEvents(now) {
     ],
   }
 }
+// What GET /api/v1/calendar-sync/connections/{id}/events/{eventId} gives when the event editor opens (calendar-event-editor D4):
+// the event as the events route serves it and its plain-text description.
+export function calendarEventDetail(now, eventId) {
+  const event = calendarEvents(now).events.find((e) => e.id === eventId) ?? null
+  return event ? { event, description: 'Ask about the new roast.', descriptionEditable: true } : null
+}
 // `now` is the moment the account is seeded around (Unix ms; the layout check passes
 // its fixed clock): today's tasks, the due reminder, the overdue and completed tasks.
 export async function seed({ base, pw, lang = '', now = Date.now() }) {

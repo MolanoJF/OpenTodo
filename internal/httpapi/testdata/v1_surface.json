@@ -63,6 +63,25 @@
           "(type)": "ref:auth_status"
         }
       },
+      "calendar event add": {
+        "args": {
+          "title": "required"
+        },
+        "flags": {
+          "all-day": "bool",
+          "calendar": "string",
+          "client-id": "string",
+          "description": "string",
+          "end": "string",
+          "for": "string",
+          "free": "bool",
+          "location": "string",
+          "start": "string"
+        },
+        "output": {
+          "(type)": "ref:calendar_event"
+        }
+      },
       "calendar event delete": {
         "args": {
           "id": "required"
@@ -81,7 +100,11 @@
         },
         "flags": {
           "all-day": "bool",
+          "busy": "bool",
+          "description": "string",
           "end": "string",
+          "free": "bool",
+          "location": "string",
           "on": "string",
           "start": "string",
           "title": "string"
@@ -2648,6 +2671,27 @@
       },
       "kind": "write"
     },
+    "create_calendar_event": {
+      "arguments": {
+        "all_day": "boolean?",
+        "calendar_url": "string",
+        "client_id": "string?",
+        "connection_id": "string",
+        "description": "string?",
+        "end": "object",
+        "end.date": "string",
+        "end.time": "string?",
+        "end.tz": "string?",
+        "free": "boolean?",
+        "location": "string?",
+        "start": "object",
+        "start.date": "string",
+        "start.time": "string?",
+        "start.tz": "string?",
+        "title": "string"
+      },
+      "kind": "write"
+    },
     "create_label": {
       "arguments": {
         "client_request_id": "string?",
@@ -3182,11 +3226,14 @@
       "arguments": {
         "all_day": "boolean?",
         "connection_id": "string",
+        "description": "string?",
         "end": "object?",
         "end.date": "string",
         "end.time": "string?",
         "end.tz": "string?",
         "event_id": "string",
+        "free": "boolean?",
+        "location": "string?",
         "rev": "string",
         "start": "object?",
         "start.date": "string",
@@ -4542,6 +4589,38 @@
         "connections[].target": "string",
         "connections[].updated_at": "number",
         "connections[].username": "string"
+      },
+      "statuses": [
+        "200"
+      ]
+    },
+    "GET /api/v1/calendar-sync/connections/{id}/events/{eventId}": {
+      "policy": "signed-in",
+      "response": {
+        "description": "string",
+        "descriptionEditable": "boolean",
+        "event": "object",
+        "event.access": "object|null",
+        "event.access.delete": "boolean",
+        "event.access.reason": "string",
+        "event.access.update": "boolean",
+        "event.allDay": "boolean",
+        "event.end": "object",
+        "event.end.date": "string",
+        "event.end.time": "string|null",
+        "event.end.tz": "string|null",
+        "event.free": "boolean",
+        "event.id": "string",
+        "event.location": "string",
+        "event.rev": "string",
+        "event.start": "object",
+        "event.start.date": "string",
+        "event.start.time": "string|null",
+        "event.start.tz": "string|null",
+        "event.subscriptionId": "string",
+        "event.summary": "string",
+        "event.uid": "string",
+        "replaces": "string"
       },
       "statuses": [
         "200"
@@ -7166,10 +7245,13 @@
       "policy": "signed-in",
       "request": {
         "allDay": "boolean|null?",
+        "description": "string|null?",
         "end": "object|null?",
         "end.date": "string",
         "end.time": "string|null?",
         "end.tz": "string|null?",
+        "free": "boolean|null?",
+        "location": "string|null?",
         "rev": "string",
         "start": "object|null?",
         "start.date": "string",
@@ -8390,6 +8472,50 @@
         "connection.target": "string",
         "connection.updated_at": "number",
         "connection.username": "string"
+      }
+    },
+    "POST /api/v1/calendar-sync/connections/{id}/events": {
+      "policy": "signed-in",
+      "request": {
+        "allDay": "boolean|null?",
+        "calendarUrl": "string",
+        "clientId": "string",
+        "description": "string",
+        "end": "object|null?",
+        "end.date": "string",
+        "end.time": "string|null?",
+        "end.tz": "string|null?",
+        "free": "boolean",
+        "location": "string",
+        "start": "object|null?",
+        "start.date": "string",
+        "start.time": "string|null?",
+        "start.tz": "string|null?",
+        "summary": "string"
+      },
+      "response": {
+        "clientId": "string",
+        "event": "object",
+        "event.access": "object|null",
+        "event.access.delete": "boolean",
+        "event.access.reason": "string",
+        "event.access.update": "boolean",
+        "event.allDay": "boolean",
+        "event.end": "object",
+        "event.end.date": "string",
+        "event.end.time": "string|null",
+        "event.end.tz": "string|null",
+        "event.free": "boolean",
+        "event.id": "string",
+        "event.location": "string",
+        "event.rev": "string",
+        "event.start": "object",
+        "event.start.date": "string",
+        "event.start.time": "string|null",
+        "event.start.tz": "string|null",
+        "event.subscriptionId": "string",
+        "event.summary": "string",
+        "event.uid": "string"
       }
     },
     "POST /api/v1/calendar-sync/connections/{id}/sync": {

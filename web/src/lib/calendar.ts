@@ -55,6 +55,15 @@ export function dropStart(pointerOffsetPx: number, grabOffsetPx: number, pxPerMi
   return clamp(Math.round(minutes / SLOT_MINUTES) * SLOT_MINUTES, 0, LAST_SLOT)
 }
 
+/**
+ * The range a sweep over an empty stretch of a day column covers (calendar-event-editor D10): it starts in the
+ * slot `anchor` was pressed in and follows the pointer, snapped to 15 minutes, at least one slot, never past midnight.
+ */
+export function sweepRange(anchor: number, pointerOffsetPx: number, pxPerMinute: number): { start: number; end: number } {
+  const m = pxPerMinute > 0 ? clamp(Math.round(pointerOffsetPx / pxPerMinute / SLOT_MINUTES) * SLOT_MINUTES, 0, DAY_MINUTES) : anchor
+  return m > anchor ? { start: anchor, end: m } : { start: m, end: anchor + SLOT_MINUTES }
+}
+
 /** Estimate from dragging a block's lower edge: whole slots, at least one, at most one week. */
 export function resizeEstimate(startMinutes: number, pointerOffsetPx: number, pxPerMinute: number): number {
   if (!(pxPerMinute > 0)) return SLOT_MINUTES

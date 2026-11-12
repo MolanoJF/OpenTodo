@@ -177,7 +177,7 @@ export function eventSummary(ev: AuditEvent): string {
   if (d.setting) parts.push(`${SETTINGS[d.setting] ?? d.setting}: ${d.from ?? '?'} → ${d.to ?? '?'}`)
   else if (d.from || d.to) parts.push(`${d.from ?? '?'} → ${d.to ?? '?'}`)
   if (d.provider) parts.push(d.provider)
-  if (d.event_action) parts.push(d.event_action === 'delete' ? t('deleted') : t('changed'))
+  if (d.event_action) parts.push(d.event_action === 'created' ? t('created') : d.event_action === 'deleted' || d.event_action === 'delete' ? t('deleted') : t('changed'))
   if (d.channel_kind) parts.push(d.channel_kind)
   if (d.count) {
     const n = Number(d.count)

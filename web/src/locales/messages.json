@@ -614,6 +614,9 @@
   "A task is due": [
     "web/src/app/rules/RuleFields.tsx"
   ],
+  "A task is made from the title, time and details of this event.": [
+    "web/src/app/calendar/ConvertToTask.tsx"
+  ],
   "A task is moved": [
     "web/src/app/rules/RuleFields.tsx"
   ],
@@ -921,6 +924,10 @@
     "web/src/app/task-detail/AttachmentsRow.tsx",
     "web/src/app/task-detail/Facets.tsx"
   ],
+  "Add a": [
+    "web/src/app/calendar/AddOnDayDialog.tsx",
+    "web/src/app/calendar/EventForm.tsx"
+  ],
   "Add a blocker": [
     "web/src/app/task-detail/TaskFacts.tsx"
   ],
@@ -1125,6 +1132,12 @@
   ],
   "Add details, or send as it is…": [
     "web/src/app/assistant/AssistantComposer.tsx"
+  ],
+  "Add event": [
+    "web/src/app/calendar/EventPanel.tsx"
+  ],
+  "Add event here…": [
+    "web/src/app/calendar/addHere.tsx"
   ],
   "Add everyone in {group}": [
     "web/src/app/task-detail/RotationEditor.tsx"
@@ -1425,8 +1438,12 @@
   ],
   "All day": [
     "web/src/app/CalendarEvents.tsx",
+    "web/src/app/calendar/EventForm.tsx",
     "web/src/app/calendar/TodayAgenda.tsx",
     "web/src/app/themes/ThemePreview.tsx"
+  ],
+  "All details": [
+    "web/src/app/calendar/EventPopoverActions.tsx"
   ],
   "All done for today.": [
     "web/src/app/Briefing.tsx"
@@ -2596,6 +2613,7 @@
     "web/src/app/CalendarEvents.tsx",
     "web/src/app/CalendarView.tsx",
     "web/src/app/calendar/DayColumn.tsx",
+    "web/src/app/calendar/EventForm.tsx",
     "web/src/app/calendar/SidebarSchedule.tsx",
     "web/src/app/calendar/TodayAgenda.tsx",
     "web/src/lib/calendarEventEdits.ts"
@@ -2632,6 +2650,7 @@
     "web/src/app/AppearanceSection.tsx",
     "web/src/app/Sidebar.tsx",
     "web/src/app/assistant/ChangeSetReview.tsx",
+    "web/src/app/calendar/EventForm.tsx",
     "web/src/app/shortcuts/Spotlight.tsx",
     "web/src/app/task-list/ListChrome.tsx",
     "web/src/lib/settingsCopy.ts"
@@ -2722,7 +2741,7 @@
     "web/src/lib/i18n/errors.ts"
   ],
   "Calendar sync settings": [
-    "web/src/app/calendar/EventEditor.tsx"
+    "web/src/app/calendar/EventLocked.tsx"
   ],
   "Calendar, {date}": [
     "web/src/lib/assistantBlocks.ts"
@@ -2801,6 +2820,7 @@
     "web/src/app/assistant/AssistantSettings.tsx",
     "web/src/app/assistant/ComposerCapture.tsx",
     "web/src/app/assistant/ItemEditor.tsx",
+    "web/src/app/calendar/ConvertToTask.tsx",
     "web/src/app/calendar/FramesDialog.tsx",
     "web/src/app/calendar/ReplanPreview.tsx",
     "web/src/app/calendar/occurrenceMenu.tsx",
@@ -3094,7 +3114,8 @@
     "web/src/app/profile/PictureDialog.tsx"
   ],
   "Choose a calendar": [
-    "web/src/app/CalendarSyncPanel.tsx"
+    "web/src/app/CalendarSyncPanel.tsx",
+    "web/src/app/calendar/EventForm.tsx"
   ],
   "Choose a colour": [
     "web/src/app/AppearanceSection.tsx"
@@ -3886,6 +3907,13 @@
   "Conversations": [
     "web/src/lib/settingsCopy.ts"
   ],
+  "Convert to task": [
+    "web/src/app/calendar/ConvertToTask.tsx"
+  ],
+  "Convert to task…": [
+    "web/src/app/calendar/EventPanel.tsx",
+    "web/src/app/calendar/EventPopoverActions.tsx"
+  ],
   "Coordinates": [
     "web/src/app/locations/LocationEditor.tsx",
     "web/src/app/locations/PlacesView.tsx"
@@ -4155,6 +4183,9 @@
   ],
   "Create subtasks of {parent} from {text}": [
     "web/src/lib/rules/sentence.ts"
+  ],
+  "Create task": [
+    "web/src/app/calendar/ConvertToTask.tsx"
   ],
   "Create tasks": [
     "web/src/lib/rules/sentence.ts"
@@ -4644,6 +4675,7 @@
     "web/src/app/WebhooksPanel.tsx",
     "web/src/app/WorkspaceGeneral.tsx",
     "web/src/app/calendar/EventEditor.tsx",
+    "web/src/app/calendar/EventPanel.tsx",
     "web/src/app/calendar/FrameBand.tsx",
     "web/src/app/notes/NoteRow.tsx",
     "web/src/app/task-detail/CommentsTab.tsx",
@@ -4724,6 +4756,12 @@
   ],
   "Delete task": [
     "web/src/lib/shortcuts.ts"
+  ],
+  "Delete the event from its calendar": [
+    "web/src/app/calendar/ConvertToTask.tsx"
+  ],
+  "Delete the event from {calendar}": [
+    "web/src/app/calendar/ConvertToTask.tsx"
   ],
   "Delete the field “{name}”?": [
     "web/src/app/FieldsDialog.tsx"
@@ -4907,6 +4945,7 @@
     "web/src/app/RelayConfirm.tsx",
     "web/src/app/ShareCapture.tsx",
     "web/src/app/assistant/blocks/BeforeAfter.tsx",
+    "web/src/app/calendar/EventForm.tsx",
     "web/src/lib/rules/proposal.ts",
     "web/src/page/TaskPageScreen.tsx"
   ],
@@ -5016,9 +5055,13 @@
   "Discard": [
     "web/src/app/SettingsSaveBar.tsx",
     "web/src/app/assistant/ChangeSetReview.tsx",
+    "web/src/app/calendar/EventPanel.tsx",
     "web/src/app/routines/RoutineEditor.tsx",
     "web/src/app/themes/ThemeEditor.tsx",
     "web/src/ui/patterns/SaveBar.tsx"
+  ],
+  "Discard changes?": [
+    "web/src/app/calendar/EventPanel.tsx"
   ],
   "Discard unsaved changes?": [
     "web/src/app/SettingsSaveBar.tsx"
@@ -5309,6 +5352,8 @@
   ],
   "Duplicate": [
     "web/src/app/TemplateDialogs.tsx",
+    "web/src/app/calendar/EventPanel.tsx",
+    "web/src/app/calendar/EventPopoverActions.tsx",
     "web/src/app/routines/RoutinesView.tsx",
     "web/src/app/routines/StepCard.tsx",
     "web/src/app/task-detail/TaskActionsMenu.tsx",
@@ -5395,6 +5440,9 @@
     "web/src/app/task-detail/TimeTab.tsx",
     "web/src/app/themes/YourThemes.tsx"
   ],
+  "Edit again": [
+    "web/src/app/ToastActionHost.tsx"
+  ],
   "Edit as text": [
     "web/src/app/views/ViewToolbar.tsx"
   ],
@@ -5409,6 +5457,9 @@
   ],
   "Edit delivery channel": [
     "web/src/app/NotificationChannelEditor.tsx"
+  ],
+  "Edit event": [
+    "web/src/app/calendar/EventPanel.tsx"
   ],
   "Edit events in OpenTodo": [
     "web/src/app/CalendarSyncPanel.tsx"
@@ -5690,6 +5741,9 @@
     "web/src/app/calendar/FramesDialog.tsx",
     "web/src/app/task-detail/TimeTab.tsx"
   ],
+  "End date": [
+    "web/src/app/calendar/EventForm.tsx"
+  ],
   "End maintenance": [
     "web/src/app/menus/reviewMenu.ts",
     "web/src/app/palette/registry.ts",
@@ -5708,7 +5762,8 @@
     "web/src/lib/rules/sentence.ts"
   ],
   "End time": [
-    "web/src/app/calendar/EventEditor.tsx"
+    "web/src/app/calendar/EventEditor.tsx",
+    "web/src/app/calendar/EventForm.tsx"
   ],
   "End-to-end encryption": [
     "web/src/app/settingsIndex.ts",
@@ -5926,7 +5981,16 @@
   "Event": [
     "web/src/app/AuditPanel.tsx",
     "web/src/app/CalendarEvents.tsx",
-    "web/src/app/calendar/TodayAgenda.tsx"
+    "web/src/app/calendar/AddOnDayDialog.tsx",
+    "web/src/app/calendar/EventForm.tsx",
+    "web/src/app/calendar/TodayAgenda.tsx",
+    "web/src/app/calendar/eventConvert.ts"
+  ],
+  "Event added": [
+    "web/src/app/calendar/eventAdd.ts"
+  ],
+  "Event added. Calendars are shown again.": [
+    "web/src/app/calendar/eventAdd.ts"
   ],
   "Event deleted": [
     "web/src/app/calendar/eventActions.ts"
@@ -5934,8 +5998,14 @@
   "Event moved": [
     "web/src/app/calendar/eventActions.ts"
   ],
+  "Event removed": [
+    "web/src/app/calendar/eventAdd.ts"
+  ],
   "Event renamed": [
     "web/src/app/calendar/eventActions.ts"
+  ],
+  "Event title": [
+    "web/src/app/calendar/EventForm.tsx"
   ],
   "Event updated": [
     "web/src/app/calendar/eventActions.ts"
@@ -6641,6 +6711,7 @@
     "web/src/app/task-detail/ZoneControl.tsx"
   ],
   "Floating": [
+    "web/src/app/calendar/EventZoneField.tsx",
     "web/src/app/task-detail/ZoneControl.tsx"
   ],
   "Floating (now):": [
@@ -6813,6 +6884,9 @@
   ],
   "Frames…": [
     "web/src/app/CalendarView.tsx"
+  ],
+  "Free": [
+    "web/src/app/calendar/EventForm.tsx"
   ],
   "Free and open source · no tracking, no telemetry.": [
     "web/src/lib/settingsCopy.ts"
@@ -7792,7 +7866,10 @@
   "In 90 days": [
     "web/src/app/task-detail/TaskPageDialog.tsx"
   ],
-  "In Day and Week: add a task due on the focused day (the selected task's day, else today)": [
+  "In Day and Week: add a task or event on the focused day (the selected task's day, else today; the kind you added last)": [
+    "web/src/lib/shortcuts.ts"
+  ],
+  "In Day and Week: add an event on the focused day, at its next free half hour (09:00 on another day); needs a calendar that allows editing events": [
     "web/src/lib/shortcuts.ts"
   ],
   "In Google Cloud, create an OAuth client of type “Web application”, enable the CalDAV API, and add this authorized redirect address:": [
@@ -8418,6 +8495,7 @@
     "web/src/app/AgentAccessRow.tsx"
   ],
   "Keep editing": [
+    "web/src/app/calendar/EventPanel.tsx",
     "web/src/app/themes/ThemeEditor.tsx"
   ],
   "Keep events for": [
@@ -8688,6 +8766,7 @@
     "web/src/lib/settingsCopy.ts"
   ],
   "Last day": [
+    "web/src/app/calendar/EventForm.tsx",
     "web/src/app/rules/RuleFields.tsx"
   ],
   "Last delivered {ago}": [
@@ -9099,8 +9178,14 @@
   "Loading the assistant": [
     "web/src/app/assistant/AssistantPanelBody.tsx"
   ],
+  "Loading the description": [
+    "web/src/app/calendar/EventForm.tsx"
+  ],
   "Loading the editor…": [
     "web/src/app/ProjectNote.tsx"
+  ],
+  "Loading the event": [
+    "web/src/app/calendar/EventPanel.tsx"
   ],
   "Loading the guide": [
     "web/src/app/help/HelpPanel.tsx",
@@ -9158,6 +9243,7 @@
   "Location": [
     "web/src/app/TaskListView.tsx",
     "web/src/app/assistant/blocks/BeforeAfter.tsx",
+    "web/src/app/calendar/EventForm.tsx",
     "web/src/app/locations/LocationEditor.tsx",
     "web/src/app/task-detail/Facets.tsx",
     "web/src/app/task-detail/TaskFacts.tsx",
@@ -9188,6 +9274,9 @@
   ],
   "Location removed": [
     "web/src/lib/assistant.ts"
+  ],
+  "Location: {place}": [
+    "web/src/app/calendar/eventConvert.ts"
   ],
   "Locations": [
     "web/src/app/Sidebar.tsx",
@@ -9690,6 +9779,8 @@
     "web/src/app/routines/wordPicker.tsx"
   ],
   "More actions": [
+    "web/src/app/calendar/EventPanel.tsx",
+    "web/src/app/calendar/EventPopoverActions.tsx",
     "web/src/app/review/StatsView.tsx",
     "web/src/app/task-list/RowActionCluster.tsx",
     "web/src/ui/patterns/PageHeader.tsx"
@@ -10154,6 +10245,11 @@
   "New email": [
     "web/src/app/profile/ProfileSection.tsx"
   ],
+  "New event": [
+    "web/src/app/CalendarView.tsx",
+    "web/src/app/calendar/EventPanel.tsx",
+    "web/src/app/palette/registry.ts"
+  ],
   "New frame": [
     "web/src/app/calendar/FramesDialog.tsx",
     "web/src/app/palette/registry.ts"
@@ -10255,6 +10351,9 @@
   ],
   "New slot here…": [
     "web/src/app/calendar/addHere.tsx"
+  ],
+  "New task": [
+    "web/src/app/CalendarView.tsx"
   ],
   "New task in {project}: {title}": [
     "web/src/lib/assistant.ts"
@@ -10440,6 +10539,9 @@
   ],
   "No bucket set": [
     "web/src/app/BackupsPanel.tsx"
+  ],
+  "No calendar allows new events.": [
+    "web/src/app/calendar/EventForm.tsx"
   ],
   "No calendar of this account can be written.": [
     "web/src/app/CalendarSyncDialogs.tsx"
@@ -10906,6 +11008,7 @@
     "web/src/lib/filter/evaluate.ts"
   ],
   "No zone matches": [
+    "web/src/app/calendar/EventZoneField.tsx",
     "web/src/app/task-detail/ZoneControl.tsx"
   ],
   "Nobody matches.": [
@@ -14665,6 +14768,7 @@
     "web/src/app/ShareCapture.tsx",
     "web/src/app/WebhooksPanel.tsx",
     "web/src/app/calendar/EventEditor.tsx",
+    "web/src/app/calendar/EventPanel.tsx",
     "web/src/app/calendar/FramesDialog.tsx",
     "web/src/app/filter/ConditionEditor.tsx",
     "web/src/app/locations/LocationEditor.tsx",
@@ -15479,6 +15583,7 @@
     "web/src/app/ProjectsSettings.tsx"
   ],
   "Show as": [
+    "web/src/app/calendar/EventForm.tsx",
     "web/src/app/connections/ConnectionsDialog.tsx"
   ],
   "Show as graph": [
@@ -16240,6 +16345,7 @@
     "web/src/lib/settingsCopy.ts"
   ],
   "Start date": [
+    "web/src/app/calendar/EventForm.tsx",
     "web/src/app/filter/ConditionEditor.tsx",
     "web/src/app/task-detail/WhenControl.tsx"
   ],
@@ -16305,7 +16411,8 @@
     "web/src/app/method/LoopHome.tsx"
   ],
   "Start time": [
-    "web/src/app/calendar/EventEditor.tsx"
+    "web/src/app/calendar/EventEditor.tsx",
+    "web/src/app/calendar/EventForm.tsx"
   ],
   "Start tracking": [
     "web/src/app/bulk/BulkActions.tsx",
@@ -16773,6 +16880,8 @@
     "web/src/app/FieldColumns.tsx",
     "web/src/app/TimelineView.tsx",
     "web/src/app/assistant/blocks/TaskBlock.tsx",
+    "web/src/app/calendar/AddOnDayDialog.tsx",
+    "web/src/app/calendar/EventForm.tsx",
     "web/src/app/themes/ThemePreview.tsx",
     "web/src/lib/assistantBlocks.ts",
     "web/src/lib/rules/sentence.ts"
@@ -16789,6 +16898,7 @@
     "web/src/app/task-detail/ConversationTabs.tsx"
   ],
   "Task created": [
+    "web/src/app/calendar/eventConvert.ts",
     "web/src/lib/webhooks.ts"
   ],
   "Task deleted": [
@@ -17315,6 +17425,9 @@
   "The demo is busy. Try again in a moment.": [
     "web/src/lib/i18n/errors.ts"
   ],
+  "The description could not be loaded, so it is left as it is.": [
+    "web/src/app/calendar/EventForm.tsx"
+  ],
   "The email could not be sent, so no invitation was created ({reason}). Turn off “Send by email” to create a link to share yourself.": [
     "web/src/app/MembersPanel.tsx"
   ],
@@ -17351,6 +17464,9 @@
   ],
   "The energy must be deep, medium or low.": [
     "web/src/lib/i18n/errors.ts"
+  ],
+  "The event must end after it starts.": [
+    "web/src/app/calendar/EventForm.tsx"
   ],
   "The exact address the app returns to after you sign in, starting with https://. The app’s documentation names it.": [
     "web/src/app/OAuthClients.tsx"
@@ -17704,6 +17820,9 @@
   ],
   "The runs are on the server: connect to see them.": [
     "web/src/app/routines/RunHistory.tsx"
+  ],
+  "The same clock time wherever you are": [
+    "web/src/app/calendar/EventZoneField.tsx"
   ],
   "The same guides on the website, with setup and self-hosting.": [
     "web/src/app/settingsIndex.ts",
@@ -18333,6 +18452,9 @@
   "This demo sandbox reached its limit of changes. Your latest edits stay on this device and are saved when the limit allows.": [
     "web/src/lib/demo.ts"
   ],
+  "This description has formatting, so it is shown as plain text and cannot be changed here.": [
+    "web/src/app/calendar/EventForm.tsx"
+  ],
   "This device": [
     "web/src/app/RelaySettings.tsx",
     "web/src/app/routines/RoutinesDevice.tsx",
@@ -18409,6 +18531,9 @@
     "web/src/app/filter/conditionText.ts",
     "web/src/lib/assistant.ts"
   ],
+  "This event cannot be deleted from here.": [
+    "web/src/app/calendar/ConvertToTask.tsx"
+  ],
   "This event can’t be changed from OpenTodo.": [
     "web/src/lib/i18n/errors.ts"
   ],
@@ -18420,6 +18545,9 @@
   ],
   "This event is no longer in your calendar.": [
     "web/src/lib/i18n/errors.ts"
+  ],
+  "This event was deleted in your calendar.": [
+    "web/src/app/calendar/EventPanel.tsx"
   ],
   "This file could not be opened.": [
     "web/src/app/task-detail/AttachmentsRow.tsx"
@@ -19020,6 +19148,7 @@
     "web/src/app/task-detail/TimeTab.tsx"
   ],
   "Time zone": [
+    "web/src/app/calendar/EventZoneField.tsx",
     "web/src/app/task-detail/ZoneControl.tsx"
   ],
   "Time zone for date-times with a zone": [
@@ -19091,6 +19220,7 @@
     "web/src/app/assistant/ItemEditor.tsx",
     "web/src/app/assistant/blocks/BeforeAfter.tsx",
     "web/src/app/calendar/EventEditor.tsx",
+    "web/src/app/calendar/EventForm.tsx",
     "web/src/app/calendar/FramesDialog.tsx",
     "web/src/app/notes/NoteEditor.tsx",
     "web/src/app/task-detail/TaskHead.tsx",
@@ -19698,6 +19828,8 @@
     "web/src/app/assistant/ChangeSetReview.tsx",
     "web/src/app/bulk/UndoToast.tsx",
     "web/src/app/calendar/eventActions.ts",
+    "web/src/app/calendar/eventAdd.ts",
+    "web/src/app/calendar/eventConvert.ts",
     "web/src/app/focus/startFocus.ts",
     "web/src/app/palette/routineCommand.ts",
     "web/src/app/routines/ProposalReview.tsx",
@@ -20570,6 +20702,9 @@
   "What will happen": [
     "web/src/app/RestoreSection.tsx"
   ],
+  "What you changed in this event is not saved.": [
+    "web/src/app/calendar/EventPanel.tsx"
+  ],
   "What you type here is sent to the map provider through this server.": [
     "web/src/app/locations/LocationEditor.tsx"
   ],
@@ -20589,6 +20724,7 @@
   ],
   "When": [
     "web/src/app/AuditPanel.tsx",
+    "web/src/app/calendar/EventForm.tsx",
     "web/src/app/filter/ConditionEditor.tsx",
     "web/src/app/quickadd/FieldRows.tsx",
     "web/src/app/routines/Starters.tsx",
@@ -20936,6 +21072,9 @@
   ],
   "You are not allowed to do this: {detail}": [
     "web/src/lib/i18n/errors.ts"
+  ],
+  "You are offline, so the description is left as it is.": [
+    "web/src/app/calendar/EventForm.tsx"
   ],
   "You are offline. Changing your password needs a connection to your server.": [
     "web/src/lib/settingsCopy.ts"
@@ -21314,6 +21453,7 @@
     "web/src/lib/settingsCopy.ts"
   ],
   "Your zone": [
+    "web/src/app/calendar/EventZoneField.tsx",
     "web/src/app/task-detail/ZoneControl.tsx"
   ],
   "Yours alone. Share its projects by email, or create a workspace for a team.": [
@@ -21732,6 +21872,9 @@
   ],
   "contains “{text}”": [
     "web/src/app/routines/words.tsx"
+  ],
+  "created": [
+    "web/src/app/auditFormat.ts"
   ],
   "created the project": [
     "web/src/lib/activity.ts"
@@ -23654,6 +23797,9 @@
   "{date}, {n, plural, one {# old note version} other {# old note versions}} removed, {bytes} reclaimed": [
     "web/src/app/DatabaseStoragePanel.tsx"
   ],
+  "{date}, {time} in your time": [
+    "web/src/app/calendar/EventForm.tsx"
+  ],
   "{date}: {n, plural, one {# task} other {# tasks}}": [
     "web/src/app/method/loop/PulseDetails.tsx"
   ],
@@ -25013,6 +25159,9 @@
   "{time} free": [
     "web/src/app/assistant/blocks/FreeTimeBlock.tsx"
   ],
+  "{time} in your time": [
+    "web/src/app/calendar/EventForm.tsx"
+  ],
   "{time} in {city}": [
     "web/src/app/task-detail/ZoneControl.tsx"
   ],
@@ -25056,6 +25205,9 @@
   ],
   "{title}, waits for {blockers}": [
     "web/src/app/TimelineView.tsx"
+  ],
+  "{title}, {from} to {to}": [
+    "web/src/app/CalendarView.tsx"
   ],
   "{title}, {kind, select, note {note} task {task} other {project}}, {n, plural, one {# link} other {# links}}": [
     "web/src/app/notes-graph/GraphView.tsx"

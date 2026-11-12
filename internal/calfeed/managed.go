@@ -255,15 +255,7 @@ func (s *Store) ReplaceEvent(ctx context.Context, subscriptionID string, old Eve
 	}
 	var ref EventRef
 	if occ != nil {
-		sd, st, sz := pointParts(occ.Start)
-		ed, et, ez := pointParts(occ.End)
-		if _, err := tx.ExecContext(ctx, `INSERT OR REPLACE INTO calendar_events(subscription_id,uid,instance,summary,location,start_date,start_time,start_tz,end_date,end_time,end_tz,all_day,free,start_ms,end_ms)
-			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, subscriptionID, occ.UID, occ.Instance, occ.Summary, occ.Location, sd, st, sz, ed, et, ez, occ.AllDay, occ.Free, pointMs(occ.Start), pointMs(occ.End)); err != nil {
-			return EventRef{}, err
-		}
-		ref = EventRef{SubscriptionID: subscriptionID, UID: occ.UID, Instance: occ.Instance, EventID: EventID(subscriptionID, occ.UID, occ.Instance), EventRemote: remote}
-		if _, err := tx.ExecContext(ctx, `INSERT OR REPLACE INTO calendar_event_remote(subscription_id,uid,instance,event_id,href,etag,locked) VALUES(?,?,?,?,?,?,?)`,
-			subscriptionID, ref.UID, ref.Instance, ref.EventID, remote.Href, remote.ETag, remote.Locked); err != nil {
+		if ref, err = insertEvent(ctx, tx, subscriptionID, *occ, remote); err != nil {
 			return EventRef{}, err
 		}
 	}
@@ -272,4 +264,72 @@ func (s *Store) ReplaceEvent(ctx context.Context, subscriptionID string, old Eve
 		return EventRef{}, err
 	}
 	return ref, tx.Commit()
+}
+
+// insertEvent stores an occurrence and its remote ref inside tx.
+func insertEvent(ctx context.Context, tx *sql.Tx, subscriptionID string, occ Occurrence, remote EventRemote) (EventRef, error) {
+	sd, st, sz := pointParts(occ.Start)
+	ed, et, ez := pointParts(occ.End)
+	if _, err := tx.ExecContext(ctx, `INSERT OR REPLACE INTO calendar_events(subscription_id,uid,instance,summary,location,start_date,start_time,start_tz,end_date,end_time,end_tz,all_day,free,start_ms,end_ms)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, subscriptionID, occ.UID, occ.Instance, occ.Summary, occ.Location, sd, st, sz, ed, et, ez, occ.AllDay, occ.Free, pointMs(occ.Start), pointMs(occ.End)); err != nil {
+		return EventRef{}, err
+	}
+	ref := EventRef{SubscriptionID: subscriptionID, UID: occ.UID, Instance: occ.Instance, EventID: EventID(subscriptionID, occ.UID, occ.Instance), EventRemote: remote}
+	if _, err := tx.ExecContext(ctx, `INSERT OR REPLACE INTO calendar_event_remote(subscription_id,uid,instance,event_id,href,etag,locked) VALUES(?,?,?,?,?,?,?)`,
+		subscriptionID, ref.UID, ref.Instance, ref.EventID, remote.Href, remote.ETag, remote.Locked); err != nil {
+		return EventRef{}, err
+	}
+	return ref, nil
+}
+
+// createdRetention is how long a created-event record is kept (calendar-event-editor D2).
+const createdRetention = 30 * 24 * time.Hour
+
+// AddEvent stores a created event and its remote ref, and records that connectionID
+// created it for clientID, in one transaction; it deletes records older than 30 days.
+// The subscription's version is cleared so the next cycle reads the calendar again.
+func (s *Store) AddEvent(ctx context.Context, subscriptionID string, occ Occurrence, remote EventRemote, connectionID, clientID string) (EventRef, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return EventRef{}, err
+	}
+	defer tx.Rollback()
+	now := s.now()
+	ref, err := insertEvent(ctx, tx, subscriptionID, occ, remote)
+	if err != nil {
+		return EventRef{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM calendar_event_created WHERE created_at < ?`, now.Add(-createdRetention).UnixMilli()); err != nil {
+		return EventRef{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT OR REPLACE INTO calendar_event_created(connection_id,client_id,subscription_id,uid,created_at) VALUES(?,?,?,?,?)`,
+		connectionID, clientID, subscriptionID, occ.UID, now.UnixMilli()); err != nil {
+		return EventRef{}, err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE calendar_subscriptions SET etag = '', updated_at = ?, event_count = (SELECT COUNT(*) FROM calendar_events WHERE subscription_id = ?) WHERE id = ?`,
+		now.UnixMilli(), subscriptionID, subscriptionID); err != nil {
+		return EventRef{}, err
+	}
+	return ref, tx.Commit()
+}
+
+// CreatedBy returns the subscription and uid recorded for clientID.
+func (s *Store) CreatedBy(ctx context.Context, connectionID, clientID string) (subscriptionID, uid string, ok bool, err error) {
+	err = s.db.QueryRowContext(ctx, `SELECT subscription_id, uid FROM calendar_event_created WHERE connection_id = ? AND client_id = ?`, connectionID, clientID).Scan(&subscriptionID, &uid)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", false, nil
+	}
+	return subscriptionID, uid, err == nil, err
+}
+
+// RefByUID returns the ref of the single event of a subscription with that uid;
+// ErrNotFound when it is gone.
+func (s *Store) RefByUID(ctx context.Context, subscriptionID, uid string) (EventRef, error) {
+	var r EventRef
+	err := s.db.QueryRowContext(ctx, `SELECT subscription_id,uid,instance,event_id,href,etag,locked FROM calendar_event_remote WHERE subscription_id = ? AND uid = ? ORDER BY instance LIMIT 1`,
+		subscriptionID, uid).Scan(&r.SubscriptionID, &r.UID, &r.Instance, &r.EventID, &r.Href, &r.ETag, &r.Locked)
+	if errors.Is(err, sql.ErrNoRows) {
+		return r, ErrNotFound
+	}
+	return r, err
 }

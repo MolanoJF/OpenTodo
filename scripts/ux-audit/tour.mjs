@@ -41,7 +41,7 @@ import {
   chromeRows, credentialFields, focusWalk, horizontalOverflow, installHelpers, layoutShift, LAYOUT_SHIFT_INIT, motionSeen,
   overlaps, primaryDestinations, reflow, rowMetaItems, targetSize, targetSizeWcag, TEXT_SPACING_CSS, textSpacingClip, truncation, watchMotion,
 } from './audit-measures.mjs'
-import { calendarEvents, seed } from './seed.mjs'
+import { calendarEventDetail, calendarEvents, seed } from './seed.mjs'
 import { OVERLAYS, chooseLayout, openScreen, screens as layoutScreens } from './layout-screens.mjs'
 import { inventory } from './inventory.mjs'
 import { A11Y_RULES, STRICT_RULES, summarize, writeReport } from './report.mjs'
@@ -271,7 +271,14 @@ function serial(key, fn) {
 }
 // Subscribed and connected calendars' events, answered here as the layout check does (a real feed
 // needs an outbound fetch): the Day, Week and Month screens show them and the event editor opens.
-const withEvents = (c) => c.route('**/api/v1/calendar-feeds/events?*', (route) => route.fulfill({ json: calendarEvents(Date.now()) }))
+const withEvents = async (c) => {
+  await c.route('**/api/v1/calendar-feeds/events?*', (route) => route.fulfill({ json: calendarEvents(Date.now()) }))
+  // The full event editor reads the event and its description when it opens (calendar-event-editor D4).
+  await c.route('**/api/v1/calendar-sync/connections/*/events/*', (route) => {
+    const detail = calendarEventDetail(Date.now(), decodeURIComponent(new URL(route.request().url()).pathname.split('/').pop()))
+    return route.request().method() === 'GET' && detail ? route.fulfill({ json: detail }) : route.fallback()
+  })
+}
 const launch = () => pw.chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {})
 
 async function runCombo(combo, ids) {

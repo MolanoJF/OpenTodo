@@ -52,10 +52,19 @@ With it on, an event in a calendar of that connection can be:
 
 - **Moved**: drag it in Day or Week to another time or day, or select it and use the arrow keys (<kbd>↑</kbd> <kbd>↓</kbd> 15 minutes, <kbd>←</kbd> <kbd>→</kbd> a day).
 - **Resized**: drag its top or bottom edge, or use <kbd>Shift</kbd>+<kbd>↑</kbd> <kbd>↓</kbd> for the end and <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>↑</kbd> <kbd>↓</kbd> for the start.
-- **Renamed or set to exact times**: click the event, change the title, date, start or end, and choose **Save**.
+- **Renamed or set to exact times**: click the event, change the title, date, start or end, and choose **Save**. **All details** opens the full editor, below.
+- **Created**: add an event in a calendar of the connection, below.
 - **Deleted**: select it and press <kbd>Delete</kbd>, or choose **Delete** in its popover.
 
-A change is written to your calendar by the server, so it shows in your calendar app and on your other devices. A toast says what happened and offers **Undo**. For 8 seconds after a delete nothing has been sent and Undo brings the event back; after that a deleted event is gone from your calendar. Only the title and the times are changed. The description, location, alarms and everything else in the event stay as your calendar has them, and nobody is invited or notified.
+A change is written to your calendar by the server, so it shows in your calendar app and on your other devices. A toast says what happened and offers **Undo**. For 8 seconds after a delete nothing has been sent and Undo brings the event back; after that a deleted event is gone from your calendar. Alarms, guests and everything else the editor does not show stay as your calendar has them, and nobody is invited or notified.
+
+### Add events and edit all their details
+
+In Day and Week, adding at a time asks **Task** or **Event** once at least one calendar of a connection with the switch on allows new events (calendars that don't are left out, and when none does nothing changes). A double-click, a right-click or long press (**Add event here…**), a drag over an empty stretch, <kbd>q</kbd>, <kbd>Shift</kbd>+<kbd>Q</kbd> and the command bar's **New event** all lead there; the steps are in [Add events to your calendar](add-calendar-events.md). The new event goes into the calendar you pick, by default the one you used last on this device, in your time zone unless you choose another. If this device hides calendar events, they are turned on first so the event is not invisible.
+
+The editor, a side panel from 1024 px wide and a sheet on a phone, holds the title, **All day**, start and end, **Time zone**, **Calendar**, **Location**, **Description** (plain text, up to 10,000 characters) and **Show as** Busy or Free. A description with formatting (Outlook) is shown as plain text and left unchanged. The calendar of an existing event can't be changed; **Duplicate** it into another calendar instead. Duplicate copies the title, times, zone, location, description and Busy or Free as one single event, never guests, reminders or links, and works for read-only events too. **Convert to task…** makes a task in the Inbox from the event's title, description and location, time and length, and by default deletes the event from your calendar; one **Undo** reverses both, as long as the 8 seconds before the delete is sent have not passed.
+
+Offline, an added event shows at once and is created when the device is back online. It is made once even if the connection drops mid-way. If your calendar refuses it, a toast offers **Edit again** with what you typed. Repeating events, reminders and guests are not created or edited here.
 
 ### What stays read-only
 
@@ -67,7 +76,7 @@ An event can't be changed here, and its popover says why, when:
 - **Its calendar is read-only** in your account (holidays, calendars shared with you to view). The connection card lists them.
 - **The switch is off** for the connection.
 - **Your calendar gave no version for it**, or the server has not yet matched it to the calendar after a recent change (it settles on the next check).
-- **It is an all-day or multi-day event, or crosses midnight.** Day and Week draw those as chips and bars, which don't take edits yet.
+- **It is an all-day or multi-day event, or crosses midnight**, for dragging: Day and Week draw those as chips and bars. Open one (double-click) to change it in the editor.
 
 Events OpenTodo wrote for your tasks keep the [task behaviour](#what-syncs): change the task or the event as before. Events of a subscribed [calendar feed](calendar-feeds.md) are always read-only.
 
@@ -77,7 +86,7 @@ Your calendar is the source of truth. If the event changed in your calendar app 
 
 Offline, the event moves on screen at once and the edit waits on your device. Several edits of the same event become one, and moving it back cancels it. It is sent when the device is back online; if your calendar no longer accepts it by then, it is rolled back with a toast. Event edits are not tasks: they are not in your export or backups, and your calendar keeps the event's history.
 
-Assistants over [MCP](mcp.md#write-tools) and the [`ot` command](cli.md#calendar-events) can do the same with the connection's switch on: `update_calendar_event`, `delete_calendar_event`, `ot calendar event edit` and `ot calendar event delete`. The [API](api.md#editing-events-of-a-connected-calendar) has the routes.
+Assistants over [MCP](mcp.md#write-tools) and the [`ot` command](cli.md#calendar-events) can do the same with the connection's switch on: `create_calendar_event`, `update_calendar_event`, `delete_calendar_event`, `ot calendar event add`, `ot calendar event edit` and `ot calendar event delete`. The [API](api.md#editing-events-of-a-connected-calendar) has the routes.
 
 ## Connect a CalDAV calendar
 
@@ -211,7 +220,7 @@ The server cannot read an encrypted account's titles and notes. With encryption 
 - Up to 3 calendar accounts per person; one calendar to write into and up to 10 shown per account.
 - Up to 200 events written or removed per check; the rest follows about 20 seconds later.
 - Repeating tasks are written as their next occurrence, not as a series. Alarms, attendees and invitations are not written.
-- Editing events: at most 600 changes per person an hour; repeating events, events with guests and events you don't organise are read-only (see [Edit events in OpenTodo](#edit-events-in-opentodo)).
+- Editing and creating events: at most 600 changes per person an hour; a title is at most 500 characters, a location 500 and a description 10,000; repeating events, events with guests and events you don't organise are read-only (see [Edit events in OpenTodo](#edit-events-in-opentodo)).
 - Moving an event of a task you may only view in a shared project is undone: the next check writes the task's time back (for a multi-day task, its start and due dates).
 - Calendar sync is refused on a public demo instance.
 

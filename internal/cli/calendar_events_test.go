@@ -18,7 +18,8 @@ type calFake struct {
 	scope  string
 	reqs   []string // "METHOD /path?query body"
 	unauth bool     // every request is a 401
-	status int      // status of PATCH and DELETE (0: success)
+	status int      // status of PATCH, POST and DELETE (0: success)
+	conns  string   // body of GET /calendar-sync/connections (default: one writable calendar)
 	code   string
 }
 
@@ -43,6 +44,13 @@ func newCalHarness(t *testing.T, scope string) (*harness, *calFake) {
 		switch {
 		case r.URL.Path == "/api/v1/me":
 			_, _ = w.Write([]byte(`{"user":{"id":"u1","email":"a@b.c","name":"A","role":"member"},"auth":{"method":"token","scope":"` + f.scope + `"}}`))
+			return
+		case r.URL.Path == "/api/v1/calendar-sync/connections" && r.Method == http.MethodGet:
+			body := f.conns
+			if body == "" {
+				body = oneCalendarJSON
+			}
+			_, _ = w.Write([]byte(body))
 			return
 		case r.URL.Path == "/api/v1/calendar-feeds/events":
 			_, _ = w.Write([]byte(eventsJSON))
@@ -244,7 +252,7 @@ func TestCalendarCompletion(t *testing.T) {
 	for _, it := range subcommandCandidates(st.top) {
 		got = append(got, it.value)
 	}
-	if strings.Join(got, ",") != "edit,delete,rm" {
+	if strings.Join(got, ",") != "add,edit,delete,rm" {
 		t.Fatalf("after calendar event: %v", got)
 	}
 	top := map[string]bool{}
@@ -256,5 +264,163 @@ func TestCalendarCompletion(t *testing.T) {
 	}
 	if st := scanWords([]string{"calendar", "event", "edit"}); st.spec == nil || st.spec.Name != "calendar event edit" {
 		t.Fatalf("edit: %+v", st)
+	}
+}
+
+const oneCalendarJSON = `{"connections":[{"id":"conn1","name":"Work","edit_events":true,"target":"https://cal/work/","read":["https://cal/work/"],
+ "calendars":[{"url":"https://cal/work/","name":"Work","read_only":false,"caps":{"create":true,"update":true,"delete":true}},
+ {"url":"https://cal/ro/","name":"Holidays","read_only":true,"caps":{"create":false,"update":false,"delete":false}}]}]}`
+
+const twoCalendarsJSON = `{"connections":[{"id":"conn1","name":"Work","edit_events":true,"target":"https://cal/work/","read":["https://cal/work/","https://cal/team/"],
+ "calendars":[{"url":"https://cal/work/","name":"Work","caps":{"create":true}},{"url":"https://cal/team/","name":"Team","caps":{"create":true}}]}]}`
+
+func lastBody(t *testing.T, f *calFake) (string, map[string]any) {
+	t.Helper()
+	w := f.writes()
+	if len(w) == 0 {
+		t.Fatal("no request was sent")
+	}
+	parts := strings.SplitN(w[len(w)-1], " ", 3)
+	var body map[string]any
+	_ = json.Unmarshal([]byte(parts[2]), &body)
+	return parts[0] + " " + parts[1], body
+}
+
+func TestCalendarEventAddCreatesInTheOnlyWritableCalendar(t *testing.T) {
+	h, f := newCalHarness(t, "full")
+	h.env["TZ"] = "Europe/Berlin"
+	out := h.mustRun("calendar", "event", "add", "Call", "Ana", "--start", "2026-11-13T14:00", "--for", "30m", "--location", "Zoom", "--free")
+	if !strings.Contains(out, "Standup") || !strings.Contains(out, "eeeeeeee") {
+		t.Fatalf("output %q", out)
+	}
+	req, body := lastBody(t, f)
+	if req != "POST /api/v1/calendar-sync/connections/conn1/events" {
+		t.Fatalf("request %s", req)
+	}
+	start, end := body["start"].(map[string]any), body["end"].(map[string]any)
+	if body["summary"] != "Call Ana" || body["calendarUrl"] != "https://cal/work/" || body["allDay"] != false || body["free"] != true || body["location"] != "Zoom" ||
+		start["time"] != "14:00" || end["time"] != "14:30" || start["tz"] == nil || len(body["clientId"].(string)) < 8 {
+		t.Fatalf("body %v", body)
+	}
+	if _, has := body["description"]; has {
+		t.Fatal("an empty description was sent")
+	}
+	// Every run makes a fresh client id; --client-id keeps one.
+	h.mustRun("calendar", "event", "add", "Call Ana", "--start", "2026-11-13T14:00", "--for", "30m")
+	_, again := lastBody(t, f)
+	if again["clientId"] == body["clientId"] {
+		t.Fatal("client id reused")
+	}
+	h.mustRun("calendar", "event", "add", "x", "--start", "2026-11-13T14:00", "--for", "30m", "--client-id", "script-key-1")
+	if _, b := lastBody(t, f); b["clientId"] != "script-key-1" {
+		t.Fatalf("client id %v", b["clientId"])
+	}
+	// --json prints the event; an all-day event takes dates.
+	var ev map[string]any
+	if err := json.Unmarshal([]byte(h.mustRun("calendar", "event", "add", "Offsite", "--start", "2026-11-20", "--all-day", "--json")), &ev); err != nil || ev["rev"] != "r9" {
+		t.Fatalf("json %v %v", ev, err)
+	}
+	_, ad := lastBody(t, f)
+	if ad["allDay"] != true || ad["end"].(map[string]any)["date"] != "2026-11-21" || ad["start"].(map[string]any)["time"] != nil {
+		t.Fatalf("all-day body %v", ad)
+	}
+}
+
+func TestCalendarEventAddCalendarChoice(t *testing.T) {
+	h, f := newCalHarness(t, "full")
+	f.conns = twoCalendarsJSON
+	code, _, errb := h.run("calendar", "event", "add", "x", "--start", "2026-11-13T14:00", "--for", "30m")
+	if code != ExitUsage || !strings.Contains(errb, "Work") || !strings.Contains(errb, "https://cal/team/") {
+		t.Fatalf("ambiguous: exit %d %q", code, errb)
+	}
+	if code, _, errb = h.run("calendar", "event", "add", "x", "--start", "2026-11-13T14:00", "--for", "30m", "--calendar", "nope"); code != ExitUsage || !strings.Contains(errb, "nope") {
+		t.Fatalf("unknown: exit %d %q", code, errb)
+	}
+	if len(f.writes()) != 0 {
+		t.Fatal("an unresolved calendar reached the server")
+	}
+	h.mustRun("calendar", "event", "add", "x", "--start", "2026-11-13T14:00", "--for", "30m", "--calendar", "team")
+	if _, b := lastBody(t, f); b["calendarUrl"] != "https://cal/team/" {
+		t.Fatalf("body %v", b)
+	}
+	// A calendar that only reads is never offered.
+	f.conns = `{"connections":[{"id":"c","name":"N","target":"https://cal/ro/","read":[],"calendars":[{"url":"https://cal/ro/","name":"RO","read_only":true}]}]}`
+	if code, _, _ := h.run("calendar", "event", "add", "x", "--start", "2026-11-13T14:00", "--for", "30m"); code != ExitUsage {
+		t.Fatalf("no writable calendar: exit %d", code)
+	}
+}
+
+func TestCalendarEventAddUsageAndGates(t *testing.T) {
+	h, f := newCalHarness(t, "full")
+	for _, args := range [][]string{
+		{"add"}, {"add", "x"}, {"add", "x", "--start", "2026-11-13"}, {"add", "x", "--start", "2026-11-13T14:00"},
+		{"add", "x", "--start", "2026-11-13T14:00", "--for", "30m", "--end", "2026-11-13T15:00"},
+		{"add", "x", "--start", "2026-11-13T14:00", "--for", "soon"}, {"add", "x", "--start", "2026-11-13T14:00", "--end", "2026-11-13T13:00"},
+		{"add", "x", "--start", "2026-11-13T14:00", "--all-day"},
+	} {
+		if code, _, _ := h.run(append([]string{"calendar", "event"}, args...)...); code != ExitUsage {
+			t.Fatalf("%v: exit %d", args, code)
+		}
+	}
+	f.status, f.code = http.StatusForbidden, "event_edits_off"
+	if code, _, errb := h.run("calendar", "event", "add", "x", "--start", "2026-11-13T14:00", "--for", "30m"); code != ExitNotPermitted || !strings.Contains(errb, "event_edits_off") {
+		t.Fatalf("event_edits_off: exit %d %q", code, errb)
+	}
+	f.code = "calendar_read_only"
+	if code, _, _ := h.run("calendar", "event", "add", "x", "--start", "2026-11-13T14:00", "--for", "30m"); code != ExitNotPermitted {
+		t.Fatalf("calendar_read_only: exit %d", code)
+	}
+	hr, fr := newCalHarness(t, "read")
+	if code, _, errb := hr.run("calendar", "event", "add", "x", "--start", "2026-11-13T14:00", "--for", "30m"); code != ExitNotPermitted || !strings.Contains(errb, "read-only") {
+		t.Fatalf("read token: exit %d %q", code, errb)
+	}
+	if len(fr.writes()) != 0 {
+		t.Fatal("a read token reached the server")
+	}
+	hn, fn := newCalHarness(t, "full")
+	fn.unauth = true
+	delete(hn.env, "OPENTODO_TOKEN")
+	if code, _, _ := hn.run("calendar", "event", "add", "x", "--start", "2026-11-13T14:00", "--for", "30m"); code != ExitUsage {
+		t.Fatalf("no login: exit %d", code)
+	}
+	// A dry run resolves the calendar and sends no POST.
+	hd, fd := newCalHarness(t, "full")
+	hd.mustRun("calendar", "event", "add", "x", "--start", "2026-11-13T14:00", "--for", "30m", "--dry-run")
+	if len(fd.writes()) != 0 {
+		t.Fatalf("dry run wrote: %v", fd.writes())
+	}
+}
+
+func TestCalendarEventEditTextFlags(t *testing.T) {
+	h, f := newCalHarness(t, "full")
+	h.mustRun("calendar", "event", "edit", "aaaa", "--location", "")
+	_, b := lastBody(t, f)
+	if v, has := b["location"]; !has || v != "" || b["summary"] != nil || b["start"] != nil {
+		t.Fatalf("clear location: %v", b)
+	}
+	h.mustRun("calendar", "event", "edit", "aaaa", "--description", "agenda", "--busy")
+	_, b = lastBody(t, f)
+	if b["description"] != "agenda" || b["free"] != false {
+		t.Fatalf("description and busy: %v", b)
+	}
+	h.mustRun("calendar", "event", "edit", "aaaa", "--free")
+	if _, b = lastBody(t, f); b["free"] != true {
+		t.Fatalf("free: %v", b)
+	}
+	if code, _, _ := h.run("calendar", "event", "edit", "aaaa", "--free", "--busy"); code != ExitUsage {
+		t.Fatalf("free and busy: exit %d", code)
+	}
+}
+
+// The "Usage:" block `ot calendar event` prints lists every subcommand, add included.
+func TestCalendarUsageListsEventAdd(t *testing.T) {
+	c := findCommand("calendar")
+	if c == nil {
+		t.Fatal("no calendar command")
+	}
+	for _, want := range []string{"ot calendar event add <title>", "ot calendar event edit <id>", "ot calendar event delete <id>"} {
+		if !strings.Contains(c.usage, want) {
+			t.Errorf("usage lacks %q:\n%s", want, c.usage)
+		}
 	}
 }

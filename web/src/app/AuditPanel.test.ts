@@ -108,6 +108,10 @@ describe('audit filters', () => {
     expect(eventSummary(ev({ name: 'settings.changed', details: { setting: 'audit.log_ip', from: 'true', to: 'false' } }))).toBe('Address logging: true → false')
     expect(eventSummary(ev({ name: 'settings.changed', details: { setting: 'mcp.enabled', from: 'false', to: 'true' } }))).toBe('AI assistants (MCP): false → true')
     expect(eventSummary(ev({ name: 'token.created', details: { token_id: 't', token_name: 'AI assistant', token_scope: 'read' } }))).toBe('“AI assistant” (read-only)')
+    // A calendar event the app made, changed or deleted (calendar-event-editor adds `created`; never a title).
+    expect(eventSummary(ev({ name: 'calendar_event.changed', details: { provider: 'caldav', event_action: 'created' } }))).toBe('caldav · created')
+    expect(eventSummary(ev({ name: 'calendar_event.changed', details: { provider: 'caldav', event_action: 'deleted' } }))).toBe('caldav · deleted')
+    expect(eventSummary(ev({ name: 'calendar_event.changed', details: { provider: 'caldav', event_action: 'updated' } }))).toBe('caldav · changed')
     expect(shortAgent('')).toBe('unknown client')
     expect(shortAgent('curl/8.5.0')).toBe('curl/8.5.0')
   })
