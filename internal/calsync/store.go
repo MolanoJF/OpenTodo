@@ -27,20 +27,22 @@ func (s *Store) SetClock(now func() time.Time) { s.now = now }
 const connColumns = `id, user_id, provider, name, server_url, username, principal_url, home_url, calendars, target_url, read_urls,
 	include_date_only, sync_token, ctag, enabled, next_sync_at, backoff_seconds, last_sync_at, last_success_at, last_error,
 	last_error_at, COALESCE(stopped_reason,''), last_run, created_at, updated_at,
-	COALESCE((SELECT scope FROM calsync_scopes WHERE connection_id = calsync_connections.id), '')`
+	COALESCE((SELECT scope FROM calsync_scopes WHERE connection_id = calsync_connections.id), ''),
+	EXISTS(SELECT 1 FROM calsync_event_edit WHERE connection_id = calsync_connections.id)`
 
 func scanConn(row interface{ Scan(...any) error }) (*Connection, error) {
 	var c Connection
 	var cals, reads, run, scope string
-	var dateOnly, enabled int
+	var dateOnly, enabled, editEvents int
 	var lastSync, lastSuccess, lastErrAt sql.NullInt64
 	if err := row.Scan(&c.ID, &c.UserID, &c.Provider, &c.Name, &c.ServerURL, &c.Username, &c.PrincipalURL, &c.HomeURL, &cals, &c.TargetURL, &reads,
 		&dateOnly, &c.SyncToken, &c.CTag, &enabled, &c.NextSyncAt, &c.BackoffSeconds, &lastSync, &lastSuccess, &c.LastError,
-		&lastErrAt, &c.StoppedReason, &run, &c.CreatedAt, &c.UpdatedAt, &scope); err != nil {
+		&lastErrAt, &c.StoppedReason, &run, &c.CreatedAt, &c.UpdatedAt, &scope, &editEvents); err != nil {
 		return nil, err
 	}
 	c.IncludeDateOnly, c.Enabled = dateOnly == 1, enabled == 1
 	c.Scope = syncscope.Parse(scope)
+	c.EditEvents = editEvents == 1
 	c.LastSyncAt, c.LastSuccessAt, c.LastErrorAt = nullInt(lastSync), nullInt(lastSuccess), nullInt(lastErrAt)
 	_ = json.Unmarshal([]byte(cals), &c.Calendars)
 	_ = json.Unmarshal([]byte(reads), &c.ReadURLs)
@@ -196,6 +198,8 @@ type Patch struct {
 	Enabled         *bool
 	// Scope is a normalized scope (syncscope.Normalize).
 	Scope *syncscope.Scope
+	// EditEvents turns "Edit events in OpenTodo" on or off (calendar-event-edits).
+	EditEvents *bool
 }
 
 // Update applies a patch. A new scope makes the connection due now; a new target forgets the old calendar's links, sync
@@ -247,6 +251,11 @@ func (s *Store) Update(ctx context.Context, userID, id string, p Patch) (*Connec
 			return nil, err
 		}
 		due = true
+	}
+	if p.EditEvents != nil {
+		if err := saveEditEvents(ctx, tx, id, *p.EditEvents); err != nil {
+			return nil, err
+		}
 	}
 	if p.Enabled != nil {
 		set, args = append(set, "enabled = ?"), append(args, *p.Enabled)
@@ -489,4 +498,74 @@ func (s *Store) TakeState(ctx context.Context, stateHash string) (*OAuthState, e
 		return nil, err
 	}
 	return &st, nil
+}
+
+// saveEditEvents stores the "Edit events in OpenTodo" option; off is no row.
+func saveEditEvents(ctx context.Context, tx *sql.Tx, id string, on bool) error {
+	if !on {
+		_, err := tx.ExecContext(ctx, `DELETE FROM calsync_event_edit WHERE connection_id = ?`, id)
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO calsync_event_edit(connection_id) VALUES(?)`, id)
+	return err
+}
+
+// EditEvents reports whether "Edit events in OpenTodo" is on for a connection.
+func (s *Store) EditEvents(ctx context.Context, connID string) bool {
+	var one int
+	err := s.db.QueryRowContext(ctx, `SELECT 1 FROM calsync_event_edit WHERE connection_id = ?`, connID).Scan(&one)
+	return err == nil
+}
+
+// SetEditEvents turns the option on or off for one of the user's connections
+// (ErrNotFound for anyone else's).
+func (s *Store) SetEditEvents(ctx context.Context, userID, id string, on bool) error {
+	if _, err := s.Get(ctx, userID, id); err != nil {
+		return err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := saveEditEvents(ctx, tx, id, on); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// SetCaps records what a calendar allows after a write was refused with 403
+// (the privilege set claimed more than the server allows); the next discovery
+// replaces it.
+func (s *Store) SetCaps(ctx context.Context, connID, calendarURL string, caps Caps) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var text string
+	if err := tx.QueryRowContext(ctx, `SELECT calendars FROM calsync_connections WHERE id = ?`, connID).Scan(&text); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	var cals []Calendar
+	if json.Unmarshal([]byte(text), &cals) != nil {
+		return nil
+	}
+	found := false
+	for i := range cals {
+		if cals[i].URL == calendarURL {
+			c := caps
+			cals[i].Caps, found = &c, true
+		}
+	}
+	if !found {
+		return nil
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE calsync_connections SET calendars = ? WHERE id = ?`, jsonText(cals), connID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

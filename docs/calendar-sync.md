@@ -3,7 +3,7 @@ title: Calendar sync
 summary: Two-way sync with your own calendar: dated tasks become events in iCloud, Fastmail, Nextcloud, Google, Outlook, Microsoft 365 or any CalDAV calendar, and moving an event moves the task.
 audience: user
 section: Integrations
-specs: [calendar-sync, calendar-feeds, end-to-end-encryption]
+specs: [calendar-sync, calendar-feeds, end-to-end-encryption, calendar-event-edits]
 screens: [settings/calendar-sync, calendar-sync/denied#access-blocked-or-app-not-verified, calendar-sync/authorization_failed#fix-a-failed-google-connection, calendar-sync/redirect_uri_mismatch#error-400-redirect_uri_mismatch, calendar-sync/base_url_mismatch#wrong-address-behind-a-proxy, calendar-sync/google_client_refused#google-refused-the-client, calendar-sync/scope_not_granted#calendar-permission-not-ticked, calendar-sync/caldav_api_disabled#the-caldav-api-is-not-enabled]
 order: 33
 ---
@@ -40,9 +40,44 @@ And back:
 
 With **Include tasks without a time** off, an event you make all-day is removed from the calendar at the next check; the task keeps its date.
 
-Only events OpenTodo wrote change tasks. Your other events are never changed and never become tasks; the ones in the calendar tasks are written into are shown next to your tasks in the calendar views, read-only.
+Only events OpenTodo wrote change tasks. Your other events never become tasks; the ones in the calendars you show are drawn next to your tasks in the calendar views, read-only until you turn on [Edit events in OpenTodo](#edit-events-in-opentodo).
 
 Tasks are written from 30 days back to a year ahead, the same tasks as the [task feed](calendar-feeds.md): your own and those of projects shared with you, outside archived projects. A zoned task (due 09:00 Europe/Berlin) keeps its zone; a floating task keeps its wall-clock time in your calendar's zone (for Outlook, your mailbox's time zone).
+
+## Edit events in OpenTodo
+
+Your other events can be changed from the calendar views too. It is off until you turn it on for a connection: on the connection card in **Settings → Integrations → Calendar sync**, switch on **Edit events in OpenTodo**. Nothing about your calendar changes until then.
+
+With it on, an event in a calendar of that connection can be:
+
+- **Moved**: drag it in Day or Week to another time or day, or select it and use the arrow keys (<kbd>↑</kbd> <kbd>↓</kbd> 15 minutes, <kbd>←</kbd> <kbd>→</kbd> a day).
+- **Resized**: drag its top or bottom edge, or use <kbd>Shift</kbd>+<kbd>↑</kbd> <kbd>↓</kbd> for the end and <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>↑</kbd> <kbd>↓</kbd> for the start.
+- **Renamed or set to exact times**: click the event, change the title, date, start or end, and choose **Save**.
+- **Deleted**: select it and press <kbd>Delete</kbd>, or choose **Delete** in its popover.
+
+A change is written to your calendar by the server, so it shows in your calendar app and on your other devices. A toast says what happened and offers **Undo**. For 8 seconds after a delete nothing has been sent and Undo brings the event back; after that a deleted event is gone from your calendar. Only the title and the times are changed. The description, location, alarms and everything else in the event stay as your calendar has them, and nobody is invited or notified.
+
+### What stays read-only
+
+An event can't be changed here, and its popover says why, when:
+
+- **It repeats.** Events of a series and single occurrences are read-only for now.
+- **It has guests.** Changing it would send updates to other people.
+- **You are not its organiser** (Outlook and Microsoft 365).
+- **Its calendar is read-only** in your account (holidays, calendars shared with you to view). The connection card lists them.
+- **The switch is off** for the connection.
+- **Your calendar gave no version for it**, or the server has not yet matched it to the calendar after a recent change (it settles on the next check).
+- **It is an all-day or multi-day event, or crosses midnight.** Day and Week draw those as chips and bars, which don't take edits yet.
+
+Events OpenTodo wrote for your tasks keep the [task behaviour](#what-syncs): change the task or the event as before. Events of a subscribed [calendar feed](calendar-feeds.md) are always read-only.
+
+### Conflicts and offline
+
+Your calendar is the source of truth. If the event changed in your calendar app after OpenTodo last read it, the edit is not applied: the event goes back to what the calendar holds and a toast says it changed. Edits made at the same moment on two devices work the same way: the first to arrive wins. If the event was deleted elsewhere, it disappears and the toast says so.
+
+Offline, the event moves on screen at once and the edit waits on your device. Several edits of the same event become one, and moving it back cancels it. It is sent when the device is back online; if your calendar no longer accepts it by then, it is rolled back with a toast. Event edits are not tasks: they are not in your export or backups, and your calendar keeps the event's history.
+
+Assistants over [MCP](mcp.md#write-tools) and the [`ot` command](cli.md#calendar-events) can do the same with the connection's switch on: `update_calendar_event`, `delete_calendar_event`, `ot calendar event edit` and `ot calendar event delete`. The [API](api.md#editing-events-of-a-connected-calendar) has the routes.
 
 ## Connect a CalDAV calendar
 
@@ -176,8 +211,22 @@ The server cannot read an encrypted account's titles and notes. With encryption 
 - Up to 3 calendar accounts per person; one calendar to write into and up to 10 shown per account.
 - Up to 200 events written or removed per check; the rest follows about 20 seconds later.
 - Repeating tasks are written as their next occurrence, not as a series. Alarms, attendees and invitations are not written.
+- Editing events: at most 600 changes per person an hour; repeating events, events with guests and events you don't organise are read-only (see [Edit events in OpenTodo](#edit-events-in-opentodo)).
 - Moving an event of a task you may only view in a shared project is undone: the next check writes the task's time back (for a multi-day task, its start and due dates).
 - Calendar sync is refused on a public demo instance.
+
+## Tested servers
+
+Calendar sync is tested against an in-process CalDAV server and recorded Google responses. This table is what was run against the real service, following the [verification script](caldav-verification.md#calendar-sync):
+
+| Server | Connect | Task to event | Move or resize back | Delete back | Incremental sync |
+| --- | --- | --- | --- | --- | --- |
+| iCloud | not verified (2026-11-11) | not verified (2026-11-11) | not verified (2026-11-11) | not verified (2026-11-11) | not verified (2026-11-11) |
+| Fastmail | not verified (2026-11-11) | not verified (2026-11-11) | not verified (2026-11-11) | not verified (2026-11-11) | not verified (2026-11-11) |
+| Nextcloud 30 | not verified (2026-11-11) | not verified (2026-11-11) | not verified (2026-11-11) | not verified (2026-11-11) | not verified (2026-11-11) |
+| Google Calendar | not verified (2026-11-11) | not verified (2026-11-11) | not verified (2026-11-11) | not verified (2026-11-11) | not verified (2026-11-11) |
+
+"Not verified" means nobody has run that step against the real service yet; the guide does not claim it works there.
 
 ## What the server contacts
 

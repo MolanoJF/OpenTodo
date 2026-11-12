@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "calendar_event",
+  "description": "A calendar event exactly as GET /api/v1/calendar-feeds/events returns it (OpenSpec calendar-event-edits). rev and access are present only for an event of a connected calendar; the title is text from the remote calendar.",
+  "type": "object",
+  "required": ["id", "subscriptionId", "summary", "start", "end", "allDay"],
+  "properties": {
+    "id": {"type": "string"},
+    "subscriptionId": {"type": "string"},
+    "uid": {"type": "string"},
+    "summary": {"type": "string"},
+    "location": {"type": "string"},
+    "start": {"$ref": "#/$defs/when"},
+    "end": {"$ref": "#/$defs/when"},
+    "allDay": {"type": "boolean"},
+    "free": {"type": "boolean"},
+    "rev": {"type": "string", "description": "the version of the event the command saw; every change is conditional on it"},
+    "access": {
+      "type": "object",
+      "required": ["update", "delete"],
+      "properties": {
+        "update": {"type": "boolean"},
+        "delete": {"type": "boolean"},
+        "reason": {"type": "string", "description": "why it cannot be changed: edits_off, calendar_read_only, recurring, guests, not_organizer or refresh_pending"}
+      }
+    }
+  },
+  "$defs": {
+    "when": {
+      "type": "object",
+      "required": ["date"],
+      "properties": {
+        "date": {"type": "string", "description": "YYYY-MM-DD"},
+        "time": {"type": "string", "description": "HH:MM wall time; absent for an all-day event"},
+        "tz": {"type": "string", "description": "IANA zone; absent for a floating or all-day event"}
+      }
+    }
+  }
+}

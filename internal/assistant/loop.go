@@ -429,7 +429,12 @@ var notInApp = map[string]bool{"update_project": true, "set_favourite": true, "c
 	"run_routine": true, "set_routine_enabled": true, "create_routine": true, "update_routine": true, "trash_routine": true,
 	// Objectives are read by external agents only (plan-objectives D7): the
 	// in-app assistant's disclosure does not name them.
-	"list_objectives": true}
+	"list_objectives": true,
+	// Calendar event edits are not change sets: they are made at once, so the
+	// review screen can not hold them; the list tool returns event titles the
+	// assistant disclosure does not name, so a provider never gets them
+	// (calendar-event-edits D8).
+	"list_calendar_events": true, "update_calendar_event": true, "delete_calendar_event": true}
 
 // withWorkday gives find_free_time the device's working day when the model
 // names none (assistant-time-blocks D2), so its answer matches the block.

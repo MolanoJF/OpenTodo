@@ -119,6 +119,25 @@ type Calendar struct {
 	Color    string `json:"color"`
 	TimeZone string `json:"time_zone,omitempty"`
 	ReadOnly bool   `json:"read_only"`
+	// Caps is what the account lets the user do with events (calendar-event-edits
+	// D3); nil on a calendar saved before it, then derived from ReadOnly.
+	Caps *Caps `json:"caps,omitempty"`
+}
+
+// Caps are the event operations a calendar allows.
+type Caps struct {
+	Create bool `json:"create"`
+	Update bool `json:"update"`
+	Delete bool `json:"delete"`
+}
+
+// EffectiveCaps are the calendar's caps, derived from ReadOnly when absent.
+func (c Calendar) EffectiveCaps() Caps {
+	if c.Caps != nil {
+		return *c.Caps
+	}
+	rw := !c.ReadOnly
+	return Caps{Create: rw, Update: rw, Delete: rw}
 }
 
 // RunCounts is what one cycle did.
@@ -152,6 +171,9 @@ type Connection struct {
 	TargetURL       string     `json:"target"`
 	ReadURLs        []string   `json:"read"`
 	IncludeDateOnly bool       `json:"include_date_only"`
+	// EditEvents: "Edit events in OpenTodo" is on (calendar-event-edits; a row in
+	// calsync_event_edit, off by default).
+	EditEvents bool `json:"edit_events"`
 	// Scope is the part of the account written to the calendar (sync-scope).
 	Scope          syncscope.Scope `json:"scope"`
 	SyncToken      string          `json:"-"`

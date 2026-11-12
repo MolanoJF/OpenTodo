@@ -77,6 +77,7 @@ Why each milestone exists, and the order inside it, is in [ROADMAP.md](../ROADMA
 | `obsidian-vault-sync` | Vault sync from inside Obsidian (built; waiting for the manual runs on devices) | In progress (14 of 15) |
 | `voice-ramble` | Speak a brain dump or drop a photo of notes; review the proposed tasks | Shipped in 0.20 |
 | `outlook-calendar-sync` | Microsoft 365 and Outlook in calendar sync | Shipped in 0.20 |
+| `calendar-event-edits` | Move, resize, rename and delete the events of a connected calendar in Day and Week, off until turned on per connection; the calendar stays the source of truth (built; waiting for the manual run against a real calendar) | Shipped |
 | `play-production` | Google Play production, F-Droid and reproducible builds: reproducible builds, the F-Droid metadata and the Play upload are in; the store listings wait for the owner's Play Console and F-Droid steps | In progress (13 of 18) |
 | `agent-tools-complete` | Agent and MCP tools for reminders, project notes, sections, fields, time and Focus | Shipped in 0.20 |
 | `theme-engine` | A documented theme format, tokens derived from a few seeds, applied before the first paint, chosen per light and dark side and synced, with a contrast gate; OpenTodo Light and Dark become themes | Shipped in 0.21 |
@@ -94,7 +95,7 @@ Why each milestone exists, and the order inside it, is in [ROADMAP.md](../ROADMA
 | `chore-rotation` | Recurring tasks that rotate between members of a group | Shipped in 0.21 |
 | `location-reminders` | Reminders when you arrive at or leave a place | In progress (16 of 18) |
 | `more-languages` | Dutch, and a kit for community languages | Planned |
-| `simplified-chinese` | Simplified Chinese (简体中文) | In progress (15 of 16) |
+| `simplified-chinese` | Simplified Chinese (简体中文) | Shipped |
 | `priority-names` | Rename the four priorities | Shipped in 1.4 |
 | `telegram-channel` | Telegram as a notification channel | Planned |
 
@@ -108,7 +109,7 @@ Why each milestone exists, and the order inside it, is in [ROADMAP.md](../ROADMA
 | `performance-10k` | Budgets and tests for 10,000 tasks, on phones too | Shipped in 1.3 |
 | `notes-compaction-at-scale` | A year of note history compacted in a minute without holding writes back; a new device downloads only the latest notes | Shipped in 0.22 |
 | `migration-everywhere` | A switch guide and checked importer for every competitor | Shipped in 0.22 |
-| `caldav-verified` | CalDAV verified on real clients | Planned |
+| `caldav-verified` | CalDAV verified on real clients | In progress (6 of 16) |
 | `docs-1-0` | Complete user, self-host and API docs and a contributor guide | Shipped in 0.23 |
 
 ## 1.1 "Routines"
@@ -171,7 +172,7 @@ Why each milestone exists, and the order inside it, is in [ROADMAP.md](../ROADMA
 
 | Change | What | Status |
 | --- | --- | --- |
-| `native-app-foundation` | The app's place in the repo, a platform port for the shared code, local storage chosen by measurement, sign-in through the system browser, sync, lean CI lanes and an "OpenTodo Preview" in TestFlight next to the current app | In progress (13 of 21) |
+| `native-app-foundation` | The app's place in the repo, a platform port for the shared code, local storage chosen by measurement, sign-in through the system browser, sync, lean CI lanes and an "OpenTodo Preview" in TestFlight next to the current app | In progress (14 of 21) |
 | `native-app-everyday` | Five tabs, native lists with swipe and long-press, capture with the keyboard up at once, task detail, native pickers, Browse, Search, passphrase unlock, Android conventions | Planned |
 | `native-app-handover` | Widget, share, reminders with actions, background refresh, biometric unlock, iPad split view, Google Play and F-Droid; then a go/no-go gate and the switch from the shells | Planned |
 

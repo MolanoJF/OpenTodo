@@ -3,7 +3,7 @@ title: Command-line client
 summary: The ot command: install, sign in, add and complete tasks, JSON output, exit codes, dry runs and safe use by AI agents.
 audience: developer
 section: Integrations
-specs: [cli-client]
+specs: [cli-client, calendar-event-edits]
 screens: []
 order: 20
 ---
@@ -323,6 +323,18 @@ steps:
 ```
 
 `ot routine list` shows each routine's PROJECT and, for a routine of a [shared project](routines.md#routines-of-a-shared-project), RUNS AS (the person who last turned it on, `-` before anyone did); `ot routine show` prints both. `ot routine run` prints each step's status, items and time, and exits 6 when the run failed (with `--json`, the run record is printed and says at which step). A read token can list, show and read runs but is refused on every other subcommand (exit 5). Saving a routine with a step that is not available prints a warning naming the step and the reason.
+
+## Calendar events
+
+The events of your [connected calendars](calendar-sync.md#edit-events-in-opentodo) and [calendar feeds](calendar-feeds.md), and, for a connected calendar with **Edit events in OpenTodo** on, a way to rename, move and delete them:
+
+```bash
+ot calendar events [--from today --to friday]                 # id, date, time, title, calendar, access
+ot calendar event edit 4f2a --title "Standup" --start 2026-11-12T14:00 --end 2026-11-12T14:30
+ot calendar event delete 4f2a [--yes]
+```
+
+`ot calendar` alone is `ot calendar events`; `--from` and `--to` take `YYYY-MM-DD`, `today`, `tomorrow` or a weekday (default today and the six days after, at most 92 days). ACCESS says `edit`, or `read-only` with the reason (`edits_off`, `recurring`, `has_guests`, `not_organizer`, `calendar_read_only`). `edit` and `delete` take an event's id or a unique prefix of it, looked up within 45 days of today (`--on <day>` looks around another day). `--start` alone keeps the event's length and a date alone keeps its clock time; a timed event keeps its time zone; `--all-day` makes it an all-day event, whose `--end` is the day after its last day. Moving an event changes its id, and the command prints the new one. `edit` and `delete` write to your calendar, so `--dry-run`, `--read-only` and token scope apply (a `read` or `agent` token exits 5, before anything is sent; a `read` token can list). `event_edits_off` and `calendar_read_only` exit 5; `event_changed` (the event changed in the calendar since the listing: list again), `event_not_editable`, `event_gone` and `calendar_unreachable` exit 1. `--json` prints the events as [`calendar-feeds/events`](api.md#calendar-feeds) serves them.
 
 ## Calendar frames
 

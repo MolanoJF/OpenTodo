@@ -34,8 +34,14 @@ type Calendar struct {
 	Color    string
 	Comps    []string // VEVENT by default
 	ReadOnly bool
-	TimeZone string // IANA, sent as calendar-timezone
-	objects  map[string]*Object
+	// Privileges, when set, replace the default privilege set (read, and write
+	// unless ReadOnly) with read and these (write, write-content, bind, unbind, all);
+	// NoPrivilegeSet leaves the property out, as a server that does not say.
+	Privileges     []string
+	privilegesSet  bool
+	NoPrivilegeSet bool
+	TimeZone       string // IANA, sent as calendar-timezone
+	objects        map[string]*Object
 	// log records changes for sync-collection: seq → member, deleted.
 	log []change
 }
@@ -59,11 +65,12 @@ type Server struct {
 	// Prefix is where the account lives ("/dav" by default).
 	Prefix string
 
-	mu        sync.Mutex
-	cals      map[string]*Calendar
-	seq       int
-	Requests  map[string]int
-	etagCount int
+	mu            sync.Mutex
+	cals          map[string]*Calendar
+	seq           int
+	Requests      map[string]int
+	etagCount     int
+	unconditional int
 }
 
 // New starts a server with one calendar "work" holding events.
@@ -83,6 +90,29 @@ func (s *Server) AddCalendar(id string, c *Calendar) {
 	}
 	c.objects = map[string]*Object{}
 	s.cals[id] = c
+}
+
+// SetPrivileges makes the calendar's privilege set read plus privs.
+func (s *Server) SetPrivileges(cal string, privs ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := s.cals[cal]
+	c.Privileges, c.privilegesSet, c.NoPrivilegeSet = privs, true, false
+}
+
+// NoPrivileges makes the calendar answer without a privilege set.
+func (s *Server) NoPrivileges(cal string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cals[cal].NoPrivilegeSet = true
+}
+
+// Unconditional counts PUT and DELETE requests that carried neither If-Match
+// nor If-None-Match (a write that could overwrite a version nobody saw).
+func (s *Server) Unconditional() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.unconditional
 }
 
 // RemoveCalendar deletes a collection.
@@ -237,11 +267,20 @@ func (s *Server) calProps(id string, c *Calendar) string {
 		comps += `<c:comp name="` + n + `"/>`
 	}
 	priv := `<d:privilege><d:read/></d:privilege>`
-	if !c.ReadOnly {
+	switch {
+	case c.privilegesSet:
+		for _, p := range c.Privileges {
+			priv += `<d:privilege><d:` + p + `/></d:privilege>`
+		}
+	case !c.ReadOnly:
 		priv += `<d:privilege><d:write/></d:privilege>`
 	}
+	privSet := `<d:current-user-privilege-set>` + priv + `</d:current-user-privilege-set>`
+	if c.NoPrivilegeSet {
+		privSet = ""
+	}
 	p := `<d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>` + caldav.Esc(c.Name) + `</d:displayname>` +
-		`<c:supported-calendar-component-set>` + comps + `</c:supported-calendar-component-set><d:current-user-privilege-set>` + priv + `</d:current-user-privilege-set>` +
+		`<c:supported-calendar-component-set>` + comps + `</c:supported-calendar-component-set>` + privSet +
 		`<ic:calendar-color>` + c.Color + `</ic:calendar-color><cs:getctag>` + s.ctag(c) + `</cs:getctag>`
 	if c.TimeZone != "" {
 		p += `<c:calendar-timezone>BEGIN:VCALENDAR&#13;
@@ -411,6 +450,9 @@ func (s *Server) object(w http.ResponseWriter, r *http.Request, c *Calendar, id,
 		w.Header().Set("Content-Type", "text/calendar")
 		_, _ = io.WriteString(w, o.Data)
 	case http.MethodPut:
+		if r.Header.Get("If-Match") == "" && r.Header.Get("If-None-Match") == "" {
+			s.unconditional++
+		}
 		if c.ReadOnly {
 			http.Error(w, "read-only", http.StatusForbidden)
 			return
@@ -430,6 +472,13 @@ func (s *Server) object(w http.ResponseWriter, r *http.Request, c *Calendar, id,
 			w.WriteHeader(http.StatusNoContent)
 		}
 	case http.MethodDelete:
+		if r.Header.Get("If-Match") == "" {
+			s.unconditional++
+		}
+		if c.ReadOnly {
+			http.Error(w, "read-only", http.StatusForbidden)
+			return
+		}
 		if o == nil {
 			http.NotFound(w, r)
 			return

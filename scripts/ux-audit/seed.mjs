@@ -19,10 +19,15 @@ export function calendarEvents(now) {
   const day = (n) => new Date(now + n * 86400e3).toISOString().slice(0, 10)
   const ev = (id, summary, start, end, extra = {}) => ({ id, subscriptionId: 'layout-cal', uid: id, summary, location: '', start, end, allDay: !start.time, free: false, ...extra })
   return {
-    subscriptions: [{ id: 'layout-cal', name: 'Work calendar', color: '#2563eb', enabled: true, lastSuccessAt: now }],
+    subscriptions: [
+      { id: 'layout-cal', name: 'Work calendar', color: '#2563eb', enabled: true, lastSuccessAt: now },
+      // A connected calendar with "Edit events in OpenTodo" on (calendar-event-edits): its event can be dragged and edited.
+      { id: 'layout-managed', name: 'Personal calendar', color: '#16a34a', enabled: true, lastSuccessAt: now, managed: true, connectionId: 'layout-conn', calendarUrl: 'https://cal.example/personal/', caps: { create: true, update: true, delete: true }, editEvents: true },
+    ],
     events: [
       ev('layout-sync', 'Team sync', { date: day(0), time: '11:00' }, { date: day(0), time: '11:30' }, { location: 'Room 4' }),
       ev('layout-long', 'Quarterly planning review with the whole department and guests', { date: day(1), time: '09:00' }, { date: day(1), time: '10:30' }),
+      ev('layout-edit', 'Coffee with Sam', { date: day(0), time: '14:00' }, { date: day(0), time: '14:30' }, { subscriptionId: 'layout-managed', rev: 'a41c9d03e2b7f610', access: { update: true, delete: true } }),
       ev('layout-free', 'Focus time', { date: day(1), time: '13:00' }, { date: day(1), time: '15:00' }, { free: true }),
       ...[8, 10, 12, 15].map((h, i) => ev(`layout-busy-${i}`, `Meeting ${i + 1}`, { date: day(3), time: `${String(h).padStart(2, '0')}:00` }, { date: day(3), time: `${String(h).padStart(2, '0')}:45` })),
       ev('layout-offsite', 'Offsite', { date: day(5) }, { date: day(7) }),

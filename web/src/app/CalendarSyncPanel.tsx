@@ -156,6 +156,29 @@ function calendarName(c: CalendarConnection, url: string): string {
   return c.calendars.find((x) => x.url === url)?.name ?? t('A calendar')
 }
 
+/** The calendars shown from this account that it does not let OpenTodo change (calendar-event-edits D3). */
+export function readOnlyShown(c: CalendarConnection): string[] {
+  const shown = new Set([c.target, ...c.read])
+  return c.calendars.filter((x) => shown.has(x.url) && (x.read_only || x.caps?.update === false)).map((x) => x.name)
+}
+
+/** "Edit events in OpenTodo" (calendar-event-edits D7): off until turned on, and a note on the calendars the account keeps read-only. */
+function EditEventsRow({ c, disabled, onChange }: { c: CalendarConnection; disabled: boolean; onChange: (on: boolean) => void }) {
+  const locked = readOnlyShown(c)
+  return (
+    <div className="mt-2 space-y-1 border-t border-soft pt-2" data-edit-events>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-body font-medium text-default">{t('Edit events in OpenTodo')}</p>
+          <p className="text-meta text-muted">{t('Moving, resizing, renaming or deleting an event in OpenTodo changes it in your calendar')}</p>
+        </div>
+        <Switch checked={!!c.edit_events} disabled={disabled} onChange={onChange} label={t('Edit events in OpenTodo')} hideLabel />
+      </div>
+      {locked.length > 0 && <p className="text-meta text-faint" data-calendar-read-only>{t('Read-only in your account: {names}', { names: locked.join(', ') })}</p>}
+    </div>
+  )
+}
+
 function ConnectionCard({ c, p, disabled, onChoose, onPassword, onDelete }: { c: CalendarConnection; p: CalendarSyncViewProps; disabled: boolean
   onChoose: () => void; onPassword: () => void; onDelete: () => void }) {
   const now = p.now ?? Date.now()
@@ -197,6 +220,7 @@ function ConnectionCard({ c, p, disabled, onChoose, onPassword, onDelete }: { c:
           </Menu>
         </div>
       </div>
+      {c.calendars.length > 0 && c.state !== 'choose_calendar' && <EditEventsRow c={c} disabled={disabled} onChange={(on) => void p.onPatch(c, { edit_events: on })} />}
     </Card>
   )
 }

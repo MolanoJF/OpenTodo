@@ -239,6 +239,38 @@
         "idempotentHint": true,
         "openWorldHint": false,
         "readOnlyHint": true,
+        "title": "List calendar events"
+      },
+      "description": "List the user's calendar events from..to (dates YYYY-MM-DD, at most 92 days, both inclusive): the events of their connected calendars and calendar feeds, as the calendar view shows them. Each event has an id, start and end ({date, time, tz}; all-day events have a date only, the end exclusive) and, for a connected calendar's event, connection_id, rev and access ({update, delete, reason}). To change one, pass connection_id, the id and the rev to update_calendar_event or delete_calendar_event. An event with access.update false cannot be changed, and the reason says why.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "description": "First day (YYYY-MM-DD).",
+            "format": "date",
+            "type": "string"
+          },
+          "to": {
+            "description": "Last day (YYYY-MM-DD), not before from, at most 91 days after it.",
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "name": "list_calendar_events",
+      "title": "List calendar events"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true,
         "title": "List frames"
       },
       "description": "List the occurrences of the user's calendar frames (recurring windows such as \"Deep work\" on weekdays 09:00-11:00) on the days from..to, with floating wall times and the planning source (project:, label: or view: id) that says which tasks belong in each. Default: the seven days from today in timezone; at most 31 days. Frames guide planning: propose ordinary due dates and times inside them.",
