@@ -527,9 +527,15 @@ export const OVERLAYS = {
   // The full event editor (calendar-event-editor D11): a double-click on the event opens it, in the side panel from 1024 px and as a sheet below.
   async 'event-panel'(p) {
     const trigger = p.locator('[data-event="layout-edit"]')
-    await trigger.dblclick()
-    await p.locator('[data-event-form]').waitFor()
     const wide = p.viewportSize().width >= 1024
+    if (wide) await trigger.dblclick()
+    else {
+      // Below 1024 px the first click of a double-click opens the popover as a sheet over the event, so the second lands on the sheet:
+      // go the way a touch screen does, through the popover's "Open editor" button.
+      await trigger.click()
+      await p.locator('[data-event-open-editor]').click()
+    }
+    await p.locator('[data-event-form]').waitFor()
     return { overlay: wide ? p.locator('[data-panel-frame="event-editor"]') : overlayLoc(p), trigger, kind: wide ? 'panel' : 'dialog' }
   },
   // The When popover, one segment at a time (task-panel-facets D3).
