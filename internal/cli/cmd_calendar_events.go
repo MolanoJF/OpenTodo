@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net/url"
 	"strings"
@@ -112,13 +113,15 @@ func cmdCalendar(a *App, ctx context.Context, g *globalFlags, args []string) err
 	case "event":
 		if len(args) > 1 {
 			switch args[1] {
+			case "add":
+				return calendarEventAdd(a, ctx, g, args[2:])
 			case "edit":
 				return calendarEventEdit(a, ctx, g, args[2:])
 			case "delete", "rm":
 				return calendarEventDelete(a, ctx, g, args[2:])
 			}
 		}
-		return usageErr("usage: ot calendar event edit <id> … | ot calendar event delete <id>")
+		return usageErr("usage: ot calendar event add <title> … | ot calendar event edit <id> … | ot calendar event delete <id>")
 	}
 	return usageErr("unknown calendar command %q (expected events or event)", args[0])
 }
@@ -242,12 +245,22 @@ func calendarEventEdit(a *App, ctx context.Context, g *globalFlags, args []strin
 	end := fs.String("end", "", "new end, same forms (for an all-day event the day after its last day)")
 	allDay := fs.Bool("all-day", false, "make the event an all-day event")
 	on := fs.String("on", "", "a day near the event, when it is more than 45 days from today")
+	loc := fs.String("location", "", "new location (\"\" clears it)")
+	desc := fs.String("description", "", "new description, plain text; it replaces the whole text (\"\" clears it)")
+	free := fs.Bool("free", false, "show you as free during the event")
+	busy := fs.Bool("busy", false, "show you as busy during the event")
 	pos, err := a.parse(g, fs, "calendar event edit", args)
 	if err != nil {
 		return a.helpOr("calendar", err)
 	}
-	if len(pos) != 1 || (*title == "" && *start == "" && *end == "" && !*allDay) {
-		return usageErr("usage: ot calendar event edit <id> [--title <t>] [--start DATE[Thh:mm]] [--end DATE[Thh:mm]] [--all-day]")
+	given := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
+	changes := *title != "" || *start != "" || *end != "" || *allDay || given["location"] || given["description"] || *free || *busy
+	if len(pos) != 1 || !changes {
+		return usageErr("usage: ot calendar event edit <id> [--title <t>] [--start DATE[Thh:mm]] [--end DATE[Thh:mm]] [--all-day] [--location <t>] [--description <t>] [--free | --busy]")
+	}
+	if *free && *busy {
+		return usageErr("give --free or --busy, not both")
 	}
 	c, _, err := a.connect(g)
 	if err != nil {
@@ -271,6 +284,15 @@ func calendarEventEdit(a *App, ctx context.Context, g *globalFlags, args []strin
 			return err
 		}
 		body["start"], body["end"], body["allDay"] = s, e, kind
+	}
+	if given["location"] {
+		body["location"] = *loc
+	}
+	if given["description"] {
+		body["description"] = *desc
+	}
+	if *free || *busy {
+		body["free"] = *free
 	}
 	a.target(pos[0], ev.ID, ev.name(), "updated")
 	var res struct {

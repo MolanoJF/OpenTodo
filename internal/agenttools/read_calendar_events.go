@@ -35,6 +35,7 @@ func init() {
 		def: readDef("list_calendar_events", "List calendar events",
 			"List the user's calendar events from..to (dates YYYY-MM-DD, at most 92 days, both inclusive): the events of their connected calendars and calendar feeds, as the calendar view shows them. "+
 				"Each event has an id, start and end ({date, time, tz}; all-day events have a date only, the end exclusive) and, for a connected calendar's event, connection_id, rev and access ({update, delete, reason}). "+
+				"calendars lists the writable calendars (connection_id, calendar_url, name, can_create) that create_calendar_event can use; can_create is false while the user has editing events turned off for that connection. "+
 				"To change one, pass connection_id, the id and the rev to update_calendar_event or delete_calendar_event. An event with access.update false cannot be changed, and the reason says why.",
 			object([]string{"from", "to"}, map[string]any{
 				"from": map[string]any{"type": "string", "format": "date", "description": "First day (YYYY-MM-DD)."},
@@ -82,5 +83,12 @@ func (r *Registry) listCalendarEvents(ctx context.Context, userID string, a args
 	for i, e := range events {
 		out[i] = outEvent(e)
 	}
-	return map[string]any{"events": out, "from": from, "to": to, "truncated": truncated, "server_time": r.serverTime()}, nil
+	cals, err := r.eventEditor.Calendars(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if cals == nil {
+		cals = []EventCalendar{}
+	}
+	return map[string]any{"events": out, "calendars": cals, "from": from, "to": to, "truncated": truncated, "server_time": r.serverTime()}, nil
 }

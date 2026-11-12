@@ -14,6 +14,9 @@ import (
 type fakeEditor struct {
 	events  []CalendarEvent
 	updates []EventUpdate
+	creates []EventCreate
+	cals    []EventCalendar
+	seen    map[string]EventOutcome
 	deletes []string
 	err     error
 	// validate, when set, is what Validate answers.
@@ -23,7 +26,25 @@ type fakeEditor struct {
 func (f *fakeEditor) Events(_ context.Context, uid, from, to string) ([]CalendarEvent, error) {
 	return f.events, f.err
 }
-func (f *fakeEditor) Validate(EventUpdate) error { return f.validate }
+func (f *fakeEditor) Validate(EventUpdate) error                                 { return f.validate }
+func (f *fakeEditor) ValidateCreate(EventCreate) error                           { return f.validate }
+func (f *fakeEditor) Calendars(context.Context, string) ([]EventCalendar, error) { return f.cals, nil }
+func (f *fakeEditor) Create(_ context.Context, uid string, c EventCreate) (EventOutcome, error) {
+	if f.err != nil {
+		return EventOutcome{}, f.err
+	}
+	if out, ok := f.seen[c.ClientID]; ok {
+		out.Replayed = true
+		return out, nil
+	}
+	f.creates = append(f.creates, c)
+	out := EventOutcome{Event: CalendarEvent{ID: "made-" + c.ClientID, ConnectionID: c.ConnectionID, Rev: "r1", Title: c.Summary, Location: c.Location}}
+	if f.seen == nil {
+		f.seen = map[string]EventOutcome{}
+	}
+	f.seen[c.ClientID] = out
+	return out, nil
+}
 func (f *fakeEditor) Update(_ context.Context, uid string, u EventUpdate) (EventOutcome, error) {
 	if f.err != nil {
 		return EventOutcome{}, f.err
@@ -227,5 +248,116 @@ func TestCalendarEventWritesAreLimited(t *testing.T) {
 	}
 	if n != PerMinute || toolCode0(t, last) != "rate_limited" {
 		t.Fatalf("calls before the minute limit: %d (%v)", n, last)
+	}
+}
+
+var createArgs = map[string]any{"connection_id": "c1", "calendar_url": "https://cal/x/", "title": "Dentist",
+	"start": map[string]any{"date": "2026-11-12", "time": "14:00", "tz": "Europe/Berlin"},
+	"end":   map[string]any{"date": "2026-11-12", "time": "14:30", "tz": "Europe/Berlin"}}
+
+func withArgs(extra map[string]any) map[string]any {
+	out := map[string]any{}
+	for k, v := range createArgs {
+		out[k] = v
+	}
+	for k, v := range extra {
+		out[k] = v
+	}
+	return out
+}
+
+// 6.2: create_calendar_event needs the same three gates as the other writes.
+func TestCreateCalendarEventNeedsTheGate(t *testing.T) {
+	f, ed := eventFixture(t)
+	for name, mod := range map[string]func(*Caller){
+		DeniedByOwner: func(c *Caller) { c.OwnerAllowsWrites = false },
+		DeniedByUser:  func(c *Caller) { c.UserAllowsWrites = false },
+		DeniedByScope: func(c *Caller) { c.Scope = "full" },
+	} {
+		c := agent("u1")
+		mod(&c)
+		if _, err := f.call(c, "create_calendar_event", createArgs); toolCode0(t, err) != name {
+			t.Fatalf("%s: %v", name, err)
+		}
+	}
+	if len(ed.creates) != 0 {
+		t.Fatal("a denied call wrote")
+	}
+	read := agent("u1")
+	read.Scope = "read"
+	for _, d := range f.reg.Definitions(read) {
+		if d.Name == "create_calendar_event" {
+			t.Fatal("listed to a read token")
+		}
+	}
+}
+
+// A retry with the same client_id makes one event; without one the tool makes
+// a fresh id for each call; the result marks text untrusted.
+func TestCreateCalendarEvent(t *testing.T) {
+	f, ed := eventFixture(t)
+	c := agent("u1")
+	out := f.mustCall(c, "create_calendar_event", withArgs(map[string]any{"client_id": "retry-key-1", "location": "Main St", "description": "bring card", "free": true}))
+	f.mustCall(c, "create_calendar_event", withArgs(map[string]any{"client_id": "retry-key-1"}))
+	if len(ed.creates) != 1 {
+		t.Fatalf("a retry made %d events", len(ed.creates))
+	}
+	g := ed.creates[0]
+	if g.ClientID != "retry-key-1" || g.Location != "Main St" || g.Description != "bring card" || !g.Free || g.Start.Date != "2026-11-12" {
+		t.Fatalf("create: %+v", g)
+	}
+	raw, _ := json.Marshal(out)
+	if !strings.Contains(string(raw), `"untrusted_text":{"title":"Dentist","location":"Main St"}`) || !strings.Contains(string(raw), `"replayed":false`) {
+		t.Fatalf("result: %s", raw)
+	}
+	f.mustCall(c, "create_calendar_event", createArgs)
+	f.mustCall(c, "create_calendar_event", createArgs)
+	if len(ed.creates) != 3 || ed.creates[1].ClientID == "" || ed.creates[1].ClientID == ed.creates[2].ClientID {
+		t.Fatalf("generated client ids: %+v", ed.creates)
+	}
+	for _, bad := range []map[string]any{
+		withArgs(map[string]any{"title": ""}), withArgs(map[string]any{"colour": "red"}),
+		withArgs(map[string]any{"free": "yes"}), {"connection_id": "c1", "calendar_url": "u", "title": "x"},
+	} {
+		var ae *ArgError
+		if _, err := f.call(c, "create_calendar_event", bad); !errors.As(err, &ae) {
+			t.Fatalf("%v: %v", bad, err)
+		}
+	}
+	ed.err = &ToolError{Code: "event_edits_off", Message: "m"}
+	if _, err := f.call(c, "create_calendar_event", createArgs); toolCode0(t, err) != "event_edits_off" {
+		t.Fatalf("edits off: %v", err)
+	}
+}
+
+func TestCreateCalendarEventIsLimited(t *testing.T) {
+	f, ed := eventFixture(t)
+	c := agent("u1")
+	if ok, _ := f.reg.limits.Reserve(c.TokenID, PerDay); !ok {
+		t.Fatal("reserve")
+	}
+	if _, err := f.call(c, "create_calendar_event", createArgs); toolCode0(t, err) != "rate_limited" || len(ed.creates) != 0 {
+		t.Fatalf("past the daily items: %v", err)
+	}
+}
+
+func TestUpdateCalendarEventTakesLocationDescriptionFree(t *testing.T) {
+	f, ed := eventFixture(t)
+	f.mustCall(agent("u1"), "update_calendar_event", map[string]any{"connection_id": "c1", "event_id": "e1", "rev": "r1", "location": "", "description": "new text", "free": false})
+	u := ed.updates[0]
+	if u.Location == nil || *u.Location != "" || u.Description == nil || *u.Description != "new text" || u.Free == nil || *u.Free {
+		t.Fatalf("update: %+v", u)
+	}
+}
+
+// list_calendar_events carries the writable calendars, also for an encrypted account.
+func TestListCalendarEventsHasCalendars(t *testing.T) {
+	f, ed := eventFixture(t)
+	ed.cals = []EventCalendar{{ConnectionID: "c1", CalendarURL: "https://cal/x/", Name: "Work", CanCreate: true}}
+	c := agent("u1")
+	c.Scope, c.Encrypted = "read", true
+	raw, _ := json.Marshal(f.mustCall(c, "list_calendar_events", map[string]any{"from": "2026-11-12", "to": "2026-11-12"}))
+	if !strings.Contains(string(raw), `"calendars":[{"connection_id":"c1","calendar_url":"https://cal/x/","name":"Work","can_create":true}]`) {
+		t.Fatalf("calendars: %s", raw)
 	}
 }

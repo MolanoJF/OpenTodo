@@ -36,7 +36,8 @@ func eventPointOf(p *agenttools.EventTime) *eventPoint {
 }
 
 func eventPatchOf(u agenttools.EventUpdate) eventPatch {
-	return eventPatch{Rev: u.Rev, Summary: u.Summary, Start: eventPointOf(u.Start), End: eventPointOf(u.End), AllDay: u.AllDay}
+	return eventPatch{Rev: u.Rev, Summary: u.Summary, Start: eventPointOf(u.Start), End: eventPointOf(u.End), AllDay: u.AllDay,
+		Location: u.Location, Description: u.Description, Free: u.Free}
 }
 
 // Validate applies the PATCH route's body rules.
@@ -150,4 +151,70 @@ func eventOfRow(row calfeed.EventRow, connID string) agenttools.CalendarEvent {
 		e.Access = &agenttools.EventAccess{Update: row.Access.Update, Delete: row.Access.Delete, Reason: row.Access.Reason}
 	}
 	return e
+}
+
+func eventCreateOf(c agenttools.EventCreate) eventCreate {
+	return eventCreate{ClientID: c.ClientID, CalendarURL: c.CalendarURL, Summary: c.Summary,
+		Start: eventPointOf(&c.Start), End: eventPointOf(&c.End), AllDay: c.AllDay, Location: c.Location, Description: c.Description, Free: c.Free}
+}
+
+// ValidateCreate applies the POST route's body rules.
+func (calendarEventEditor) ValidateCreate(c agenttools.EventCreate) error {
+	if _, field, msg := eventCreateOf(c).eventOf(); field != "" {
+		return &agenttools.ArgError{Msg: field + ": " + msg}
+	}
+	return nil
+}
+
+// Create makes one event through the same Worker.CreateEvent as the POST
+// route; a repeated client id is a replay that writes and audits nothing.
+func (e calendarEventEditor) Create(ctx context.Context, uid string, c agenttools.EventCreate) (agenttools.EventOutcome, error) {
+	if err := e.on(ctx); err != nil {
+		return agenttools.EventOutcome{}, err
+	}
+	ev, field, msg := eventCreateOf(c).eventOf()
+	if field != "" {
+		return agenttools.EventOutcome{}, &agenttools.ArgError{Msg: field + ": " + msg}
+	}
+	if !e.s.calsyncEventLimiter.allow(uid) {
+		return agenttools.EventOutcome{}, toolCode("rate_limited", "too many calendar event changes; try again later")
+	}
+	res, err := e.s.calsync.CreateEvent(ctx, uid, c.ConnectionID, c.CalendarURL, ev)
+	if err != nil {
+		var ee *calsync.EventError
+		if errors.As(err, &ee) && ee.Code == calsync.EventInvalid {
+			return agenttools.EventOutcome{}, &agenttools.ArgError{Msg: ee.Reason + ": not valid for this connection; take it from the calendars of list_calendar_events"}
+		}
+		return agenttools.EventOutcome{}, e.toolError(err)
+	}
+	if res.Created {
+		e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, c.ConnectionID, res.Provider, "created"))
+	}
+	return agenttools.EventOutcome{Event: eventOfRow(res.Event, res.ConnectionID), Replayed: !res.Created}, nil
+}
+
+// Calendars lists the calendars an event can be created in: the shown,
+// writable calendars of the user's connections. CanCreate follows the
+// connection's "Edit events in OpenTodo" switch.
+func (e calendarEventEditor) Calendars(ctx context.Context, uid string) ([]agenttools.EventCalendar, error) {
+	if e.s.calsync == nil || !e.s.calsyncOn.On(ctx) {
+		return nil, nil
+	}
+	conns, err := e.s.calsync.Store.List(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+	var out []agenttools.EventCalendar
+	for _, c := range conns {
+		shown, err := e.s.calsync.Feeds.ManagedOf(ctx, c.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, cal := range c.Calendars {
+			if _, ok := shown[cal.URL]; ok && cal.EffectiveCaps().Create {
+				out = append(out, agenttools.EventCalendar{ConnectionID: c.ID, CalendarURL: cal.URL, Name: cal.Name, CanCreate: c.EditEvents})
+			}
+		}
+	}
+	return out, nil
 }

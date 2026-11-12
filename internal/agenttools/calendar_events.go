@@ -50,12 +50,38 @@ type EventUpdate struct {
 	Summary      *string
 	Start, End   *EventTime
 	AllDay       *bool
+	// Location and Description: "" clears; Description replaces the whole text.
+	Location, Description *string
+	Free                  *bool
+}
+
+// EventCreate is the change create_calendar_event asks for (calendar-event-editor
+// D13). ClientID is the idempotency key: a repeat returns the first event.
+type EventCreate struct {
+	ConnectionID, CalendarURL string
+	ClientID                  string
+	Summary                   string
+	Start, End                EventTime
+	AllDay                    *bool
+	Location, Description     string
+	Free                      bool
+}
+
+// EventCalendar is a calendar an event can be created in.
+type EventCalendar struct {
+	ConnectionID string `json:"connection_id"`
+	CalendarURL  string `json:"calendar_url"`
+	Name         string `json:"name"`
+	// CanCreate is false while "Edit events in OpenTodo" is off for the connection.
+	CanCreate bool `json:"can_create"`
 }
 
 // EventOutcome is the event as the calendar now holds it and the id it had.
 type EventOutcome struct {
 	Event    CalendarEvent
 	Replaces string
+	// Replayed: a create whose client id was used before; nothing was written.
+	Replayed bool
 }
 
 // EventEditor is what the calendar event tools need from the server; the
@@ -69,6 +95,12 @@ type EventEditor interface {
 	Validate(u EventUpdate) error
 	// Update changes one event (u.Rev is the version the caller saw).
 	Update(ctx context.Context, userID string, u EventUpdate) (EventOutcome, error)
+	// Calendars lists the writable calendars of the user's connections.
+	Calendars(ctx context.Context, userID string) ([]EventCalendar, error)
+	// ValidateCreate checks a new event as the POST route does, without writing.
+	ValidateCreate(c EventCreate) error
+	// Create makes one event (c.ClientID makes a retry safe).
+	Create(ctx context.Context, userID string, c EventCreate) (EventOutcome, error)
 	// Delete removes one event (rev is the version the caller saw).
 	Delete(ctx context.Context, userID, connectionID, eventID, rev string) error
 }
