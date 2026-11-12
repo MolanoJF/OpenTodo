@@ -25,9 +25,9 @@ const DAY = '2026-10-14'
 const sub: CalendarSubscription = { id: 'sub1', name: 'Personal', color: '#2563eb', enabled: true, lastSuccessAt: Date.now(), managed: true, connectionId: 'c1', calendarUrl: 'https://dav/p/', editEvents: true, caps: { create: true, update: true, delete: true } }
 const timed = (over: Partial<CalendarEvent>): CalendarEvent => ({ id: 'ev1', subscriptionId: 'sub1', uid: 'u1', summary: 'Coffee', location: '', start: { date: DAY, time: '10:00' }, end: { date: DAY, time: '11:00' }, allDay: false, free: false, rev: 'r1', access: { update: true, delete: true }, ...over })
 const coffee = timed({})
-const weekly = timed({ id: 'ev2', uid: 'u2', summary: 'Standup', start: { date: DAY, time: '13:00' }, end: { date: DAY, time: '13:30' }, access: { update: false, delete: false, reason: 'recurring' } })
+const weekly = timed({ id: 'ev2', uid: 'u2', summary: 'Standup', start: { date: DAY, time: '13:00' }, end: { date: DAY, time: '13:30' }, access: { update: false, delete: false, reason: 'series_unsupported' } })
 const offsite = timed({ id: 'ev3', uid: 'u3', summary: 'Offsite', allDay: true, start: { date: DAY }, end: { date: '2026-10-16' } })
-const holiday = timed({ id: 'ev4', uid: 'u4', summary: 'Holiday', allDay: true, start: { date: DAY }, end: { date: '2026-10-15' }, access: { update: false, delete: false, reason: 'recurring' } })
+const holiday = timed({ id: 'ev4', uid: 'u4', summary: 'Holiday', allDay: true, start: { date: DAY }, end: { date: '2026-10-15' }, access: { update: false, delete: false, reason: 'series_unsupported' } })
 
 beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -82,7 +82,7 @@ describe('opening the editor', () => {
     await dblclick(block(r.container, 'ev2'))
     expect(currentEventEditor()).toBeNull()
     await click(block(r.container, 'ev2'))
-    await waitFor(() => !!document.querySelector('[data-event-locked="recurring"]'), 'the reason')
+    await waitFor(() => !!document.querySelector('[data-event-locked="series_unsupported"]'), 'the reason')
     expect(button('All details')).toBeUndefined()
     await click(document.querySelector<HTMLElement>('[data-event-actions] [aria-haspopup="menu"], [data-event-actions] button[aria-label="More actions"]')!)
     await waitFor(() => !!document.querySelector('[data-event-duplicate]'), 'the overflow')

@@ -140,3 +140,31 @@ describe('queued creates and the new fields (calendar-event-editor D9)', () => {
     expect(isNoChange(row, { location: '' })).toBe(true)
   })
 })
+
+// calendar-event-series D11: a refresh keeps a queued scoped change on its one edited occurrence.
+describe('queued scoped edits over a refresh', () => {
+  const at = (date: string, time: string) => ({ date, time, tz: 'Europe/Berlin' })
+  const occ = (day: number): CalendarEvent => ({
+    id: `o${day}`, subscriptionId: 's1', uid: 'routine', summary: 'Routine', location: '', allDay: false, free: false, rev: 'r1',
+    start: at(`2026-11-${10 + day}`, '07:00'), end: at(`2026-11-${10 + day}`, '08:30'), series: { id: 'ser', rev: 'r1' },
+  })
+  const command = (patch: EventCommand['patch'], scope: EventCommand['scope']): EventCommand => ({ key: 'c1:o2', connectionId: 'c1', eventId: 'o2', rev: 'r1', base: occ(2), patch, notBefore: 0, tries: 0, scope })
+
+  it.each(['following', 'all'] as const)('applies a queued %s change to its occurrence only', (scope) => {
+    const events = new Map([1, 2, 3].map((d) => [`o${d}`, occ(d)]))
+    overlayQueued(events, [command({ start: at('2026-11-12', '09:00'), end: at('2026-11-12', '10:30'), allDay: false }, scope)])
+    expect([...events.values()].map((e) => e.start.time)).toEqual(['07:00', '09:00', '07:00'])
+  })
+
+  it('does not put repeat or reminders on the row', () => {
+    const events = new Map([['o2', occ(2)]])
+    overlayQueued(events, [command({ repeat: { freq: 'daily', interval: 1, ends: { type: 'never' } }, reminders: [10] }, 'all')])
+    expect(events.get('o2')).toEqual(occ(2))
+  })
+
+  it('counts a repeat or reminders change as a change, though no field of the row moves', () => {
+    expect(isNoChange(occ(2), { repeat: null })).toBe(false)
+    expect(isNoChange(occ(2), { reminders: [] })).toBe(false)
+    expect(isNoChange(occ(2), {})).toBe(true)
+  })
+})

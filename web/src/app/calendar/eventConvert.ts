@@ -51,7 +51,7 @@ export function taskInputOf(f: EventFull, fallbackTitle = ''): NewTaskInput {
 export async function convertEvent(ev: CalendarEvent, fields: EventFull, deleteToo: boolean): Promise<boolean> {
   try {
     const added = await addTasksUndoable([taskInputOf(fields, ev.summary)])
-    const restore = deleteToo ? await queueDelete(ev) : null
+    const restore = deleteToo ? await queueDelete(ev, ev.series ? 'this' : undefined) : null // an occurrence is deleted alone
     const undo = () => { void (async () => {
       if (added.undoId) await undoBatch(added.undoId)
       if (restore) await restore()

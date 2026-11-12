@@ -20,7 +20,8 @@ const y = (minutes: number) => minutes * PX_PER_MIN
 
 const sub: CalendarSubscription = { id: 'sub1', name: 'Personal', color: '#2563eb', enabled: true, lastSuccessAt: Date.now(), managed: true, connectionId: 'c1', editEvents: true }
 const coffee: CalendarEvent = { id: 'ev1', subscriptionId: 'sub1', uid: 'u1', summary: 'Coffee', location: '', start: { date: DAY, time: '10:00' }, end: { date: DAY, time: '11:00' }, allDay: false, free: false, rev: 'r1', access: { update: true, delete: true } }
-const weekly: CalendarEvent = { ...coffee, id: 'ev2', uid: 'u2', summary: 'Standup', start: { date: DAY, time: '13:00' }, end: { date: DAY, time: '13:30' }, access: { update: false, delete: false, reason: 'recurring' } }
+const weekly: CalendarEvent = { ...coffee, id: 'ev2', uid: 'u2', summary: 'Standup', start: { date: DAY, time: '13:00' }, end: { date: DAY, time: '13:30' }, access: { update: false, delete: false, reason: 'series_unsupported' } }
+const routine: CalendarEvent = { ...coffee, id: 'ev3', uid: 'u3', summary: 'Routine', start: { date: DAY, time: '07:00' }, end: { date: DAY, time: '08:30' }, series: { id: 'ser1', repeat: { freq: 'daily', interval: 1, days: [], ends: { type: 'never' } }, rev: 'r1', first: false } }
 
 let requests: { method: string; url: string; body: unknown }[]
 
@@ -55,7 +56,7 @@ afterEach(() => {
 
 /** The block of an event sits where its minutes put it; the day column starts at y 0. */
 function layout() {
-  const spans: Record<string, [number, number]> = { ev1: [10 * 60, 60], ev2: [13 * 60, 30] }
+  const spans: Record<string, [number, number]> = { ev1: [10 * 60, 60], ev2: [13 * 60, 30], ev3: [7 * 60, 90] }
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
     const box = (top: number, height: number) => ({ top, bottom: top + height, height, left: 0, right: 100, width: 100, x: 0, y: top, toJSON() {} }) as DOMRect
     const id = this.getAttribute('data-event')
@@ -75,7 +76,7 @@ async function drag(el: Element, fromY: number, toY: number) {
 
 function Toast() {
   const toast = useBulkToast()
-  return <p data-test-toast>{toast?.label ?? ''}<button type="button" data-test-undo onClick={() => toast?.action?.run()}>undo</button></p>
+  return <p data-test-toast>{toast?.label ?? ''}{toast?.action && <button type="button" data-test-undo onClick={() => toast.action?.run()}>undo</button>}</p>
 }
 
 const rendered = async () => {
@@ -153,7 +154,7 @@ describe('dragging an event', () => {
     expect((await db.calendarEvents.get('ev2'))!.start.time).toBe('13:00')
     await click(locked)
     await waitFor(() => document.querySelector('[data-event-details]') !== null)
-    expect(document.querySelector('[data-event-locked="recurring"]')!.textContent).toBe('Repeating events are read-only for now')
+    expect(document.querySelector('[data-event-locked="series_unsupported"]')!.textContent).toBe('This repeat is too complex to change here')
     expect(document.querySelector('[data-event-edit]')).toBeNull()
     await r.unmount()
   })
@@ -256,6 +257,143 @@ describe('the keys', () => {
     expect(await db.eventOutbox.count()).toBe(0)
     expect((await db.calendarEvents.get('ev2'))!.start.time).toBe('13:00')
     expect(locked.tabIndex).toBe(0)
+    await r.unmount()
+  })
+})
+
+// ---- repeating events (OpenSpec change calendar-event-series, tasks 5.1 and 5.4) ----
+const scopeItems = () => [...document.querySelectorAll<HTMLButtonElement>('[data-event-scope]')]
+const chooseScope = async (scope: string) => { await waitFor(() => scopeItems().length > 0, 'the scope menu'); await act(async () => scopeItems().find((i) => i.getAttribute('data-event-scope') === scope)!.click()) }
+const routineCommand = () => db.eventOutbox.get('c1:ev3')
+
+describe('repeating events: the scope menu', () => {
+  beforeEach(async () => { await db.calendarEvents.put(routine) })
+
+  it('a drag of an occurrence shows the block moved and the menu; nothing is sent until a scope is picked', async () => {
+    const r = await rendered()
+    const block = r.container.querySelector('[data-event="ev3"]')!
+    expect(block.hasAttribute('data-editable')).toBe(true)
+    await drag(block, y(7 * 60 + 45), y(9 * 60 + 45)) // grabbed 45 minutes below the top, dropped at 09:45: the block starts at 09:00
+    await waitFor(() => scopeItems().length === 3, 'the menu')
+    await waitFor(async () => (await db.calendarEvents.get('ev3'))!.start.time === '09:00', 'the block shows the change')
+    expect(await routineCommand()).toBeUndefined()
+    expect(requests.filter((q) => q.method === 'PATCH')).toEqual([])
+    await waitFor(() => r.container.querySelector('[data-event="ev3"]')!.getAttribute('aria-busy') === 'true', 'the saving state')
+    await chooseScope('this')
+    await waitFor(async () => (await routineCommand()) !== undefined)
+    expect(await routineCommand()).toMatchObject({ scope: 'this', patch: { start: { date: DAY, time: '09:00' }, end: { date: DAY, time: '10:30' }, allDay: false } })
+    expect((await db.calendarEvents.get('ev3'))!.start.time).toBe('09:00')
+    await waitFor(() => toastText() === 'Event moved')
+    expect(document.querySelector('[data-test-undo]')).not.toBeNull()
+    await r.unmount()
+  })
+
+  it('Escape puts the block back and sends nothing', async () => {
+    const r = await rendered()
+    await drag(r.container.querySelector('[data-event="ev3"]')!, y(7 * 60 + 45), y(9 * 60 + 45))
+    await waitFor(() => scopeItems().length === 3, 'the menu')
+    await key(document.activeElement!, 'Escape')
+    await waitFor(() => scopeItems().length === 0, 'the menu closed')
+    await waitFor(async () => (await db.calendarEvents.get('ev3'))!.start.time === '07:00', 'the block back')
+    expect(await db.eventOutbox.count()).toBe(0)
+    await act(async () => { await flushEventEdits(Date.now() + 1000) })
+    expect(requests.filter((q) => q.method === 'PATCH')).toEqual([])
+    await r.unmount()
+  })
+
+  it('All events queues an all command with an Undo; This and following events has none', async () => {
+    const r = await rendered()
+    await drag(r.container.querySelector('[data-event="ev3"]')!, y(7 * 60 + 45), y(9 * 60 + 45))
+    await chooseScope('all')
+    await waitFor(async () => (await routineCommand())?.scope === 'all')
+    await waitFor(() => toastText() === 'Event moved')
+    expect(document.querySelector('[data-test-undo]')).not.toBeNull()
+    await r.unmount()
+  })
+
+  it('This and following events has no Undo: it split the series', async () => {
+    const r = await rendered()
+    await drag(r.container.querySelector('[data-event="ev3"]')!, y(7 * 60 + 45), y(9 * 60 + 45))
+    await chooseScope('following')
+    await waitFor(async () => (await routineCommand())?.scope === 'following')
+    await waitFor(() => toastText() === 'Event moved')
+    expect(document.querySelector('[data-test-undo]')).toBeNull()
+    await r.unmount()
+  })
+
+  it('a single event never asks', async () => {
+    const r = await rendered()
+    await drag(r.container.querySelector('[data-event="ev1"]')!, y(10 * 60 + 30), y(14 * 60 + 30))
+    await waitFor(async () => (await command()) !== undefined)
+    expect(scopeItems()).toHaveLength(0)
+    expect((await command())!.scope).toBeUndefined()
+    await r.unmount()
+  })
+
+  it('hides "This and following events" on the first occurrence', async () => {
+    await db.calendarEvents.put({ ...routine, series: { ...routine.series!, first: true } })
+    const r = await rendered()
+    await drag(r.container.querySelector('[data-event="ev3"]')!, y(7 * 60 + 45), y(9 * 60 + 45))
+    await waitFor(() => scopeItems().length > 0)
+    expect(scopeItems().map((i) => i.getAttribute('data-event-scope'))).toEqual(['this', 'all'])
+    await key(document.activeElement!, 'Escape')
+    await r.unmount()
+  })
+
+  it('the keyboard path: j, Down twice, the keys settle, the menu opens with focus on the first item, Enter picks', async () => {
+    await db.calendarEvents.delete('ev1')
+    const r = await render(<><CalendarView mode="day" date={DAY} /><Toast /></>)
+    await waitFor(() => r.container.querySelector('[data-event="ev3"]') !== null)
+    layout()
+    await key(document.body, 'j')
+    await waitFor(() => r.container.querySelector('[data-event="ev3"]')!.className.includes('ring-accent'), 'the selection')
+    await key(document.body, 'ArrowDown')
+    await key(document.body, 'ArrowDown')
+    await waitFor(async () => (await db.calendarEvents.get('ev3'))!.start.time === '07:30', 'the block moved by the keys')
+    await waitFor(() => scopeItems().length === 3, 'the menu after the keys settle')
+    await waitFor(() => document.activeElement === scopeItems()[0], 'focus on the first item')
+    await act(async () => (document.activeElement as HTMLElement).click()) // Enter on a button is its click
+    await waitFor(async () => (await routineCommand()) !== undefined)
+    expect(await routineCommand()).toMatchObject({ scope: 'this', patch: { start: { date: DAY, time: '07:30' }, end: { date: DAY, time: '09:00' }, allDay: false } })
+    await r.unmount()
+  })
+
+  it('Delete on an occurrence asks, and the chosen scope is queued with the 8 second delay', async () => {
+    await db.calendarEvents.delete('ev1')
+    const r = await render(<><CalendarView mode="day" date={DAY} /><Toast /></>)
+    await waitFor(() => r.container.querySelector('[data-event="ev3"]') !== null)
+    layout()
+    await key(document.body, 'j')
+    await key(document.body, 'Delete')
+    await waitFor(() => scopeItems().length === 3, 'the menu')
+    expect(document.querySelector('[role="menu"]')!.getAttribute('aria-label')).toBe('Delete which events')
+    expect(r.container.querySelector('[data-event="ev3"]')).not.toBeNull() // still drawn until a scope is picked
+    await chooseScope('all')
+    await waitFor(() => r.container.querySelector('[data-event="ev3"]') === null)
+    expect(await routineCommand()).toMatchObject({ scope: 'all', patch: { delete: true } })
+    expect((await routineCommand())!.notBefore).toBeGreaterThan(Date.now() + 7000)
+    await waitFor(() => toastText() === 'Event deleted')
+    await r.unmount()
+  })
+
+  it('the popover Save on an occurrence asks and then sends the chosen scope', async () => {
+    const r = await rendered()
+    await click(r.container.querySelector('[data-event="ev3"]')!)
+    await waitFor(() => document.querySelector('[data-event-edit]') !== null)
+    await type(document.querySelector<HTMLInputElement>('[data-event-edit-title]')!, 'Routine B')
+    await click(document.querySelector('[data-event-edit-save]')!)
+    await chooseScope('all')
+    await waitFor(async () => (await routineCommand()) !== undefined)
+    expect(await routineCommand()).toMatchObject({ scope: 'all', patch: { summary: 'Routine B' } })
+    await waitFor(() => toastText() === 'Event renamed')
+    await r.unmount()
+  })
+
+  it('shows the repeat in the popover', async () => {
+    const r = await rendered()
+    await click(r.container.querySelector('[data-event="ev3"]')!)
+    await waitFor(() => document.querySelector('[data-event-details]') !== null)
+    expect(document.querySelector('[data-event-repeat]')!.textContent).toBe('Every day')
     await r.unmount()
   })
 })

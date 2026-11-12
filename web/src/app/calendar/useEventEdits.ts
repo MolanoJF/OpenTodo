@@ -2,13 +2,16 @@
 // a drop, an arrow key and Delete end in the same commands as the popover (eventActions).
 // Event blocks are keyed `event:<id>` like their layout entries.
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { cachedEvent, currentEventId, useEventCommands } from '../../lib/calendarEventEdits'
+import { cachedEvent, currentEventId, EDIT_SETTLE_MS, useEventCommands } from '../../lib/calendarEventEdits'
 import { localDueOf } from '../../lib/dates'
 import { eventDropChange, eventEditable, type EventNudge, eventNudgeChange, type EventTarget } from '../../lib/eventDrop'
-import type { CalendarEvent } from '../../lib/types'
+import { previewedOriginal, previewEvent, restoreEvent } from '../../lib/eventPreview'
+import { needsScope } from '../../lib/eventScope'
+import type { CalendarEvent, CalendarEventChange } from '../../lib/types'
 import { reportActionError } from '../actionError'
 import type { DropTarget } from '../calendarDrag'
 import { changeEvent, deleteEvent } from './eventActions'
+import { useScopeRequest } from './eventScopeStore'
 
 /** The calendar keys that act on a selected event. */
 export type EventKeys = 'nudge' | 'shift-day' | 'estimate' | 'estimate-start'
@@ -37,7 +40,11 @@ export interface EventEdits {
 export function useEventEdits(events: readonly CalendarEvent[], zone: string | undefined, selected: string | null, select: (id: string) => void): EventEdits {
   const byKey = useMemo(() => new Map(events.map((e) => [`event:${e.id}`, e])), [events])
   const commands = useEventCommands()
-  const saving = useMemo(() => new Set([...commands.keys()].map((id) => `event:${id}`)), [commands])
+  const asked = useScopeRequest() // the block shows the saving state while the scope menu is open
+  const saving = useMemo(() => new Set([...commands.keys(), ...(asked ? [asked.event.id] : [])].map((id) => `event:${id}`)), [commands, asked])
+  const settling = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  // Leaving the calendar with keys still settling: the blocks go back where they were.
+  useEffect(() => { const timers = settling.current; return () => { for (const [id, timer] of timers) { clearTimeout(timer); void restoreEvent(id) } timers.clear() } }, [])
   const latest = useRef(byKey)
   latest.current = byKey
   const queue = useRef<Promise<void>>(Promise.resolve())
@@ -57,11 +64,21 @@ export function useEventEdits(events: readonly CalendarEvent[], zone: string | u
   }, [zone])
 
   const nudge = useCallback((key: string, n: EventNudge, done?: (date: string) => void) => {
+    const landing = (c: CalendarEventChange) => (c.start && c.start.tz && c.start.time ? localDueOf({ date: c.start.date, time: c.start.time, tz: c.start.tz }, zone).date : c.start?.date)
     queue.current = queue.current.then(async () => {
       const shown = latest.current.get(`event:${currentEventId(key.slice(6))}`)
       const ev = shown && (await cachedEvent(shown.id))
       const change = ev && eventEditable(ev, zone) ? eventNudgeChange(ev, n, zone) : null
-      if (ev && change?.start && (await changeEvent(ev, change, 'moved'))) done?.(change.start.tz && change.start.time ? localDueOf({ date: change.start.date, time: change.start.time, tz: change.start.tz }, zone).date : change.start.date)
+      if (!ev || !change?.start) return
+      if (needsScope(ev)) {
+        // An occurrence: the block shows each step, and once the keys settle the scope menu asks (D12).
+        await previewEvent(ev, change)
+        done?.(landing(change)!)
+        clearTimeout(settling.current.get(ev.id))
+        settling.current.set(ev.id, setTimeout(() => { settling.current.delete(ev.id); void changeEvent(previewedOriginal(ev.id) ?? ev, change, 'moved') }, EDIT_SETTLE_MS))
+        return
+      }
+      if (await changeEvent(ev, change, 'moved')) done?.(landing(change)!)
     }).catch(reportActionError)
   }, [zone])
 
