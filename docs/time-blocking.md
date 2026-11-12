@@ -46,7 +46,7 @@ Each day's header adds up the estimates of its open tasks against your day lengt
 
 ## See your other calendars
 
-When the server owner has turned on [calendar feeds](calendar-feeds.md), events from your Google, Outlook or Apple calendars appear in Day and Week beside your tasks: read-only, marked when they overlap a task, and counted in the day's total only if you choose (below). See [Other calendars in Day and Week](other-calendars.md).
+When the server owner has turned on [calendar feeds](calendar-feeds.md), events from your calendars appear in Day and Week beside your tasks: read-only unless [editing is on](calendar-sync.md#edit-events-in-opentodo), marked when they overlap a task, and counted in the day's total only if you choose (below). See [Other calendars in Day and Week](other-calendars.md).
 
 ## Adjust the grid
 
