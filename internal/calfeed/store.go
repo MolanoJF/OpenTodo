@@ -413,6 +413,22 @@ type EventRow struct {
 	Managed bool   `json:"-"`
 	Known   bool   `json:"-"`
 	Locked  string `json:"-"`
+	// Series says the occurrence repeats (calendar-event-series D1); set for events of a
+	// connected calendar that belong to a series.
+	Series *SeriesView `json:"series,omitempty"`
+}
+
+// SeriesView is what an occurrence says about its series: the id all its
+// occurrences share, the calendar's own rule and the form it reads as (nil when
+// the rule is custom or unknown), whether it is the first occurrence, and, for
+// CalDAV, the version every occurrence of the object shares.
+type SeriesView struct {
+	ID     string  `json:"id"`
+	RRule  string  `json:"rrule,omitempty"`
+	Repeat *Repeat `json:"repeat"`
+	Custom bool    `json:"custom"`
+	First  bool    `json:"first"`
+	Rev    string  `json:"rev,omitempty"`
 }
 
 // Events returns the occurrences of the user's enabled subscriptions that
@@ -471,20 +487,22 @@ func (s *Store) EventsOf(ctx context.Context, userID, from, to string, feeds, ma
 // ref, if any.
 const eventSelect = `SELECT e.subscription_id, e.uid, e.instance, e.summary, e.location, e.start_date, e.start_time, e.start_tz,
 	e.end_date, e.end_time, e.end_tz, e.all_day, e.free, e.start_ms, e.end_ms,
-	m.subscription_id IS NOT NULL, r.subscription_id IS NOT NULL, COALESCE(r.etag,''), COALESCE(r.locked,'')
+	m.subscription_id IS NOT NULL, r.subscription_id IS NOT NULL, COALESCE(r.etag,''), COALESCE(r.locked,''),
+	COALESCE(cs.series_id,''), COALESCE(cs.rrule,''), COALESCE(cs.repeat,''), COALESCE(cs.first_instance,'')
 	FROM calendar_events e JOIN calendar_subscriptions s ON s.id = e.subscription_id
 	LEFT JOIN calsync_calendars m ON m.subscription_id = e.subscription_id
-	LEFT JOIN calendar_event_remote r ON r.subscription_id = e.subscription_id AND r.uid = e.uid AND r.instance = e.instance`
+	LEFT JOIN calendar_event_remote r ON r.subscription_id = e.subscription_id AND r.uid = e.uid AND r.instance = e.instance
+	LEFT JOIN calendar_event_series cs ON cs.subscription_id = e.subscription_id AND cs.uid = e.uid`
 
 // scanEventRow reads one row of eventSelect.
 func scanEventRow(row interface{ Scan(...any) error }) (EventRow, error) {
 	var r EventRow
-	var instance, etag string
+	var instance, etag, sid, rrule, repeat, first string
 	var st, sz, et, ez sql.NullString
 	var allDay, free int
 	var startMs, endMs int64
 	if err := row.Scan(&r.SubscriptionID, &r.UID, &instance, &r.Summary, &r.Location, &r.Start.Date, &st, &sz, &r.End.Date, &et, &ez, &allDay, &free, &startMs, &endMs,
-		&r.Managed, &r.Known, &etag, &r.Locked); err != nil {
+		&r.Managed, &r.Known, &etag, &r.Locked, &sid, &rrule, &repeat, &first); err != nil {
 		return r, err
 	}
 	if r.Managed {
@@ -494,6 +512,9 @@ func scanEventRow(row interface{ Scan(...any) error }) (EventRow, error) {
 	r.Start.Time, r.Start.TZ = nullPtr(st), nullPtr(sz)
 	r.End.Time, r.End.TZ = nullPtr(et), nullPtr(ez)
 	r.ID = EventID(r.SubscriptionID, r.UID, instance)
+	if r.Managed && sid != "" {
+		r.Series = seriesView(sid, rrule, repeat, first == instance, r.Rev)
+	}
 	return r, nil
 }
 
@@ -569,4 +590,23 @@ func (s *Store) FeedUser(ctx context.Context, secret string) (string, bool) {
 	}
 	_, _ = s.db.ExecContext(ctx, `UPDATE calendar_feed_tokens SET last_used_at = ? WHERE user_id = ?`, s.now().UnixMilli(), userID)
 	return userID, true
+}
+
+// seriesView builds the served series of an occurrence from its row.
+func seriesView(id, rrule, repeat string, first bool, rev string) *SeriesView {
+	v := &SeriesView{ID: id, RRule: rrule, First: first, Rev: rev}
+	if rrule == "" {
+		v.Rev = "" // a Microsoft occurrence has its own version; only a CalDAV object's occurrences share one
+	}
+	if repeat != "" {
+		var r Repeat
+		if err := json.Unmarshal([]byte(repeat), &r); err == nil {
+			if r.Days == nil {
+				r.Days = []string{}
+			}
+			v.Repeat = &r
+		}
+	}
+	v.Custom = rrule != "" && v.Repeat == nil
+	return v
 }
