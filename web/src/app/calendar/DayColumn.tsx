@@ -190,8 +190,10 @@ export interface ReplanGhosts {
   movesTo: Map<string, number>
 }
 
-export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, taskMap, hueOf, projectionHue, subMap, zone, selectedId, draggingId, slotDrop = null, expanded, setExpanded, preview, replan, frames, gestures, onSelect, onOpen, onDragStart }: {
+export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, taskMap, hueOf, projectionHue, subMap, zone, selectedId, draggingId, savingEvents, slotDrop = null, expanded, setExpanded, preview, replan, frames, gestures, onSelect, onOpen, onDragStart }: {
   day: DayData
+  /** Layout ids of the events with a queued change (calendar-event-edits). */
+  savingEvents?: ReadonlySet<string>
   /** The day's frame occurrences (calendar-frames D3): background bands below every block. */
   frames?: readonly PlacedFrame[]
   prefs: GridPrefs
@@ -255,7 +257,8 @@ export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, tas
         const ev = day.events.get(b.id)
         if (ev) {
           return <EventBlockView key={b.id} block={ev} lane={b.lane} lanes={b.lanes} overlap={b.overlap} pxPerMinute={PX_PER_MIN}
-            minHeight={MIN_BLOCK_MINUTES * PX_PER_MIN} sub={subMap.get(ev.event.subscriptionId)} zone={zone} />
+            minHeight={MIN_BLOCK_MINUTES * PX_PER_MIN} sub={subMap.get(ev.event.subscriptionId)} zone={zone}
+            edit={{ date: day.date, selected: selectedId === b.id, dragging: draggingId === b.id, saving: !!savingEvents?.has(b.id), onSelect, onDragStart }} />
         }
         const pj = day.projected.get(b.id)
         if (pj) {

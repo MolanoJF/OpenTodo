@@ -39,3 +39,5 @@ export const Desktop: StoryObj = { render: () => wide() }
 export const MemberWithoutMicrosoft: StoryObj = { render: () => narrow({ isOwner: false, microsoft: false, microsoftClient: null }) }
 export const SecretRefused: StoryObj = { render: () => wide({ microsoftClient: { ...client, refused_at: now - 3_600_000 }, connections: [outlook, refused] }) }
 export const TimesInUTC: StoryObj = { render: () => narrow({ connections: [{ ...outlook, calendars: outlook.calendars.map((c) => ({ ...c, time_zone: undefined })) }] }) }
+/** "Edit events in OpenTodo" on, with the shown calendar the account keeps read-only named (calendar-event-edits D7). */
+export const EditEventsOn: StoryObj = { render: () => narrow({ connections: [{ ...outlook, edit_events: true }] }) }
