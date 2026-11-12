@@ -182,6 +182,8 @@ type Server struct {
 	calsyncOn      *settings.Switch
 	calsync        *calsync.Worker
 	calsyncLimiter *rateLimiter
+	// calsyncEventLimiter bounds event edits per user (calendar-event-edits).
+	calsyncEventLimiter *rateLimiter
 	// Notification channels (notification-channels): the service and the
 	// per-user limit of test messages; see channels.go.
 	channels       *channels.Service

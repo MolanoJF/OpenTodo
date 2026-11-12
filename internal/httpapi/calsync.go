@@ -30,6 +30,7 @@ const (
 func (s *Server) registerCalendarSyncRoutes(mux *routes) {
 	w := s.calsync
 	s.calsyncLimiter = s.limit("calsync.action", calsyncActionsPerHr, time.Hour)
+	s.calsyncEventLimiter = s.limit("calsync.event", calsyncEventsPerHr, time.Hour)
 	gate := switchGate(s.calsyncOn, "calendar_sync_disabled", "the server owner has not enabled calendar sync")
 
 	s.switchRoutes(mux, "/api/v1/settings/calendar-sync", switchRoute{sw: s.calsyncOn,
@@ -48,6 +49,9 @@ func (s *Server) registerCalendarSyncRoutes(mux *routes) {
 	mux.handle("PATCH /api/v1/calendar-sync/connections/{id}", signedIn.DemoDenied(), gate(s.handlePatchCalendarConnection))
 	mux.handle("DELETE /api/v1/calendar-sync/connections/{id}", signedIn.DemoDenied(), gate(s.handleDeleteCalendarConnection))
 	mux.handle("POST /api/v1/calendar-sync/connections/{id}/sync", signedIn.DemoDenied(), gate(s.handleSyncCalendarConnection))
+	// Editing the events of a connected calendar (calendar-event-edits, design D4).
+	mux.handle("PATCH /api/v1/calendar-sync/connections/{id}/events/{eventId}", signedIn.DemoDenied(), gate(s.handlePatchCalendarEvent))
+	mux.handle("DELETE /api/v1/calendar-sync/connections/{id}/events/{eventId}", signedIn.DemoDenied(), gate(s.handleDeleteCalendarEvent))
 	mux.handle("POST /api/v1/calendar-sync/google/start", signedIn.Recent().DemoDenied(), gate(s.handleGoogleStart))
 	mux.handle("GET "+calsyncCallback, signedIn.SessionOnly().DemoDenied(), gate(s.handleGoogleCallback))
 	// Microsoft (outlook-calendar-sync, design D11).
@@ -150,9 +154,22 @@ func (s *Server) calendarViews(ctx context.Context, uid string, list []calsync.C
 	out := make([]calendarConnectionView, 0, len(list))
 	for i := range list {
 		c := &list[i]
+		c.Calendars = withCaps(c.Calendars)
 		out = append(out, calendarConnectionView{Connection: c, State: c.State(), PasswordSet: has[c.ID], EventCount: counts[c.ID]})
 	}
 	return out, nil
+}
+
+// withCaps gives every calendar its caps, derived from read_only for one saved
+// before they were recorded (calendar-event-edits D3).
+func withCaps(list []calsync.Calendar) []calsync.Calendar {
+	out := make([]calsync.Calendar, len(list))
+	for i, cal := range list {
+		caps := cal.EffectiveCaps()
+		cal.Caps = &caps
+		out[i] = cal
+	}
+	return out
 }
 
 func (s *Server) calendarView(ctx context.Context, uid, id string) (*calendarConnectionView, error) {

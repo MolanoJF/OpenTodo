@@ -51,6 +51,9 @@ type remote struct {
 	TaskID string
 	// Version identifies this state of the event for op ids.
 	Version string
+	// Locked is why the event can not be edited from OpenTodo ("" when it can):
+	// recurring, has_guests, not_organizer or no_etag (calendar-event-edits D2).
+	Locked string
 }
 
 // master returns the event that is not an override.
@@ -98,6 +101,7 @@ func davRemote(o object) remote {
 	if cal, err := calfeed.ParseCalendar(o.Data); err == nil {
 		r.Events, r.Warnings = cal.Events, cal.Warnings
 	}
+	r.Locked = davLocked(r.Events, o.ETag)
 	return r
 }
 
@@ -146,3 +150,30 @@ func (t davTransport) remove(ctx context.Context, href, etag string) (int, error
 }
 
 func (davTransport) commit(context.Context) error { return nil }
+
+// Reasons an event can not be edited (calendar-event-edits D2).
+const (
+	LockRecurring    = "recurring"
+	LockGuests       = "has_guests"
+	LockNotOrganizer = "not_organizer"
+	LockNoETag       = "no_etag"
+)
+
+// davLocked is the reason a CalDAV object can not be edited, "" when it can:
+// a repeating master or an override, an attendee, a server without ETags.
+func davLocked(events []calfeed.Event, etag string) string {
+	for _, ev := range events {
+		if ev.RRule != "" || len(ev.RDates) > 0 || len(ev.ExDates) > 0 || ev.RecurrenceID != "" {
+			return LockRecurring
+		}
+	}
+	for _, ev := range events {
+		if ev.Guests {
+			return LockGuests
+		}
+	}
+	if etag == "" {
+		return LockNoETag
+	}
+	return ""
+}

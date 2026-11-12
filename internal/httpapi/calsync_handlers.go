@@ -134,7 +134,9 @@ type calendarPatch struct {
 	Read            *[]string `json:"read"`
 	IncludeDateOnly *bool     `json:"include_date_only"`
 	Enabled         *bool     `json:"enabled"`
-	Password        *string   `json:"password"`
+	// EditEvents turns "Edit events in OpenTodo" on or off (calendar-event-edits).
+	EditEvents *bool   `json:"edit_events"`
+	Password   *string `json:"password"`
 	// Scope is the part of the account written to the calendar (sync-scope).
 	Scope *syncscope.Scope `json:"scope"`
 }
@@ -142,7 +144,7 @@ type calendarPatch struct {
 // patchOf checks a patch against the connection's calendars; it returns the
 // store patch, the names of the changed settings, or a field error.
 func patchOf(c *calsync.Connection, in calendarPatch) (calsync.Patch, []string, string, string) {
-	p := calsync.Patch{IncludeDateOnly: in.IncludeDateOnly, Enabled: in.Enabled}
+	p := calsync.Patch{IncludeDateOnly: in.IncludeDateOnly, Enabled: in.Enabled, EditEvents: in.EditEvents}
 	var changed []string
 	if in.Name != nil {
 		v := trimTo(in.Name, maxCalsyncName)
@@ -182,6 +184,9 @@ func patchOf(c *calsync.Connection, in calendarPatch) (calsync.Patch, []string, 
 	}
 	if in.Enabled != nil {
 		changed = append(changed, "enabled")
+	}
+	if in.EditEvents != nil && *in.EditEvents != c.EditEvents {
+		changed = append(changed, "edit_events")
 	}
 	if in.Scope != nil {
 		scope, err := syncscope.Normalize(*in.Scope)

@@ -258,6 +258,9 @@ func (s *Store) Success(ctx context.Context, id string, r *Result) error {
 				return err
 			}
 		}
+		if err := storeRefs(ctx, tx, id, r); err != nil {
+			return err
+		}
 	}
 	var refresh any
 	if r.RefreshSeconds != nil {
@@ -364,6 +367,32 @@ type When struct {
 	TZ   *string `json:"tz,omitempty"`
 }
 
+// Access says what the user may do to a connected calendar's event (OpenSpec
+// change calendar-event-edits, design D3). Reason names the first unmet
+// condition and is empty when both are true.
+type Access struct {
+	Update bool   `json:"update"`
+	Delete bool   `json:"delete"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// EventID is the id the events route serves for an occurrence: the first 12
+// bytes of SHA-256 of subscription, uid and instance, in hex.
+func EventID(subscriptionID, uid, instance string) string {
+	sum := sha256.Sum256([]byte(subscriptionID + "\x00" + uid + "\x00" + instance))
+	return hex.EncodeToString(sum[:12])
+}
+
+// Rev is the version of an event the client saw: the first 16 hex characters of
+// SHA-256 of its stored ETag, so ETags are never exposed. "" for no ETag.
+func Rev(etag string) string {
+	if etag == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(etag))
+	return hex.EncodeToString(sum[:8])
+}
+
 // EventRow is a stored occurrence as the API serves it.
 type EventRow struct {
 	ID             string `json:"id"`
@@ -375,6 +404,15 @@ type EventRow struct {
 	End            When   `json:"end"`
 	AllDay         bool   `json:"allDay"`
 	Free           bool   `json:"free"`
+	// Rev and Access are set only for events of a connected calendar (managed
+	// subscriptions); the events route fills Access from the connection.
+	Rev    string  `json:"rev,omitempty"`
+	Access *Access `json:"access,omitempty"`
+	// Managed marks such an event; Known says calendar_event_remote has its
+	// address, Locked why it can not be edited ("" when it can).
+	Managed bool   `json:"-"`
+	Known   bool   `json:"-"`
+	Locked  string `json:"-"`
 }
 
 // Events returns the occurrences of the user's enabled subscriptions that
@@ -397,27 +435,17 @@ func (s *Store) EventsOf(ctx context.Context, userID, from, to string, feeds, ma
 	}
 	lo := f.Add(-14 * time.Hour).UnixMilli()
 	hi := t.Add(24*time.Hour + 14*time.Hour).UnixMilli()
-	rows, err := s.db.QueryContext(ctx, `SELECT e.subscription_id, e.uid, e.instance, e.summary, e.location, e.start_date, e.start_time, e.start_tz,
-		e.end_date, e.end_time, e.end_tz, e.all_day, e.free, e.start_ms, e.end_ms
-		FROM calendar_events e JOIN calendar_subscriptions s ON s.id = e.subscription_id
-		WHERE s.user_id = ? AND s.enabled = 1 AND e.start_ms < ? AND e.end_ms >= ?`+kindFilter("s.", feeds, managed)+` ORDER BY e.start_ms, e.uid`, userID, hi, lo)
+	rows, err := s.db.QueryContext(ctx, eventSelect+` WHERE s.user_id = ? AND s.enabled = 1 AND e.start_ms < ? AND e.end_ms >= ?`+kindFilter("s.", feeds, managed)+` ORDER BY e.start_ms, e.uid`, userID, hi, lo)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []EventRow{}
 	for rows.Next() {
-		var r EventRow
-		var instance string
-		var st, sz, et, ez sql.NullString
-		var allDay, free int
-		var startMs, endMs int64
-		if err := rows.Scan(&r.SubscriptionID, &r.UID, &instance, &r.Summary, &r.Location, &r.Start.Date, &st, &sz, &r.End.Date, &et, &ez, &allDay, &free, &startMs, &endMs); err != nil {
+		r, err := scanEventRow(rows)
+		if err != nil {
 			return nil, err
 		}
-		r.AllDay, r.Free = allDay == 1, free == 1
-		r.Start.Time, r.Start.TZ = nullPtr(st), nullPtr(sz)
-		r.End.Time, r.End.TZ = nullPtr(et), nullPtr(ez)
 		if r.Start.TZ == nil {
 			// Floating and all-day: by date. An all-day end is exclusive.
 			last := r.End.Date
@@ -433,11 +461,40 @@ func (s *Store) EventsOf(ctx context.Context, userID, from, to string, feeds, ma
 				continue
 			}
 		}
-		sum := sha256.Sum256([]byte(r.SubscriptionID + "\x00" + r.UID + "\x00" + instance))
-		r.ID = hex.EncodeToString(sum[:12])
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// eventSelect reads occurrences with what a connected calendar adds to them
+// (calendar-event-edits): whether the subscription is managed and its remote
+// ref, if any.
+const eventSelect = `SELECT e.subscription_id, e.uid, e.instance, e.summary, e.location, e.start_date, e.start_time, e.start_tz,
+	e.end_date, e.end_time, e.end_tz, e.all_day, e.free, e.start_ms, e.end_ms,
+	m.subscription_id IS NOT NULL, r.subscription_id IS NOT NULL, COALESCE(r.etag,''), COALESCE(r.locked,'')
+	FROM calendar_events e JOIN calendar_subscriptions s ON s.id = e.subscription_id
+	LEFT JOIN calsync_calendars m ON m.subscription_id = e.subscription_id
+	LEFT JOIN calendar_event_remote r ON r.subscription_id = e.subscription_id AND r.uid = e.uid AND r.instance = e.instance`
+
+// scanEventRow reads one row of eventSelect.
+func scanEventRow(row interface{ Scan(...any) error }) (EventRow, error) {
+	var r EventRow
+	var instance, etag string
+	var st, sz, et, ez sql.NullString
+	var allDay, free int
+	var startMs, endMs int64
+	if err := row.Scan(&r.SubscriptionID, &r.UID, &instance, &r.Summary, &r.Location, &r.Start.Date, &st, &sz, &r.End.Date, &et, &ez, &allDay, &free, &startMs, &endMs,
+		&r.Managed, &r.Known, &etag, &r.Locked); err != nil {
+		return r, err
+	}
+	if r.Managed {
+		r.Rev = Rev(etag)
+	}
+	r.AllDay, r.Free = allDay == 1, free == 1
+	r.Start.Time, r.Start.TZ = nullPtr(st), nullPtr(sz)
+	r.End.Time, r.End.TZ = nullPtr(et), nullPtr(ez)
+	r.ID = EventID(r.SubscriptionID, r.UID, instance)
+	return r, nil
 }
 
 func nullPtr(v sql.NullString) *string {
