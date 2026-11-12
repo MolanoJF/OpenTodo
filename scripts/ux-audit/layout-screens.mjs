@@ -524,6 +524,14 @@ export const OVERLAYS = {
     await p.locator('[data-event-edit]').waitFor()
     return { overlay: overlayLoc(p), trigger, kind: 'popover' }
   },
+  // The full event editor (calendar-event-editor D11): a double-click on the event opens it, in the side panel from 1024 px and as a sheet below.
+  async 'event-panel'(p) {
+    const trigger = p.locator('[data-event="layout-edit"]')
+    await trigger.dblclick()
+    await p.locator('[data-event-form]').waitFor()
+    const wide = p.viewportSize().width >= 1024
+    return { overlay: wide ? p.locator('[data-panel-frame="event-editor"]') : overlayLoc(p), trigger, kind: wide ? 'panel' : 'dialog' }
+  },
   // The When popover, one segment at a time (task-panel-facets D3).
   async 'when-popover'(p) {
     await p.locator('[data-task-id]').filter({ hasText: 'Get three quotes' }).first().locator('[data-row-open]').press('Enter')

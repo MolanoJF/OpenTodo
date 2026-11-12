@@ -23,6 +23,10 @@
   { "id": "calendar-event", "what": "A timed event of a connected calendar in Day and Week, when the calendar allows changes: move it, or resize its start or end (calendar-event-edits).", "alternatives": [
    { "file": "web/src/app/calendar/EventEditor.tsx", "contains": "data-event-edit" }
   ] },
+  { "id": "calendar-create", "what": "An empty stretch of the Day and Week grid: drag to size a new task or event (calendar-event-editor).", "alternatives": [
+   { "file": "web/src/app/calendar/addHere.tsx", "contains": "data-add-here=\"event\"" },
+   { "file": "web/src/app/calendar/EventForm.tsx", "contains": "data-event-form-start" }
+  ] },
   { "id": "calendar-lane-task", "what": "An all-day task in the calendar's day lane: drag to another day or into the hours.", "alternatives": [
    { "file": "web/src/app/task-detail/WhenControl.tsx", "contains": "data-when-segment={id}" }
   ] },

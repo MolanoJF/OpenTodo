@@ -2590,6 +2590,37 @@ export interface CalendarEventChange {
   start?: CalendarWhen
   end?: CalendarWhen
   allDay?: boolean
+  location?: string
+  /** Not part of the cached row: carried by the command only (calendar-event-editor D2). */
+  description?: string
+  free?: boolean
+}
+
+/** An event made on this device, not yet in the calendar (calendar-event-editor D9). */
+export interface CalendarEventDraft {
+  clientId: string
+  connectionId: string
+  calendarUrl: string
+  subscriptionId: string
+  summary: string
+  start: CalendarWhen
+  end: CalendarWhen
+  allDay: boolean
+  location: string
+  description: string
+  free: boolean
+}
+
+/** The body of `POST .../connections/{id}/events` (calendar-event-editor D4): a draft without the device's own ids. */
+export type CalendarEventCreateBody = Omit<CalendarEventDraft, 'connectionId' | 'subscriptionId'>
+
+/** What `GET .../events/{id}` answers when an editor opens (calendar-event-editor D4). */
+export interface CalendarEventDetail {
+  event: CalendarEvent
+  /** Only when the calendar had a newer version than the cache: the id the cached row had. */
+  replaces?: string
+  description: string
+  descriptionEditable: boolean
 }
 
 /** One queued edit of a connected calendar's event (calendar-event-edits D6): a device-local command, never an op. */
@@ -2602,7 +2633,7 @@ export interface EventCommand {
   rev: string
   /** The row before the first queued edit (rollback, Undo). */
   base: CalendarEvent
-  patch: CalendarEventChange | { delete: true }
+  patch: CalendarEventChange | { delete: true } | { create: CalendarEventDraft }
   /** An edit made while this one is in flight. */
   next?: CalendarEventChange | { delete: true }
   /** A delete waits so the toast's Undo can cancel it. */

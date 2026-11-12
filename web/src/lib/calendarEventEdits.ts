@@ -5,12 +5,12 @@
 // it, or refuses, and then the device restores the row, refetches and says why.
 import { useLiveQuery } from 'dexie-react-hooks'
 import { api, ApiError } from './api'
-import { applyEventPatch, eventPatchBetween, onEventsRefreshed, refreshEvents } from './calendarFeeds'
+import { applyDraftPatch, applyEventPatch, eventPatchBetween, isNoChange, isPendingId, onEventsRefreshed, pendingRowOf, refreshEvents } from './calendarFeeds'
 import { db } from './db'
 import { t } from './i18n'
 import { resettable } from './moduleState'
 import { platform } from './platform'
-import type { CalendarEvent, CalendarEventChange, EventCommand } from './types'
+import type { CalendarEvent, CalendarEventChange, CalendarEventCreateBody, CalendarEventDraft, EventCommand } from './types'
 
 /** A delete waits this long so the toast's Undo can cancel it. */
 export const DELETE_DELAY_MS = 8000
@@ -23,12 +23,21 @@ const RETRY_CODES = new Set(['reauth_required', 'mfa_enrolment_required'])
 
 type Patch = EventCommand['patch']
 export const isDelete = (p: Patch): p is { delete: true } => 'delete' in p
+export const isCreate = (p: Patch): p is { create: CalendarEventDraft } => 'create' in p
+/** The change a command carries as an edit of an existing event (not a delete or a create). */
+/** The request body of a create: the draft without the device's own ids. */
+export const createBodyOf = (d: CalendarEventDraft): CalendarEventCreateBody => ({
+  clientId: d.clientId, calendarUrl: d.calendarUrl, summary: d.summary, start: d.start, end: d.end, allDay: d.allDay, location: d.location, description: d.description, free: d.free,
+})
+const changeOf = (p: Patch | undefined) => p as CalendarEventChange | undefined
 
 /** What a refused edit tells the person (the app words it with `eventEditNoticeText`). */
 export interface EventEditNotice {
   code: string
   title: string
   message: string
+  /** A refused create: what the person typed, so the toast can reopen the editor on it (calendar-event-editor D9). */
+  draft?: CalendarEventDraft
 }
 
 const listeners = new Set<(n: EventEditNotice) => void>()
@@ -59,16 +68,19 @@ let retryTimer: ReturnType<typeof setTimeout> | undefined
 resettable('calendarEventEdits', () => { swapped.clear(); started = false; flushing = null; again = false; wantNow = 0; clearTimeout(retryTimer); retryTimer = undefined; listeners.clear() })
 
 const mergeChange = (a: CalendarEventChange | undefined, b: CalendarEventChange): CalendarEventChange => ({ ...a, ...b })
-/** The change that undoes `patch` on `row`: the fields it names, as `row` has them. */
-function inverseOf(row: CalendarEvent, patch: CalendarEventChange): CalendarEventChange {
+/** The change that undoes `patch` on `row`: the fields it names, as `row` has them (a description: see `before`). */
+function inverseOf(row: CalendarEvent, patch: CalendarEventChange, before?: { description?: string }): CalendarEventChange {
   return {
     ...(patch.summary !== undefined ? { summary: row.summary } : {}),
     ...(patch.start && patch.end ? { start: row.start, end: row.end, allDay: row.allDay } : {}),
+    ...(patch.location !== undefined ? { location: row.location } : {}),
+    ...(patch.free !== undefined ? { free: row.free } : {}),
+    ...(patch.description !== undefined && before?.description !== undefined ? { description: before.description } : {}),
   }
 }
 
 /** A flush when the earliest waiting command is due: a settle, a delete's delay or a retry's backoff. */
-async function armTimer(): Promise<void> {
+export async function armTimer(): Promise<void> {
   clearTimeout(retryTimer)
   const next = await db.eventOutbox.orderBy('notBefore').filter((c) => !c.sending).first()
   if (next) retryTimer = setTimeout(() => void flushEventEdits(), Math.max(0, next.notBefore - Date.now()) + 20)
@@ -80,16 +92,29 @@ async function armTimer(): Promise<void> {
  * was removes it. Returns what undoes it (`{ delete: true }` for a delete: see `cancelEventDelete`),
  * or null when the event cannot be edited (no connection or version known).
  */
-export async function editEvent(ev: CalendarEvent, patch: CalendarEventChange | { delete: true }, now = Date.now()): Promise<CalendarEventChange | { delete: true } | null> {
+export async function editEvent(ev: CalendarEvent, patch: CalendarEventChange | { delete: true }, now = Date.now(), before?: { description?: string }): Promise<CalendarEventChange | { delete: true } | null> {
   const id = swapped.get(ev.id) ?? ev.id
   const result = await db.transaction('rw', [db.calendarEvents, db.calendarSubscriptions, db.eventOutbox], async () => {
     const row = (await db.calendarEvents.get(id)) ?? ev
     const connectionId = (await db.calendarSubscriptions.get(row.subscriptionId))?.connectionId
-    if (!connectionId || !row.rev) return null
+    if (!connectionId || (!row.rev && !isPendingId(row.id))) return null
     const key = eventKey(connectionId, row.id)
     const cmd = await db.eventOutbox.get(key)
+    if (isPendingId(row.id) && !cmd) return null // a pending row whose create is gone
     if (cmd && (isDelete(cmd.patch) || (cmd.next && isDelete(cmd.next)))) return null // already going away
-    const inverse = isDelete(patch) ? patch : inverseOf(row, patch)
+    const inverse = isDelete(patch) ? patch : inverseOf(row, patch, before)
+    if (cmd && isCreate(cmd.patch) && !cmd.sending) { // not sent yet: the draft takes it, a delete sends nothing
+      if (isDelete(patch)) {
+        await db.eventOutbox.delete(key)
+        await db.calendarEvents.delete(row.id)
+        return inverse
+      }
+      const draft = applyDraftPatch(cmd.patch.create, patch)
+      const pending = pendingRowOf(draft)
+      await db.calendarEvents.put(pending)
+      await db.eventOutbox.put({ ...cmd, base: pending, patch: { create: draft }, notBefore: now + EDIT_SETTLE_MS })
+      return inverse
+    }
     if (isDelete(patch) && cmd?.sending) {
       await db.eventOutbox.put({ ...cmd, next: patch }) // sent after the answer, against the new id
       await db.calendarEvents.delete(row.id)
@@ -97,19 +122,19 @@ export async function editEvent(ev: CalendarEvent, patch: CalendarEventChange | 
     }
     if (isDelete(patch)) {
       const base = cmd?.base ?? row
-      await db.eventOutbox.put({ key, connectionId, eventId: row.id, rev: cmd?.rev ?? row.rev, base, patch, notBefore: now + DELETE_DELAY_MS, tries: 0 })
+      await db.eventOutbox.put({ key, connectionId, eventId: row.id, rev: cmd?.rev ?? row.rev ?? '', base, patch, notBefore: now + DELETE_DELAY_MS, tries: 0 })
       await db.calendarEvents.delete(row.id)
       return inverse
     }
     await db.calendarEvents.put(applyEventPatch(row, patch))
     if (cmd?.sending) {
-      await db.eventOutbox.put({ ...cmd, next: mergeChange(cmd.next as CalendarEventChange | undefined, patch) })
+      await db.eventOutbox.put({ ...cmd, next: mergeChange(changeOf(cmd.next), patch) })
     } else if (cmd) {
-      const merged = mergeChange(cmd.patch as CalendarEventChange, patch)
-      if (Object.keys(eventPatchBetween(cmd.base, applyEventPatch(cmd.base, merged))).length === 0) await db.eventOutbox.delete(key)
+      const merged = mergeChange(changeOf(cmd.patch), patch)
+      if (isNoChange(cmd.base, merged)) await db.eventOutbox.delete(key)
       else await db.eventOutbox.put({ ...cmd, patch: merged, notBefore: now + EDIT_SETTLE_MS })
     } else {
-      await db.eventOutbox.put({ key, connectionId, eventId: row.id, rev: row.rev, base: row, patch, notBefore: now + EDIT_SETTLE_MS, tries: 0 })
+      await db.eventOutbox.put({ key, connectionId, eventId: row.id, rev: row.rev ?? '', base: row, patch, notBefore: now + EDIT_SETTLE_MS, tries: 0 })
     }
     return inverse
   })
@@ -142,11 +167,14 @@ const backoff = (tries: number) => BACKOFF_MS[Math.min(tries, BACKOFF_MS.length 
 
 /** After a refusal: the row as it was, the command gone, the cache read again, the reason told. */
 async function rollBack(cmd: EventCommand, err: ApiError): Promise<void> {
+  const draft = isCreate(cmd.patch) ? (cmd.next && !isDelete(cmd.next) ? applyDraftPatch(cmd.patch.create, cmd.next) : cmd.patch.create) : undefined
   await db.transaction('rw', [db.calendarEvents, db.eventOutbox], async () => {
     await db.eventOutbox.delete(cmd.key)
-    await db.calendarEvents.put(cmd.base)
+    if (draft) await db.calendarEvents.delete(cmd.eventId) // a create that was refused leaves nothing to restore
+    else await db.calendarEvents.put(cmd.base)
   })
-  for (const fn of [...listeners]) fn({ code: err.code, title: cmd.base.summary, message: err.message })
+  const cancelled = !!cmd.next && isDelete(cmd.next) // the person already discarded it: nothing to offer back
+  for (const fn of [...listeners]) fn({ code: err.code, title: draft?.summary ?? cmd.base.summary, message: err.message, ...(draft && !cancelled ? { draft } : {}) })
   void refreshEvents()
 }
 
@@ -162,7 +190,7 @@ async function settle(sent: EventCommand, res: { event: CalendarEvent; replaces:
     const next = cmd.next
     const shown = next && !isDelete(next) ? applyEventPatch(res.event, next) : res.event
     if (!next || !isDelete(next)) await db.calendarEvents.put(shown)
-    if (next && (isDelete(next) || Object.keys(eventPatchBetween(res.event, shown)).length > 0)) {
+    if (next && (isDelete(next) || !isNoChange(res.event, next))) {
       const key = eventKey(cmd.connectionId, res.event.id)
       await db.eventOutbox.put({ key, connectionId: cmd.connectionId, eventId: res.event.id, rev: res.event.rev ?? cmd.rev, base: res.event, patch: next, notBefore: 0, tries: 0 })
       again = true // the edit that waited is due now
@@ -177,6 +205,8 @@ async function sendOne(cmd: EventCommand): Promise<void> {
     if (isDelete(cmd.patch)) {
       await api.deleteCalendarEvent(cmd.connectionId, cmd.eventId, cmd.rev)
       await settle(cmd, null)
+    } else if (isCreate(cmd.patch)) {
+      await settle(cmd, { event: (await api.createCalendarEvent(cmd.connectionId, createBodyOf(cmd.patch.create))).event, replaces: cmd.eventId }) // 200 (a replay) and 201 both end it
     } else {
       await settle(cmd, await api.updateCalendarEvent(cmd.connectionId, cmd.eventId, { rev: cmd.rev, ...cmd.patch }))
     }
@@ -258,4 +288,22 @@ export function eventEditNoticeText(n: EventEditNotice): string {
     case 'calendar_read_only': return eventAccessText('calendar_read_only')
     default: return n.message
   }
+}
+
+/** The editor read a newer version of an event than the cache holds (`replaces`): swap it in, as a settled write does. */
+export async function adoptEvent(res: { event: CalendarEvent; replaces?: string }): Promise<void> {
+  await db.transaction('rw', db.calendarEvents, async () => {
+    if (res.replaces && res.replaces !== res.event.id) {
+      await db.calendarEvents.delete(res.replaces)
+      swapped.set(res.replaces, res.event.id)
+    }
+    await db.calendarEvents.put(res.event)
+  })
+}
+
+/** The draft of a queued create, as the grid shows it now (an edit made while it was in flight applied), or null. */
+export async function queuedDraft(pendingId: string): Promise<CalendarEventDraft | null> {
+  const cmd = (await db.eventOutbox.toArray()).find((c) => c.eventId === pendingId)
+  if (!cmd || !isCreate(cmd.patch)) return null
+  return cmd.next && !isDelete(cmd.next) ? applyDraftPatch(cmd.patch.create, cmd.next) : cmd.patch.create
 }
