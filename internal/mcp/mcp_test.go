@@ -228,7 +228,7 @@ func TestToolsListShape(t *testing.T) {
 			t.Fatalf("%s schema = %v", tl["name"], tl["inputSchema"])
 		}
 	}
-	if strings.Join(names, ",") != "list_projects,list_tasks,get_task,search_tasks,today_summary,list_frames,find_free_time,list_habits,get_habit,list_icons,list_notes,search_notes,get_note,list_objectives,list_routines,get_routine,list_routine_runs,get_routine_run,list_slots,list_time_entries,list_workspaces" {
+	if strings.Join(names "") != "list_projectslist_tasksget_tasksearch_taskstoday_summarylist_framesfind_free_timelist_habitsget_habitlist_iconslist_notessearch_notesget_notelist_objectiveslist_routinesget_routinelist_routine_runsget_routine_runlist_slotslist_time_entrieslist_workspaces" {
 		t.Fatalf("tools = %v", names)
 	}
 }
@@ -652,7 +652,7 @@ func TestWriteToolsThroughHandle(t *testing.T) {
 	if len(tools) != 56 {
 		t.Fatalf("tools = %d", len(tools))
 	}
-	for _, tl := range tools[21:] {
+	for _, tl := range tools[22:] {
 		if tl.(map[string]any)["annotations"].(map[string]any)["readOnlyHint"] != false {
 			t.Fatalf("write tool annotations: %v", tl)
 		}

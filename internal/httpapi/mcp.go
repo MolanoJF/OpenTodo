@@ -41,6 +41,8 @@ func (s *Server) registerMCPRoutes(mux *routes) {
 		Now:      s.now,
 		// find_free_time counts the calendar's events (assistant-time-blocks D1).
 		Events: s.freeTimeEvents,
+		// Calendar event tools (calendar-event-edits D8).
+		EventEditor: calendarEventEditor{s},
 		// Relative reminders follow a new due date (deadline reminders a new
 		// deadline), as for a REST write, and a task that gets a due date gets
 		// the person's default reminder (default-reminders D6).

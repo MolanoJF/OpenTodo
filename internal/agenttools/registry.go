@@ -213,6 +213,8 @@ type Registry struct {
 	routines Routines
 	// events reads calendar events for find_free_time (nil: none counted).
 	events EventSource
+	// eventEditor serves the calendar event tools (calendar-event-edits); nil: unavailable.
+	eventEditor EventEditor
 }
 
 // Options configure a Registry.
@@ -232,11 +234,14 @@ type Options struct {
 	UserZone func(ctx context.Context, uid string) *time.Location
 	// Events are the user's calendar events find_free_time counts (nil: none).
 	Events EventSource
+	// EventEditor reads and changes the events of connected calendars for the
+	// calendar event tools (calendar-event-edits D8; nil: the tools answer unavailable).
+	EventEditor EventEditor
 }
 
 // New wires a Registry.
 func New(syncSvc *opsync.Service, opts Options) *Registry {
-	r := &Registry{sync: syncSvc, now: opts.Now, audit: opts.Audit, limits: opts.Limits, extraOps: opts.ExtraOps, log: opts.Log, today0: opts.LocalToday, exclusions: opts.Exclusions, userZone: opts.UserZone, events: opts.Events}
+	r := &Registry{sync: syncSvc, now: opts.Now, audit: opts.Audit, limits: opts.Limits, extraOps: opts.ExtraOps, log: opts.Log, today0: opts.LocalToday, exclusions: opts.Exclusions, userZone: opts.UserZone, events: opts.Events, eventEditor: opts.EventEditor}
 	if r.now == nil {
 		r.now = time.Now
 	}
