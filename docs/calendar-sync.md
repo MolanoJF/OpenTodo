@@ -3,7 +3,7 @@ title: Calendar sync
 summary: Two-way sync with your own calendar: dated tasks become events in iCloud, Fastmail, Nextcloud, Google, Outlook, Microsoft 365 or any CalDAV calendar, and moving an event moves the task.
 audience: user
 section: Integrations
-specs: [calendar-sync, calendar-feeds, end-to-end-encryption]
+specs: [calendar-sync, calendar-feeds, end-to-end-encryption, calendar-event-edits]
 screens: [settings/calendar-sync, calendar-sync/denied#access-blocked-or-app-not-verified, calendar-sync/authorization_failed#fix-a-failed-google-connection, calendar-sync/redirect_uri_mismatch#error-400-redirect_uri_mismatch, calendar-sync/base_url_mismatch#wrong-address-behind-a-proxy, calendar-sync/google_client_refused#google-refused-the-client, calendar-sync/scope_not_granted#calendar-permission-not-ticked, calendar-sync/caldav_api_disabled#the-caldav-api-is-not-enabled]
 order: 33
 ---
