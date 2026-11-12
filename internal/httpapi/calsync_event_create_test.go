@@ -205,8 +205,8 @@ func TestCalendarEventCreateUnreachableAndRateLimit(t *testing.T) {
 		if resp.StatusCode == 429 {
 			t.Fatalf("limited after %d requests", i+2)
 		}
-		resp, _ = e.do("PATCH", v.path(id), v.move(id, "0000000000000000"))
-		resp, _ = e.do("DELETE", v.path(id)+"?rev=0000000000000000", nil)
+		_, _ = e.do("PATCH", v.path(id), v.move(id, "0000000000000000"))
+		_, _ = e.do("DELETE", v.path(id)+"?rev=0000000000000000", nil)
 	}
 	// 1 + 199*3 = 598 so far.
 	for i := 0; i < 2; i++ {
