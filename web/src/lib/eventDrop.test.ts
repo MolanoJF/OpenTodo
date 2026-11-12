@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { eventDropChange, eventFormChange, eventFormOf, eventNudgeChange } from './eventDrop'
+import { eventDropChange, eventEditable, eventFormChange, eventFormOf, eventNudgeChange } from './eventDrop'
 import { eventFullChange, eventFullOf, pointsOf, startInViewerZone, switchAllDay } from './eventFull'
 import type { CalendarEvent } from './types'
 
@@ -138,5 +138,43 @@ describe('the full editor fields (calendar-event-editor D11)', () => {
     expect(eventFullChange(plain, { ...full(plain), endTime: '09:00' }, BERLIN, 'Agenda')).toBe('invalid')
     expect(pointsOf({ ...full(plain), startTime: '' })).toBe('invalid')
     expect(pointsOf({ ...switchAllDay(full(plain), true), endDate: '2026-11-10' })).toBe('invalid')
+  })
+})
+
+// calendar-event-series D17: a 23:30 to 00:00 block ends at midnight of the next day and is a normal block.
+describe('a block that ends exactly at midnight (23:30 to 00:00)', () => {
+  const late = ev({ summary: 'Wind down', start: berlin('2026-11-12', '23:30'), end: berlin('2026-11-13', '00:00'), access: { update: true, delete: true } })
+
+  it('is draggable, resizable and keyboard-movable: an end exactly at midnight counts as ending the same day', () => {
+    expect(eventEditable(late, BERLIN)).toBe(true)
+    expect(eventEditable({ ...late, end: berlin('2026-11-13', '00:15') }, BERLIN)).toBe(false) // it runs into the next day: no edge to drag
+  })
+
+  it('a viewer in a zone where the block does not end at midnight sees it on one day or not at all', () => {
+    // Lisbon is an hour behind Berlin: 22:30 to 23:00 the same evening.
+    expect(eventEditable(late, LISBON)).toBe(true)
+    // A one-hour variant (23:30 to 00:30) ends after midnight in Berlin: not editable there, the popover and editor remain the path.
+    expect(eventEditable({ ...late, end: berlin('2026-11-13', '00:30') }, BERLIN)).toBe(false)
+  })
+
+  it('a drag keeps its 30 minutes: dropped at 22:00 it ends at 22:30 the same day', () => {
+    expect(eventDropChange(late, { type: 'slot', date: '2026-11-12', start: 22 * 60 }, BERLIN)).toEqual({ start: berlin('2026-11-12', '22:00'), end: berlin('2026-11-12', '22:30'), allDay: false })
+  })
+
+  it('a drag to the last slot carries the end back to midnight of the next day', () => {
+    expect(eventDropChange(late, { type: 'slot', date: '2026-11-14', start: 23 * 60 + 30 }, BERLIN)).toEqual({ start: berlin('2026-11-14', '23:30'), end: berlin('2026-11-15', '00:00'), allDay: false })
+  })
+
+  it('resizes the lower edge past midnight, and the upper edge keeps the midnight end', () => {
+    expect(eventDropChange(late, { type: 'resize', estimate: 60 }, BERLIN)).toEqual({ start: berlin('2026-11-12', '23:30'), end: berlin('2026-11-13', '00:30'), allDay: false })
+    expect(eventDropChange(late, { type: 'resize-start', date: '2026-11-12', start: 23 * 60, estimate: 60 }, BERLIN)).toEqual({ start: berlin('2026-11-12', '23:00'), end: berlin('2026-11-13', '00:00'), allDay: false })
+  })
+
+  it('nudges by 15 minutes across midnight, by a day, and by either edge', () => {
+    expect(eventNudgeChange(late, { minutes: 15 }, BERLIN)).toEqual({ start: berlin('2026-11-12', '23:45'), end: berlin('2026-11-13', '00:15'), allDay: false })
+    expect(eventNudgeChange(late, { minutes: -15 }, BERLIN)).toEqual({ start: berlin('2026-11-12', '23:15'), end: berlin('2026-11-12', '23:45'), allDay: false })
+    expect(eventNudgeChange(late, { days: 1 }, BERLIN)).toEqual({ start: berlin('2026-11-13', '23:30'), end: berlin('2026-11-14', '00:00'), allDay: false })
+    expect(eventNudgeChange(late, { end: -15 }, BERLIN)).toEqual({ start: berlin('2026-11-12', '23:30'), end: berlin('2026-11-12', '23:45'), allDay: false })
+    expect(eventNudgeChange(late, { start: -15 }, BERLIN)).toEqual({ start: berlin('2026-11-12', '23:15'), end: berlin('2026-11-13', '00:00'), allDay: false })
   })
 })

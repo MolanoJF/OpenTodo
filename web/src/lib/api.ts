@@ -21,7 +21,7 @@ import type {
   AccountRole, ActivityPage, AttachmentLimits, AttachmentSettings, StorageStatus, CalendarEvent, CalendarFeed, CalendarSubscription, AdminUser, AppNotification, AuditEvent, AuditFilters, AuditSettings, AuthStatus, LinkedIdentity, OidcSettings, OidcSettingsInput, OidcStatus, OidcTestResult, BackupSecretFlags, BackupSecretUpdate, BackupSettings, BackupStatus, RestoreArchive, RestoreSource, RestoreState, StagedRestore, ImportJob, ImportOptions, ImportPreview, Invitation, InvitationPreview, LoginResult, HistoryPage, PendingSignup, SmtpSettings, SmtpSettingsInput, SmtpTestResult, Membership, MfaPolicy, ProjectInvite, ProjectInvitePreview, MfaStatus, Op, Passkey, ProjectRole, PurgeCounts, PushSubscriptionStatus, PushTestResponse, ResetPreview, SyncResponse, TrustedDevice, User, PublicLink, PublicList,
   MemberInvitation, PendingAnswer,
   Webhook, WebhookDelivery, WebhookEvent, WebhookInput, IssueActionResult, IssueConnection, IssueConnectionInput,
-  CalendarConnection, CalendarConnectionPatch, CalendarEventChange, CalendarEventCreateBody, CalendarEventDetail, CalendarSyncRun, SyncScope, GoogleClientSetting, MicrosoftClientSetting,
+  CalendarConnection, CalendarConnectionPatch, CalendarEventChange, CalendarEventCreateBody, CalendarEventDetail, CalendarEventUpdate, EventScope, CalendarSyncRun, SyncScope, GoogleClientSetting, MicrosoftClientSetting,
   OwnTaskPage, PublishTaskPageInput, TaskPageCreated, TaskPageStatus,
   AutomationsSetting, RuleRun, RulesStatus, RoutineCatalogueEntry, RoutineInboxRun, RoutineRun, RoutineTestResult, RoutineStep, RuleCondition, RuleTrigger,
   RoutineAIUsage, RoutineProposal, RoutineProposalApplied,
@@ -562,15 +562,16 @@ export const api = {
   patchCalendarConnection: (id: string, body: CalendarConnectionPatch) =>
     request<{ connection: CalendarConnection }>('PATCH', `/api/v1/calendar-sync/connections/${encodeURIComponent(id)}`, body),
   // Edits of a connected calendar's events (OpenSpec change calendar-event-edits D4): never ops, the calendar is the truth.
-  updateCalendarEvent: (connectionId: string, eventId: string, body: CalendarEventChange & { rev: string }) =>
-    request<{ event: CalendarEvent; replaces: string }>('PATCH', `/api/v1/calendar-sync/connections/${encodeURIComponent(connectionId)}/events/${encodeURIComponent(eventId)}`, body),
+  // `scope` is required for an occurrence of a repeating event and refused otherwise (calendar-event-series D3).
+  updateCalendarEvent: (connectionId: string, eventId: string, body: CalendarEventChange & { rev: string; scope?: EventScope }) =>
+    request<CalendarEventUpdate>('PATCH', `/api/v1/calendar-sync/connections/${encodeURIComponent(connectionId)}/events/${encodeURIComponent(eventId)}`, body),
   // Creating an event and reading its details (OpenSpec change calendar-event-editor D4): 201, or 200 for a replay.
   createCalendarEvent: (connectionId: string, body: CalendarEventCreateBody) =>
     request<{ event: CalendarEvent; clientId: string }>('POST', `/api/v1/calendar-sync/connections/${encodeURIComponent(connectionId)}/events`, body),
   calendarEventDetail: (connectionId: string, eventId: string) =>
     request<CalendarEventDetail>('GET', `/api/v1/calendar-sync/connections/${encodeURIComponent(connectionId)}/events/${encodeURIComponent(eventId)}`),
-  deleteCalendarEvent: (connectionId: string, eventId: string, rev: string) =>
-    request<void>('DELETE', `/api/v1/calendar-sync/connections/${encodeURIComponent(connectionId)}/events/${encodeURIComponent(eventId)}?rev=${encodeURIComponent(rev)}`),
+  deleteCalendarEvent: (connectionId: string, eventId: string, rev: string, scope?: EventScope) =>
+    request<void>('DELETE', `/api/v1/calendar-sync/connections/${encodeURIComponent(connectionId)}/events/${encodeURIComponent(eventId)}?rev=${encodeURIComponent(rev)}${scope ? `&scope=${scope}` : ''}`),
   deleteCalendarConnection: (id: string) => request<void>('DELETE', `/api/v1/calendar-sync/connections/${encodeURIComponent(id)}`),
   syncCalendarConnection: (id: string) =>
     request<{ ok: boolean; reason?: string; run?: CalendarSyncRun; connection: CalendarConnection }>('POST', `/api/v1/calendar-sync/connections/${encodeURIComponent(id)}/sync`),

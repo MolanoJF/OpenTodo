@@ -57,6 +57,7 @@ export function EventPanel({ request, frame, onClose }: { request: EventEditorRe
   }
   const body = s.form ? (
     <EventForm onTask={creating && !request.draft ? toTask : undefined} form={s.form} set={s.set} setAllDay={s.setAllDay} viewerZone={s.viewerZone} floating={s.floating} description={s.description} invalid={s.timesInvalid}
+      repeat={s.repeatField} reminders={s.remindersField}
       picker={creating ? { calendars: s.calendars, value: s.calendar?.id ?? '', onChange: s.chooseCalendar } : undefined} calendarLabel={s.eventCalendar}
       onSubmit={() => void s.save()}>
       {footer}

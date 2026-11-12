@@ -65,12 +65,14 @@ export function applyDraftPatch(d: CalendarEventDraft, patch: CalendarEventChang
     ...(patch.location !== undefined ? { location: patch.location } : {}),
     ...(patch.description !== undefined ? { description: patch.description } : {}),
     ...(patch.free !== undefined ? { free: patch.free } : {}),
+    ...(patch.repeat ? { repeat: patch.repeat } : {}),
+    ...(patch.reminders ? { reminders: patch.reminders } : {}),
   }
 }
 
-/** Whether a change of `ev` changes nothing: a description is never on the row, so it always counts. */
+/** Whether a change of `ev` changes nothing: a description, the repeat and the reminders are never on the row, so they always count. */
 export const isNoChange = (ev: CalendarEvent, patch: CalendarEventChange): boolean =>
-  patch.description === undefined && Object.keys(eventPatchBetween(ev, applyEventPatch(ev, patch))).length === 0
+  patch.description === undefined && patch.repeat === undefined && patch.reminders === undefined && Object.keys(eventPatchBetween(ev, applyEventPatch(ev, patch))).length === 0
 
 const pointKey = (p: CalendarEvent['start']) => `${p.date}|${p.time ?? ''}|${p.tz ?? ''}`
 
@@ -218,6 +220,12 @@ export async function refreshEvents(range?: DayRange): Promise<boolean> {
     }
   })()
   return inflight
+}
+
+/** A refresh that starts now: one already running may have read before a write the caller just made. */
+export async function refetchEvents(): Promise<boolean> {
+  if (inflight) await inflight.catch(() => false)
+  return refreshEvents()
 }
 
 /**

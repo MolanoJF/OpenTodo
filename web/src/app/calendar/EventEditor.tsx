@@ -6,7 +6,7 @@ import { Button, Field, Input } from '../../ui'
 import { eventFormChange, eventFormOf, type EventForm } from '../../lib/eventDrop'
 import { t } from '../../lib/i18n'
 import type { CalendarEvent } from '../../lib/types'
-import { changeEvent, deleteEvent } from './eventActions'
+import { changeEvent, deleteEvent, scopeFor } from './eventActions'
 
 /** Title, date, start and end, Save, and Delete when the calendar allows it. */
 export function EventEditor({ ev, zone, onDone }: { ev: CalendarEvent; zone?: string; onDone: () => void }) {
@@ -14,13 +14,23 @@ export function EventEditor({ ev, zone, onDone }: { ev: CalendarEvent; zone?: st
   const change = eventFormChange(ev, form, zone)
   const invalid = change === 'invalid' || form.title.trim() === ''
   const set = (patch: Partial<EventForm>) => setForm((f) => ({ ...f, ...patch }))
-  const save = () => {
+  // An occurrence asks which events first, anchored to the button; cancelling leaves the popover open.
+  const save = async () => {
     if (invalid) return
+    if (!change) return onDone()
+    const scope = await scopeFor(ev, change, { from: '[data-event-edit-save]' })
+    if (scope === null) return
     onDone()
-    if (change) void changeEvent(ev, change, Object.keys(change).join() === 'summary' ? 'renamed' : 'updated')
+    void changeEvent(ev, change, Object.keys(change).join() === 'summary' ? 'renamed' : 'updated', undefined, scope)
+  }
+  const remove = async () => {
+    const scope = await scopeFor(ev, 'delete', { from: '[data-event-edit-delete]' })
+    if (scope === null) return
+    onDone()
+    void deleteEvent(ev, scope)
   }
   return (
-    <form data-event-edit className="space-y-2" onSubmit={(e) => { e.preventDefault(); save() }}>
+    <form data-event-edit className="space-y-2" onSubmit={(e) => { e.preventDefault(); void save() }}>
       <Field label={t('Title')} hideLabel>
         <Input data-event-edit-title data-autofocus value={form.title} maxLength={500} aria-invalid={form.title.trim() === '' || undefined} onChange={(e) => set({ title: e.target.value })} />
       </Field>
@@ -30,7 +40,7 @@ export function EventEditor({ ev, zone, onDone }: { ev: CalendarEvent; zone?: st
         <Input data-event-edit-end type="time" aria-label={t('End time')} value={form.end} aria-invalid={change === 'invalid' || undefined} onChange={(e) => set({ end: e.target.value })} />
       </div>
       <div className="flex items-center justify-between gap-2 pt-1">
-        {ev.access?.delete ? <Button size="sm" variant="ghost" icon="trash-2" data-event-edit-delete onClick={() => { onDone(); void deleteEvent(ev) }}>{t('Delete')}</Button> : <span />}
+        {ev.access?.delete ? <Button size="sm" variant="ghost" icon="trash-2" data-event-edit-delete onClick={() => void remove()}>{t('Delete')}</Button> : <span />}
         <Button size="sm" variant="primary" type="submit" data-event-edit-save disabled={invalid || !change}>{t('Save')}</Button>
       </div>
     </form>

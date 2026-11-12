@@ -4,7 +4,8 @@ import { ApiError, api } from './api'
 import { adoptEvent, currentEventId, queuedDraft } from './calendarEventEdits'
 import { isPendingId } from './calendarFeeds'
 import { db } from './db'
-import type { CalendarEvent } from './types'
+import type { EventExtras } from './eventFull'
+import type { CalendarEvent, CalendarEventDetail } from './types'
 
 /** The description's states, plus why it is not available. */
 export type DescriptionState =
@@ -16,6 +17,16 @@ export interface EventDetail {
   /** undefined while the row is read, null when the event is gone. */
   event: CalendarEvent | null | undefined
   description: DescriptionState
+  /** The repeat and the reminders as the calendar gave them with the description (calendar-event-series D3); absent until then. */
+  extras?: EventExtras
+}
+
+/** What the detail answer adds to the row. */
+export function extrasOf(res: Pick<CalendarEventDetail, 'series' | 'reminders' | 'remindersMax' | 'remindersOther'>): EventExtras {
+  return {
+    repeat: res.series ? res.series.repeat : null, custom: res.series?.custom, exceptions: res.series?.exceptions,
+    ...(res.reminders ? { reminders: res.reminders } : {}), remindersMax: res.remindersMax, remindersOther: res.remindersOther,
+  }
 }
 
 /**
@@ -27,7 +38,7 @@ export async function loadEventDetail(eventId: string, put: (d: EventDetail) => 
   if (!row) return put({ event: null, description: { status: 'unavailable', reason: 'failed' } })
   if (isPendingId(row.id)) {
     const draft = await queuedDraft(row.id)
-    return put({ event: row, description: draft ? { status: 'ready', text: draft.description, editable: true } : { status: 'unavailable', reason: 'failed' } })
+    return put({ event: row, description: draft ? { status: 'ready', text: draft.description, editable: true } : { status: 'unavailable', reason: 'failed' }, ...(draft ? { extras: { repeat: draft.repeat ?? null, reminders: draft.reminders ?? [] } } : {}) })
   }
   put({ event: row, description: { status: 'loading' } })
   const connectionId = (await db.calendarSubscriptions.get(row.subscriptionId))?.connectionId
@@ -35,7 +46,7 @@ export async function loadEventDetail(eventId: string, put: (d: EventDetail) => 
   try {
     const res = await api.calendarEventDetail(connectionId, row.id)
     if (res.replaces) await adoptEvent(res)
-    put({ event: res.event, description: { status: 'ready', text: res.description, editable: res.descriptionEditable } })
+    put({ event: res.event, description: { status: 'ready', text: res.description, editable: res.descriptionEditable }, extras: extrasOf(res) })
   } catch (err) {
     if (err instanceof ApiError && err.code === 'event_gone') {
       await db.calendarEvents.delete(row.id)

@@ -3,7 +3,8 @@
 // code loads with the editor.
 import { parseTime } from './calendar'
 import { addDaysISO, localDueOf } from './dates'
-import type { CalendarEvent, CalendarEventChange, CalendarWhen } from './types'
+import { restRepeat, sameRepeat } from './eventRepeat'
+import type { CalendarEvent, CalendarEventChange, CalendarRepeat, CalendarWhen } from './types'
 
 /** What the full editor shows of an event. Times are wall times in `zone` ('' = floating); an all-day event has dates only, its end date the last day it covers. */
 export interface EventFull {
@@ -17,6 +18,29 @@ export interface EventFull {
   location: string
   description: string
   free: boolean
+  /** The rule the event repeats by; null when it does not repeat or the rule is custom (read-only). */
+  repeat: CalendarRepeat | null
+  /** Minutes before the start. */
+  reminders: number[]
+}
+
+/** What the editor's detail read adds to the row (calendar-event-series D3): absent members were not loaded. */
+export interface EventExtras {
+  repeat?: CalendarRepeat | null
+  reminders?: number[]
+  /** The rule is one the form cannot say. */
+  custom?: boolean
+  /** Exceptions and excluded dates, for the warning that a new repeat resets them. */
+  exceptions?: number
+  remindersMax?: number
+  /** Reminders the form cannot show and keeps. */
+  remindersOther?: number
+}
+
+/** Whether the editor's field `key` holds the same value in `a` and `b` (the repeat and the reminders by value). */
+export function sameField(key: keyof EventFull, a: unknown, b: unknown): boolean {
+  if (key === 'repeat') return sameRepeat(a as CalendarRepeat | null, b as CalendarRepeat | null)
+  return key === 'reminders' ? JSON.stringify(a) === JSON.stringify(b) : a === b
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -37,10 +61,10 @@ export function eventZoneOf(ev: CalendarEvent, viewerZone: string): string {
   return !tz ? '' : tz === 'UTC' ? viewerZone : tz
 }
 
-/** The editor's fields for an event; `description` is what the calendar gave when the editor opened. */
-export function eventFullOf(ev: CalendarEvent, viewerZone: string, description = ''): EventFull {
+/** The editor's fields for an event; `description` and `extras` are what the calendar gave when the editor opened. */
+export function eventFullOf(ev: CalendarEvent, viewerZone: string, description = '', extras?: EventExtras): EventFull {
   const zone = eventZoneOf(ev, viewerZone)
-  const base = { title: ev.summary, zone, location: ev.location, description, free: ev.free }
+  const base = { title: ev.summary, zone, location: ev.location, description, free: ev.free, repeat: extras?.repeat ?? ev.series?.repeat ?? null, reminders: extras?.reminders ?? [] }
   if (ev.allDay) {
     const last = addDaysISO(ev.end.date, -1)
     return { ...base, allDay: true, startDate: ev.start.date, startTime: '', endDate: last < ev.start.date ? ev.start.date : last, endTime: '' }
@@ -81,13 +105,18 @@ export function startInViewerZone(form: EventFull, viewerZone: string): { date: 
  * showed it. A description is sent only when `loaded` (the text the calendar gave) is a string, i.e.
  * it could be loaded and edited. Null when nothing changed, 'invalid' when the times make no event.
  */
-export function eventFullChange(ev: CalendarEvent, form: EventFull, viewerZone: string, loaded: string | null): CalendarEventChange | null | 'invalid' {
-  const before = eventFullOf(ev, viewerZone, loaded ?? '')
+export function eventFullChange(ev: CalendarEvent, form: EventFull, viewerZone: string, loaded: string | null, extras?: EventExtras): CalendarEventChange | null | 'invalid' {
+  const before = eventFullOf(ev, viewerZone, loaded ?? '', extras)
   const out: CalendarEventChange = {}
   if (form.title.trim() !== ev.summary) out.summary = form.title.trim()
   if (form.location !== before.location) out.location = form.location
   if (form.free !== before.free) out.free = form.free
   if (loaded !== null && form.description !== loaded) out.description = form.description
+  // A rule the form cannot say is kept as it is; one not read yet (a Microsoft series, before its detail) is left alone (D8).
+  const readable = !ev.series?.custom && !extras?.custom && (!ev.series || ev.series.repeat !== undefined || extras?.repeat !== undefined)
+  if (readable && !sameRepeat(form.repeat, before.repeat)) out.repeat = form.repeat && restRepeat(form.repeat)
+  // Reminders were loaded with the detail: offline they are left out, so a queued edit never overwrites ones the person did not see.
+  if (extras?.reminders && JSON.stringify(form.reminders) !== JSON.stringify(before.reminders)) out.reminders = form.reminders
   const times: (keyof EventFull)[] = ['allDay', 'startDate', 'startTime', 'endDate', 'endTime']
   if (times.some((k) => form[k] !== before[k]) || (!form.allDay && form.zone !== before.zone)) {
     const when = pointsOf(form)

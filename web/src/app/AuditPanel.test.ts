@@ -112,6 +112,11 @@ describe('audit filters', () => {
     expect(eventSummary(ev({ name: 'calendar_event.changed', details: { provider: 'caldav', event_action: 'created' } }))).toBe('caldav · created')
     expect(eventSummary(ev({ name: 'calendar_event.changed', details: { provider: 'caldav', event_action: 'deleted' } }))).toBe('caldav · deleted')
     expect(eventSummary(ev({ name: 'calendar_event.changed', details: { provider: 'caldav', event_action: 'updated' } }))).toBe('caldav · changed')
+    // calendar-event-series D3: the scope of a change to a repeating event; the audit never carries a title or a rule.
+    expect(eventSummary(ev({ name: 'calendar_event.changed', details: { provider: 'caldav', event_action: 'updated', event_scope: 'this' } }))).toBe('caldav · changed · this event')
+    expect(eventSummary(ev({ name: 'calendar_event.changed', details: { provider: 'microsoft', event_action: 'updated', event_scope: 'following' } }))).toBe('microsoft · changed · this and following events')
+    expect(eventSummary(ev({ name: 'calendar_event.changed', details: { provider: 'caldav', event_action: 'deleted', event_scope: 'all' } }))).toBe('caldav · deleted · all events')
+    expect(eventSummary(ev({ name: 'calendar_event.changed', details: { provider: 'caldav', event_action: 'updated', event_scope: 'somethingnew' } }))).toBe('caldav · changed')
     expect(shortAgent('')).toBe('unknown client')
     expect(shortAgent('curl/8.5.0')).toBe('curl/8.5.0')
   })

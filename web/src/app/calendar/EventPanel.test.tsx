@@ -8,12 +8,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushEventEdits, EDIT_SETTLE_MS } from '../../lib/calendarEventEdits'
 import { db, setMeta } from '../../lib/db'
 import { resetDeviceId } from '../../lib/ops'
-import type { CalendarEvent, CalendarEventDraft, CalendarSubscription } from '../../lib/types'
+import type { CalendarEvent, CalendarEventDraft, CalendarRepeat, CalendarSubscription } from '../../lib/types'
 import { click, flush, key, render, type, waitFor } from '../../ui/test-utils'
 import { useBulkToast } from '../bulk/toastStore'
 import { resetPanel } from '../panel'
 import { closeEventEditor, currentEventEditor, type EventEditorRequest } from './eventEditorStore'
 import { EventPanel } from './EventPanel'
+import { ScopeMenuHost } from './ScopeMenuHost'
 
 const DAY = '2026-11-13'
 const sub = (id: string, name: string): CalendarSubscription => ({ id, name, color: '#2563eb', enabled: true, lastSuccessAt: Date.now(), managed: true, connectionId: `c-${id}`, calendarUrl: `https://dav/${id}/`, editEvents: true, caps: { create: true, update: true, delete: true } })
@@ -254,5 +255,205 @@ describe('frames', () => {
     expect(next).toMatchObject({ mode: 'create', draft: { summary: 'Review', description: 'Agenda', subscriptionId: 'work', connectionId: 'c-work', start: review.start, end: review.end } })
     expect(requests.filter((r) => r.method === 'POST')).toHaveLength(0) // nothing is created until Save
     await flush(0)
+  })
+})
+
+// ---- repeating events (OpenSpec change calendar-event-series, task 5.4) ----
+const daily: CalendarRepeat = { freq: 'daily', interval: 1, days: [], ends: { type: 'never' } }
+const routine: CalendarEvent = { ...review, id: 'ev9', uid: 'u9', summary: 'Routine', series: { id: 'ser1', repeat: daily, first: false, rev: 'r1' } }
+const routineEdit: EventEditorRequest = { mode: 'edit', key: 3, eventId: 'ev9' }
+const seriesDetail = (over: Record<string, unknown> = {}) => ({ event: routine, description: '', descriptionEditable: true, series: { rrule: 'FREQ=DAILY', repeat: daily, custom: false, exceptions: 2 }, reminders: [10], remindersMax: 5, remindersOther: 1, ...over })
+const items = () => [...document.querySelectorAll<HTMLButtonElement>('[data-event-scope]')]
+const choose = async (scope: string) => { await waitFor(() => items().length > 0, 'the scope menu'); await act(async () => items().find((i) => i.getAttribute('data-event-scope') === scope)!.click()) }
+const patches = () => requests.filter((r) => r.method === 'PATCH')
+const reminderRows = () => [...document.querySelectorAll('[data-event-form-reminder]')].map((li) => li.textContent)
+
+describe('repeating events', () => {
+  beforeEach(async () => {
+    await db.calendarEvents.put(routine)
+    detail = { status: 200, body: seriesDetail() }
+  })
+
+  it('Save on an occurrence asks which events and sends the chosen scope; nothing is sent before an answer', async () => {
+    const onClose = vi.fn()
+    await render(<><EventPanel request={routineEdit} frame="dialog" onClose={onClose} /><ScopeMenuHost /></>)
+    await waitFor(() => q('[data-event-form-location]') !== null && document.querySelector('[data-event-form-reminder]') !== null, 'the detail')
+    await type(q('[data-event-form-location]'), 'Gym')
+    await submit()
+    await waitFor(() => items().length === 3, 'the menu')
+    expect(patches()).toHaveLength(0)
+    expect(onClose).not.toHaveBeenCalled()
+    await choose('all')
+    await waitFor(() => onClose.mock.calls.length > 0, 'the close after the answer')
+    await send()
+    expect(patches()).toHaveLength(1)
+    expect(patches()[0].body).toEqual({ rev: 'r1', scope: 'all', location: 'Gym' })
+  })
+
+  it('cancelling the menu leaves the editor open with what was typed and sends nothing', async () => {
+    const onClose = vi.fn()
+    await render(<><EventPanel request={routineEdit} frame="dialog" onClose={onClose} /><ScopeMenuHost /></>)
+    await waitFor(() => document.querySelector('[data-event-form-reminder]') !== null, 'the detail')
+    await type(q('[data-event-form-location]'), 'Gym')
+    await submit()
+    await waitFor(() => items().length === 3, 'the menu')
+    await key(document.activeElement!, 'Escape')
+    await waitFor(() => items().length === 0, 'the menu closed')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(q('[data-event-form-location]').value).toBe('Gym')
+    await send()
+    expect(patches()).toHaveLength(0)
+  })
+
+  it('a time change of an occurrence offers all three scopes; the first occurrence has no "this and following"', async () => {
+    detail = { status: 200, body: seriesDetail({ event: { ...routine, series: { ...routine.series!, first: true } } }) }
+    await render(<><EventPanel request={routineEdit} frame="dialog" onClose={() => {}} /><ScopeMenuHost /></>)
+    await waitFor(() => document.querySelector('[data-event-form-reminder]') !== null, 'the detail')
+    await type(q('[data-event-form-start-time]'), '08:00')
+    await type(q('[data-event-form-end-time]'), '09:30')
+    await submit()
+    await waitFor(() => items().length > 0)
+    expect(items().map((i) => i.getAttribute('data-event-scope'))).toEqual(['this', 'all'])
+  })
+
+  it('shows the series rule from the detail, and a new weekday repeat offers only following and all', async () => {
+    await render(<><EventPanel request={routineEdit} frame="dialog" onClose={() => {}} /><ScopeMenuHost /></>)
+    await waitFor(() => document.querySelector<HTMLInputElement>('[data-event-form-repeat] input[role="combobox"]')?.placeholder === 'Every day', 'the loaded rule')
+    const input = q('[data-event-form-repeat] input[role="combobox"]')
+    await act(async () => { input.focus() })
+    await click(input)
+    await waitFor(() => document.querySelector('[role="option"]') !== null)
+    await click([...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent?.trim() === 'Every weekday')!)
+    expect(q('[data-event-form-repeat-resets]').textContent).toContain('resets events you changed individually')
+    await submit()
+    await waitFor(() => items().length > 0, 'the menu')
+    expect(items().map((i) => i.getAttribute('data-event-scope'))).toEqual(['following', 'all'])
+    expect(document.getElementById(items()[1].getAttribute('aria-describedby')!)!.textContent).toBe('Changing the repeat resets events you changed individually')
+    await choose('all')
+    await send()
+    expect(patches()[0].body).toEqual({ rev: 'r1', scope: 'all', repeat: { freq: 'weekly', interval: 1, days: ['mo', 'tu', 'we', 'th', 'fr'], ends: { type: 'never' } } })
+  })
+
+  it('a custom rule reads "Custom repeat", the other fields save, and the rule is not sent', async () => {
+    detail = { status: 200, body: seriesDetail({ series: { rrule: 'FREQ=MONTHLY;BYSETPOS=-1;BYDAY=MO,TU,WE,TH,FR', repeat: null, custom: true, exceptions: 0 } }) }
+    await db.calendarEvents.put({ ...routine, series: { id: 'ser1', repeat: null, custom: true, first: false, rev: 'r1' } })
+    await render(<><EventPanel request={routineEdit} frame="dialog" onClose={() => {}} /><ScopeMenuHost /></>)
+    await waitFor(() => document.querySelector('[data-event-form-repeat-read-only]') !== null, 'the read-only rule')
+    expect(q('[data-event-form-repeat-read-only]').textContent).toBe('Custom repeat')
+    await type(q('[data-event-form-title]'), 'Month end')
+    await submit()
+    await choose('all')
+    await send()
+    expect(patches()[0].body).toEqual({ rev: 'r1', scope: 'all', summary: 'Month end' })
+  })
+
+  it('reminders come from the detail and are sent only when changed', async () => {
+    await render(<><EventPanel request={routineEdit} frame="dialog" onClose={() => {}} /><ScopeMenuHost /></>)
+    await waitFor(() => reminderRows().length === 1, 'the reminders')
+    expect(reminderRows()).toEqual(['10 minutes before'])
+    expect(q('[data-event-form-reminders-other]').textContent).toBe('1 other reminder is kept')
+    await click(q('[data-event-form-add-reminder]'))
+    await waitFor(() => document.querySelector('[role="menuitem"]') !== null)
+    await click([...document.querySelectorAll('[role="menuitem"]')].find((i) => i.textContent?.trim() === '1 day before')!)
+    await submit()
+    await choose('this')
+    await send()
+    expect(patches()[0].body).toEqual({ rev: 'r1', scope: 'this', reminders: [10, 1440] })
+  })
+
+  it('a Microsoft calendar takes one reminder and its series cannot stop repeating', async () => {
+    await db.calendarSubscriptions.put({ ...sub('work', 'Work'), maxReminders: 1 })
+    detail = { status: 200, body: seriesDetail({ remindersMax: 1, remindersOther: 0 }) }
+    await render(<><EventPanel request={routineEdit} frame="dialog" onClose={() => {}} /><ScopeMenuHost /></>)
+    await waitFor(() => reminderRows().length === 1, 'the reminders')
+    expect(document.querySelector('[data-event-form-add-reminder]')).toBeNull()
+    const input = q('[data-event-form-repeat] input[role="combobox"]')
+    await act(async () => { input.focus() })
+    await click(input)
+    await waitFor(() => document.querySelector('[role="option"]') !== null)
+    expect([...document.querySelectorAll('[role="option"]')].map((o) => o.textContent?.trim())).not.toContain('Does not repeat')
+  })
+
+  it('offline, the reminders are disabled with the reason and left out; the rule from the events route still shows', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline') }))
+    await render(<><EventPanel request={routineEdit} frame="dialog" onClose={() => {}} /><ScopeMenuHost /></>)
+    await waitFor(() => q<HTMLTextAreaElement>('[data-event-form-description]')?.disabled === true, 'offline')
+    expect(q('[data-event-form-reminders]').textContent).toContain('offline')
+    expect(q<HTMLInputElement>('[data-event-form-repeat] input[role="combobox"]').placeholder).toBe('Every day')
+    await type(q('[data-event-form-location]'), 'Gym')
+    await submit()
+    await choose('this')
+    await waitFor(async () => (await db.eventOutbox.count()) === 1)
+    expect((await db.eventOutbox.toArray())[0]).toMatchObject({ scope: 'this', patch: { location: 'Gym' } })
+  })
+
+  it('Delete from the editor asks which events and queues the chosen scope', async () => {
+    const onClose = vi.fn()
+    await render(<><EventPanel request={routineEdit} frame="dialog" onClose={onClose} /><ScopeMenuHost /></>)
+    await waitFor(() => document.querySelector('[data-event-form-menu]') !== null)
+    await click(q('[data-event-form-menu]'))
+    await waitFor(() => document.querySelector('[data-event-form-delete]') !== null)
+    await click(q('[data-event-form-delete]'))
+    await waitFor(() => items().length === 3, 'the menu')
+    expect(document.querySelector('[role="menu"][aria-label="Delete which events"]')).not.toBeNull()
+    await choose('following')
+    await waitFor(async () => (await db.eventOutbox.count()) === 1, 'the queued delete')
+    expect((await db.eventOutbox.toArray())[0]).toMatchObject({ scope: 'following', patch: { delete: true } })
+  })
+
+  it('a single event never asks for a scope', async () => {
+    detail = { status: 200, body: { event: review, description: 'Agenda', descriptionEditable: true, reminders: [], remindersMax: 5, remindersOther: 0 } }
+    await render(<><EventPanel request={edit} frame="dialog" onClose={() => {}} /><ScopeMenuHost /></>)
+    await waitFor(() => q<HTMLTextAreaElement>('[data-event-form-description]')?.value === 'Agenda', 'the description')
+    await type(q('[data-event-form-title]'), 'Planning')
+    await submit()
+    await send()
+    expect(items()).toHaveLength(0)
+    expect(patches()[0].body).toEqual({ rev: 'r1', summary: 'Planning' })
+  })
+
+  it('makes a single event repeat from its own start, with no scope', async () => {
+    detail = { status: 200, body: { event: review, description: 'Agenda', descriptionEditable: true, reminders: [], remindersMax: 5, remindersOther: 0 } }
+    await render(<><EventPanel request={edit} frame="dialog" onClose={() => {}} /><ScopeMenuHost /></>)
+    await waitFor(() => q<HTMLTextAreaElement>('[data-event-form-description]')?.value === 'Agenda', 'the description')
+    const input = q('[data-event-form-repeat] input[role="combobox"]')
+    await act(async () => { input.focus() })
+    await click(input)
+    await waitFor(() => document.querySelector('[role="option"]') !== null)
+    await click([...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent?.trim() === 'Every week on Friday')!)
+    await submit()
+    await send()
+    expect(items()).toHaveLength(0)
+    expect(patches()[0].body).toEqual({ rev: 'r1', repeat: { freq: 'weekly', interval: 1, days: [], ends: { type: 'never' } } })
+  })
+
+  it('creates a new weekly event with its repeat and reminders and no scope', async () => {
+    await render(<><EventPanel request={create()} frame="dialog" onClose={() => {}} /><ScopeMenuHost /></>)
+    await waitFor(() => !!q('[data-event-form-title]'), 'the form')
+    await type(q('[data-event-form-title]'), 'Stand-up')
+    const input = q('[data-event-form-repeat] input[role="combobox"]')
+    await act(async () => { input.focus() })
+    await click(input)
+    await waitFor(() => document.querySelector('[role="option"]') !== null)
+    await click([...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent?.trim() === 'Every weekday')!)
+    await click(q('[data-event-form-add-reminder]'))
+    await waitFor(() => document.querySelector('[role="menuitem"]') !== null)
+    await click([...document.querySelectorAll('[role="menuitem"]')].find((i) => i.textContent?.trim() === '10 minutes before')!)
+    await submit()
+    await send()
+    const post = requests.find((r) => r.method === 'POST')!
+    expect(post.body).toMatchObject({ summary: 'Stand-up', repeat: { freq: 'weekly', interval: 1, days: ['mo', 'tu', 'we', 'th', 'fr'], ends: { type: 'never' } }, reminders: [10] })
+    expect(post.body).not.toHaveProperty('scope')
+  })
+
+  it('Duplicate of an occurrence is a single event: no repeat in the new draft', async () => {
+    await render(<><EventPanel request={routineEdit} frame="dialog" onClose={() => {}} /><ScopeMenuHost /></>)
+    await waitFor(() => document.querySelector('[data-event-form-menu]') !== null)
+    await click(q('[data-event-form-menu]'))
+    await waitFor(() => document.querySelector('[data-event-form-duplicate]') !== null)
+    await click(q('[data-event-form-duplicate]'))
+    const next = currentEventEditor()
+    expect(next).toMatchObject({ mode: 'create' })
+    expect((next as { draft: CalendarEventDraft }).draft.repeat).toBeUndefined()
   })
 })

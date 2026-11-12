@@ -258,7 +258,7 @@ describe('refreshEvents keeps queued edits (4.5)', () => {
 
 describe('texts', () => {
   it('says why an event is locked', () => {
-    expect(eventAccessText('recurring')).toBe('Repeating events are read-only for now')
+    expect(eventAccessText('series_unsupported')).toBe('This repeat is too complex to change here')
     expect(eventAccessText('has_guests')).toBe('This event has guests')
     expect(eventAccessText('nothing-known')).toBe('')
   })

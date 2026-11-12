@@ -11,6 +11,7 @@ import { MenuItem, MenuSeparator, PageHeader } from '../../ui'
 import { saveTray } from './planSource'
 import { useAddHere, type AddHere } from './addHere'
 import { EventEditorHost } from './EventEditorHost'
+import { ScopeMenuHost } from './ScopeMenuHost'
 import { ProjectionsMenuItem } from './projectionSwitches'
 import { ColorByMenuItems, useColorBy, type ColorByState } from './colorByControls'
 import { CALENDAR_FILTER_KEY, FilterQueryChip, QueryFilterHost, useQueryFilter } from './queryFilter'
@@ -86,6 +87,7 @@ export function useCalendarChrome(all: readonly Task[], projects: readonly Proje
       <QueryFilterHost open={open} filter={filter} title={t('Filter the calendar')} onClose={() => setOpen(false)} />
       {add.element}
       <EventEditorHost />
+      <ScopeMenuHost />
     </>
   )
   const projectId = scope?.projectId

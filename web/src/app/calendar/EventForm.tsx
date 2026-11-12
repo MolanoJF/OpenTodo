@@ -6,6 +6,8 @@ import { t } from '../../lib/i18n'
 import type { CalendarSubscription } from '../../lib/types'
 import { Combobox, Field, hueFor, Input, SegmentedControl, Skeleton, Switch, Textarea } from '../../ui'
 import { useDateTimeFormat } from '../DateTimePrefsProvider'
+import { EventRemindersField, type RemindersFieldProps } from './EventRemindersField'
+import { EventRepeatField, type RepeatFieldProps } from './EventRepeatField'
 import { EventZoneField } from './EventZoneField'
 import type { DescriptionState } from './useEventDetail'
 
@@ -25,6 +27,9 @@ export interface EventFormProps {
   /** Create mode: the Task | Event control; choosing Task goes back to the add dialog. */
   onTask?: () => void
   invalid: boolean
+  /** The repeat and the reminders (calendar-event-series D12); absent where the form has no calendar to ask (a story). */
+  repeat?: Omit<RepeatFieldProps, 'startDate'>
+  reminders?: Omit<RemindersFieldProps, 'allDay'>
   onSubmit: () => void
   children?: React.ReactNode
 }
@@ -37,7 +42,7 @@ function descriptionNote(d: DescriptionState): string {
   return ''
 }
 
-export function EventForm({ form, set, setAllDay, viewerZone, floating, picker, calendarLabel, description, onTask, invalid, onSubmit, children }: EventFormProps) {
+export function EventForm({ form, set, setAllDay, viewerZone, floating, picker, calendarLabel, description, onTask, invalid, repeat, reminders, onSubmit, children }: EventFormProps) {
   const dt = useDateTimeFormat()
   const inYourTime = startInViewerZone(form, viewerZone)
   const note = descriptionNote(description)
@@ -70,6 +75,8 @@ export function EventForm({ form, set, setAllDay, viewerZone, floating, picker, 
         )}
       </fieldset>
       {!form.allDay && <EventZoneField zone={form.zone} viewerZone={viewerZone} floatingAllowed={floating} onChange={(zone) => set({ zone })} />}
+      {repeat && <EventRepeatField {...repeat} startDate={form.startDate} />}
+      {reminders && <EventRemindersField {...reminders} allDay={form.allDay} />}
       <div className="space-y-1.5">
         <p className="text-body font-medium text-default">{t('Calendar')}</p>
         {picker
