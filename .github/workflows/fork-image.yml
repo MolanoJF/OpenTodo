@@ -3,7 +3,7 @@ name: Fork image
 
 on:
   push:
-    branches: [deploy]
+    branches: [home-deploy]
   workflow_dispatch:
 
 permissions:
@@ -42,6 +42,6 @@ jobs:
             OPENTODO_BUILD=preview
           tags: |
             ghcr.io/molanojf/opentodo:${{ steps.tag.outputs.tag }}
-            ghcr.io/molanojf/opentodo:deploy
+            ghcr.io/molanojf/opentodo:home-deploy
           cache-from: type=gha
           cache-to: type=gha,mode=max
