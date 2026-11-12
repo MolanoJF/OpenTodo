@@ -355,8 +355,8 @@
   "route": "day",
   "kind": "overlay",
   "seed": "layout-check",
-  "frequency": "weekly",
-  "core": true,
+  "frequency": "rare",
+  "core": false,
   "layoutCheck": "event-editor",
   "on": "day",
   "story": "Screens/Calendar"
