@@ -194,7 +194,8 @@ On a Mac, use <kbd>⌘</kbd> where this page says <kbd>Ctrl</kbd>, and <kbd>Opti
 | <kbd>Shift+Enter</kbd> | While placing over a slot: add the task to the slot |
 | <kbd>e</kbd> | Edit the estimate of the selected task |
 | <kbd>c</kbd> | Complete the selected task |
-| <kbd>q</kbd> | In Day and Week: add a task due on the focused day (the selected task's day, else today) |
+| <kbd>q</kbd> | In Day and Week: add a task or event on the focused day (the selected task's day, else today; the kind you added last) |
+| <kbd>Shift+Q</kbd> | In Day and Week: add an event on the focused day, at its next free half hour (09:00 on another day); needs a calendar that allows editing events |
 | <kbd>[</kbd> | Previous day or week |
 | <kbd>]</kbd> | Next day or week |
 | <kbd>t</kbd> | Back to today |

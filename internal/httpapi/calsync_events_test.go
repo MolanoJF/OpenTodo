@@ -404,3 +404,101 @@ func TestCalendarEventRoutesDeniedOnDemo(t *testing.T) {
 		t.Fatalf("delete = %d %v", resp.StatusCode, out)
 	}
 }
+
+// patchOnly sends one PATCH with the rev and the given members and returns the answer.
+func (v *eventsEnv) patchOnly(ev map[string]any, members map[string]any) (int, map[string]any) {
+	v.e.t.Helper()
+	body := map[string]any{"rev": ev["rev"]}
+	for k, val := range members {
+		body[k] = val
+	}
+	resp, out := v.e.do("PATCH", v.path(ev["id"].(string)), body)
+	return resp.StatusCode, out
+}
+
+// TestCalendarEventPatchLocationDescriptionFree (calendar-event-editor task
+// 3.1): each new member alone, clearing with an empty string, and the limits.
+func TestCalendarEventPatchLocationDescriptionFree(t *testing.T) {
+	v := newEventsEnv(t)
+	e := v.e
+	v.edits(true)
+	cur := v.events(e)["Plain"]
+	step := func(name string, members map[string]any, want ...string) {
+		t.Helper()
+		status, out := v.patchOnly(cur, members)
+		if status != 200 {
+			t.Fatalf("%s = %d %v", name, status, out)
+		}
+		cur = out["event"].(map[string]any)
+		obj := v.cal.Get("work", "plain.ics")
+		for _, w := range want {
+			if !strings.Contains(obj, w) {
+				t.Fatalf("%s: object lacks %q:\n%s", name, w, obj)
+			}
+		}
+	}
+	step("location", map[string]any{"location": "Room 4"}, "LOCATION:Room 4", "SUMMARY:Plain")
+	if cur["location"] != "Room 4" || cur["summary"] != "Plain" {
+		t.Fatalf("row = %v", cur)
+	}
+	step("description", map[string]any{"description": "Bring the draft.\nTwo lines"}, `DESCRIPTION:Bring the draft.\nTwo lines`, "LOCATION:Room 4")
+	step("free", map[string]any{"free": true}, "TRANSP:TRANSPARENT")
+	if cur["free"] != true || cur["location"] != "Room 4" {
+		t.Fatalf("row after free = %v", cur)
+	}
+	step("busy again", map[string]any{"free": false}, "TRANSP:OPAQUE")
+	step("clear location", map[string]any{"location": ""})
+	step("clear description", map[string]any{"description": ""})
+	if obj := v.cal.Get("work", "plain.ics"); strings.Contains(obj, "LOCATION") || strings.Contains(obj, "DESCRIPTION") {
+		t.Fatalf("cleared properties survived:\n%s", obj)
+	}
+	if cur["location"] != nil && cur["location"] != "" {
+		t.Fatalf("location after clearing = %v", cur["location"])
+	}
+	// All three at once with a title.
+	step("together", map[string]any{"summary": "All", "location": "X", "description": "Y", "free": true}, "SUMMARY:All", "LOCATION:X", "DESCRIPTION:Y", "TRANSP:TRANSPARENT")
+	if got := e.events(audit.CalendarEventChangedName); len(got) != 7 {
+		t.Fatalf("audit events = %d, want 7", len(got))
+	}
+}
+
+func TestCalendarEventPatchNewFieldRules(t *testing.T) {
+	v := newEventsEnv(t)
+	e := v.e
+	v.edits(true)
+	cur := v.events(e)["Plain"]
+	calls := func() int { return v.cal.Count("GET") + v.cal.Count("PUT") + v.cal.Count("DELETE") }
+	base := calls()
+	bad := map[string]map[string]any{
+		"long location":    {"location": strings.Repeat("x", 501)},
+		"long description": {"description": strings.Repeat("x", 10001)},
+		"nul location":     {"location": "a\x00b"},
+		"nul description":  {"description": "a\x00b"},
+		"free not bool":    {"free": "yes"},
+		"nothing":          {},
+	}
+	for name, members := range bad {
+		status, out := v.patchOnly(cur, members)
+		if status != 400 || errCode(out) != "invalid_input" {
+			t.Fatalf("%s = %d %v", name, status, out)
+		}
+	}
+	if calls() != base {
+		t.Fatal("a refused body reached the calendar")
+	}
+	// The limits themselves are accepted, counted in characters.
+	status, out := v.patchOnly(cur, map[string]any{"location": strings.Repeat("é", 500), "description": strings.Repeat("é", 10000)})
+	if status != 200 {
+		t.Fatalf("at the limits = %d %v", status, out)
+	}
+}
+
+func TestCalendarEventPatchGuestsStayLockedForNewFields(t *testing.T) {
+	v := newEventsEnv(t)
+	v.edits(true)
+	g := v.events(v.e)["Guests"]
+	status, out := v.patchOnly(g, map[string]any{"location": "Room"})
+	if status != 422 || errCode(out) != "event_not_editable" {
+		t.Fatalf("guests = %d %v", status, out)
+	}
+}

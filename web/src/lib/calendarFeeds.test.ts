@@ -15,7 +15,8 @@ vi.mock('./api', () => ({
   },
 }))
 
-import { cachedWindow, covers, ensureEventsFor, eventsStatus, fetchRange, refreshEvents, requestRanges, setShowEvents, showEvents } from './calendarFeeds'
+import { applyEventPatch, cachedWindow, covers, ensureEventsFor, eventPatchBetween, eventsStatus, fetchRange, isNoChange, overlayQueued, pendingRowOf, refreshEvents, requestRanges, setShowEvents, showEvents } from './calendarFeeds'
+import type { CalendarEvent, EventCommand } from './types'
 import { clearLocalData, db, useDatabase } from './db'
 
 let n = 0
@@ -111,5 +112,31 @@ describe('calendar events cache (5.1, 5.2)', () => {
     // The mock answers every piece with the same event: it is stored once.
     expect(await db.calendarEvents.count()).toBe(1)
     expect(covers(await cachedWindow(), year)).toBe(true)
+  })
+})
+
+describe('queued creates and the new fields (calendar-event-editor D9)', () => {
+  const draft = { clientId: 'k1', connectionId: 'c1', calendarUrl: 'u', subscriptionId: 's1', summary: 'Dentist', start: { date: '2026-10-19', time: '09:00' }, end: { date: '2026-10-19', time: '09:30' }, allDay: false, location: '', description: 'x', free: false }
+  const cmd = (patch: EventCommand['patch'], next?: EventCommand['next']): EventCommand => ({ key: 'c1:pending:k1', connectionId: 'c1', eventId: 'pending:k1', rev: '', base: pendingRowOf(draft), patch, next, notBefore: 0, tries: 0 })
+
+  it('draws a pending row for a queued create, with what waits in next, and none for a discarded one', () => {
+    const events = new Map<string, CalendarEvent>()
+    overlayQueued(events, [cmd({ create: draft })])
+    expect(events.get('pending:k1')).toMatchObject({ summary: 'Dentist', uid: 'k1' })
+    overlayQueued(events, [cmd({ create: draft }, { summary: 'Renamed', location: 'Room 4' })])
+    expect(events.get('pending:k1')).toMatchObject({ summary: 'Renamed', location: 'Room 4' })
+    const gone = new Map<string, CalendarEvent>()
+    overlayQueued(gone, [cmd({ create: draft }, { delete: true })])
+    expect(gone.size).toBe(0)
+  })
+
+  it('applies location and free to a row and finds them in a difference, but never a description', () => {
+    const row = pendingRowOf(draft)
+    const changed = applyEventPatch(row, { location: 'Room 4', free: true, description: 'x' })
+    expect(changed).toMatchObject({ location: 'Room 4', free: true })
+    expect('description' in changed).toBe(false)
+    expect(eventPatchBetween(row, changed)).toEqual({ location: 'Room 4', free: true })
+    expect(isNoChange(row, { description: 'x' })).toBe(false)
+    expect(isNoChange(row, { location: '' })).toBe(true)
   })
 })

@@ -33,14 +33,17 @@ func eventPointProp(what string) map[string]any {
 func init() {
 	register(tool{def: func(Caller) Definition {
 		return writeDef("update_calendar_event", "Change a calendar event",
-			"Rename, move or resize one event of a connected calendar (see list_calendar_events for its connection_id, id and rev). Send summary, or start and end together (and all_day), or both. "+
+			"Change one event of a connected calendar (see list_calendar_events for its connection_id, id and rev): summary, start and end together (and all_day), location, description (replaces the whole text; an empty string clears it) or free (true: shown as free). Send any of them. "+
 				"It works only when the user turned on editing events for that connection and the event's access.update is true; recurring events, events with guests and events the user does not organise stay read-only. No invitation or update is ever sent to guests. "+
 				"The answer holds the event as the calendar now holds it: a move changes its id, and replaces names the old one.",
 			object([]string{"connection_id", "event_id", "rev"}, map[string]any{
 				"connection_id": connectionIDProp, "event_id": eventIDProp, "rev": eventRevProp,
 				"summary": map[string]any{"type": "string", "minLength": 1, "maxLength": 500, "description": "The new title."},
 				"start":   eventPointProp("The new start"), "end": eventPointProp("The new end"),
-				"all_day": map[string]any{"type": "boolean", "description": "true for an all-day event (start and end are dates); default: all-day when start and end have no time."},
+				"all_day":     map[string]any{"type": "boolean", "description": "true for an all-day event (start and end are dates); default: all-day when start and end have no time."},
+				"location":    map[string]any{"type": "string", "maxLength": 500, "description": "The new location; an empty string clears it."},
+				"description": map[string]any{"type": "string", "maxLength": 10000, "description": "The new description as plain text. It replaces the whole text; an empty string clears it. An event whose description is rich text in the calendar can not take one."},
+				"free":        map[string]any{"type": "boolean", "description": "true: the event shows the user as free; false: busy."},
 			}), false, true, nil, false)
 	}, plan: (*Registry).planUpdateCalendarEvent})
 	register(tool{def: func(Caller) Definition {
@@ -81,7 +84,7 @@ func (a args) eventTime(name string) (*EventTime, error) {
 
 // eventUpdate reads update_calendar_event's arguments.
 func (a args) eventUpdate() (EventUpdate, error) {
-	if err := a.only("", "connection_id", "event_id", "rev", "summary", "start", "end", "all_day"); err != nil {
+	if err := a.only("", "connection_id", "event_id", "rev", "summary", "start", "end", "all_day", "location", "description", "free"); err != nil {
 		return EventUpdate{}, err
 	}
 	conn, id, rev, err := a.eventTarget()
@@ -106,6 +109,29 @@ func (a args) eventUpdate() (EventUpdate, error) {
 			return u, err
 		}
 		u.AllDay = &v
+	}
+	return u.withText(a)
+}
+
+// withText reads the location, description and free members of an update.
+func (u EventUpdate) withText(a args) (EventUpdate, error) {
+	for _, f := range []struct {
+		name string
+		max  int
+		to   **string
+	}{{"location", 500, &u.Location}, {"description", 10000, &u.Description}} {
+		if v, ok, err := a.text(f.name, false, f.max); err != nil {
+			return u, err
+		} else if ok {
+			*f.to = &v
+		}
+	}
+	if a.present("free") {
+		v, err := a.boolean("free")
+		if err != nil {
+			return u, err
+		}
+		u.Free = &v
 	}
 	return u, nil
 }

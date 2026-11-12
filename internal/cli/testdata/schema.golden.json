@@ -230,6 +230,71 @@
       }
     },
     {
+      "name": "calendar event add",
+      "summary": "add an event to a connected calendar and print its id, title and time (needs a full token and editing turned on for the connection; no invitation is ever sent)",
+      "args": [
+        {
+          "name": "title",
+          "required": true,
+          "repeatable": true
+        }
+      ],
+      "flags": [
+        {
+          "name": "start",
+          "type": "string",
+          "description": "start: DATE or DATEThh:mm (DATE is YYYY-MM-DD, today, tomorrow or a weekday); a timed event needs the time"
+        },
+        {
+          "name": "end",
+          "type": "string",
+          "description": "end, same forms; for an all-day event the day after its last day (default one day)"
+        },
+        {
+          "name": "for",
+          "type": "string",
+          "description": "length instead of --end, such as 45m or 1h30m"
+        },
+        {
+          "name": "all-day",
+          "type": "bool",
+          "description": "an all-day event"
+        },
+        {
+          "name": "calendar",
+          "type": "string",
+          "description": "the calendar to add it to, a name or a url; not needed with one writable calendar"
+        },
+        {
+          "name": "location",
+          "type": "string",
+          "description": "where it is"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "its description, plain text"
+        },
+        {
+          "name": "free",
+          "type": "bool",
+          "description": "show you as free during it"
+        },
+        {
+          "name": "client-id",
+          "type": "string",
+          "description": "idempotency key for scripts that retry: 8 to 64 letters, digits, - or _"
+        }
+      ],
+      "writes": true,
+      "destructive": false,
+      "dry_run": true,
+      "idempotency_key": false,
+      "output_schema": {
+        "$ref": "#/schemas/calendar_event"
+      }
+    },
+    {
       "name": "calendar event delete",
       "aliases": [
         "calendar event rm"
@@ -265,7 +330,7 @@
     },
     {
       "name": "calendar event edit",
-      "summary": "rename, move or resize an event of a connected calendar (needs a full token and editing turned on for the connection; no invitation is ever sent)",
+      "summary": "change an event of a connected calendar (title, time, location, description, free or busy; needs a full token and editing turned on for the connection; no invitation is ever sent)",
       "args": [
         {
           "name": "id",
@@ -293,6 +358,26 @@
           "name": "all-day",
           "type": "bool",
           "description": "make it an all-day event"
+        },
+        {
+          "name": "location",
+          "type": "string",
+          "description": "new location; \"\" clears it"
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "description": "new description, plain text; it replaces the whole text, \"\" clears it"
+        },
+        {
+          "name": "free",
+          "type": "bool",
+          "description": "show you as free during the event"
+        },
+        {
+          "name": "busy",
+          "type": "bool",
+          "description": "show you as busy during the event"
         },
         {
           "name": "on",

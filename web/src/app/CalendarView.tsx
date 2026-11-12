@@ -39,6 +39,7 @@ import { requestFrames } from './calendar/framesRequest'
 import { CalendarPageHeader, useCalendarChrome, useDrawn } from './calendar/useCalendarChrome'
 import { useCalendarGo } from './calendar/scope'
 import type { AddGestures, HueOf } from './calendar/DayColumn'
+import { gesturesOf } from './calendar/addHere'
 import { CalendarCompletedToggle } from './calendar/CalendarCompletedToggle'
 import { commitSlotDrop, newSlotFor, useSlotIndex, useSlotViews } from './calendar/useCalendarSlots'
 import { CalendarStatus } from './calendar/CalendarStatus'
@@ -185,7 +186,7 @@ export function CalendarView({ mode, date }: { mode: 'day' | 'week'; date?: stri
     }
     if (!task) return
     if (placeFrom.current?.id === taskId) placeFrom.current.placed = true
-    if (target.type === 'into-slot') return
+    if (target.type === 'into-slot' || target.type === 'range') return
     if (target.type === 'slot') {
       const time = toHHMM(target.start)
       if (task.due?.date !== target.date || task.due?.time !== time) act(setDueWithUndo(taskId, dueFromView(stored, { date: target.date, time })))
@@ -212,7 +213,7 @@ export function CalendarView({ mode, date }: { mode: 'day' | 'week'; date?: stri
   }, [placing])
 
   const { drag, start } = useCalendarDrag({ pxPerMinute: PX_PER_MIN, scroller, onDrop: (id, target, entity) => {
-    if (entity === 'event') { eventEdits.drop(id, target); setSelectedId(id) } else if (!commitProjectionDrop(id, target, toHHMM)) commit(id, target)
+    if (entity === 'range') { if (target.type === 'range') chrome.add.add({ date: target.date, start: target.start, end: target.end }) } else if (entity === 'event') { eventEdits.drop(id, target); setSelectedId(id) } else if (!commitProjectionDrop(id, target, toHHMM)) commit(id, target)
   } })
   const startDrag = useCallback<typeof start>((event, info) => {
     if (!taskMap.get(info.taskId)?.completed_at) start(event, info)
@@ -245,6 +246,7 @@ export function CalendarView({ mode, date }: { mode: 'day' | 'week'; date?: stri
     replan: previewing ? { apply: rp.apply, cancel: rp.cancel } : null,
     // `q` adds on the focused day without a time (calendar-clarity D2).
     onQuickAdd: (d) => chrome.add.add({ date: d }),
+    onNewEvent: chrome.add.newEvent,
   })
 
   // Keep the selection (or the placement ghost) on screen.
@@ -294,7 +296,8 @@ export function CalendarView({ mode, date }: { mode: 'day' | 'week'; date?: stri
   }
   const select = (id: string) => setSelectedId(id), open = (id: string) => { setSelectedId(id); setOpenId(id) }
   const step = (dir: 1 | -1) => goTo(addDaysISO(anchor, (mode === 'day' ? 1 : 7) * dir))
-  const { color: { hueOf } } = chrome, gestures: AddGestures | undefined = previewing ? undefined : chrome.add
+  const { color: { hueOf } } = chrome
+  const gestures: AddGestures | undefined = previewing ? undefined : gesturesOf(chrome.add, start)
 
   const status = previewing && desktopHead
     ? <Suspense fallback={null}><ReplanPreview variant="bar" {...previewProps(rp, taskMap, today)} /></Suspense>
@@ -437,6 +440,10 @@ function CalendarGrid({ mode, days, savingEvents, today, nowMinutes, prefs, show
     const resized = drag && dragTask && drag.target?.type === 'resize' && dragTask.due?.date === d.date ? d.blocks.get(dragTask.id) : undefined
     if (drag?.target?.type === 'resize' && dragTask && resized) return { id: 'drag-ghost', start: resized.start, length: drag.target.estimate, title: dragTask.title }
     if (drag?.target?.type === 'resize-start' && dragTask && drag.target.date === d.date) return { id: 'drag-ghost', start: drag.target.start, length: drag.target.estimate, title: dragTask.title }
+    if (drag?.entity === 'range' && drag.target?.type === 'range' && drag.target.date === d.date) {
+      const { start, end } = drag.target, title = gestures?.kind === 'event' ? t('New event') : t('New task')
+      return { id: 'sweep-ghost', start, length: end - start, title, announce: t('{title}, {from} to {to}', { title, from: formatTime(start), to: formatTime(end) }) }
+    }
     if (placing && placingTask && placing.date === d.date) return { id: 'placement-ghost', start: placing.start, length: placingTask.estimate_minutes ?? 30, title: placingTask.title }
     return null
   }

@@ -21,6 +21,8 @@ export interface Preview {
   start: number
   length: number
   title: string
+  /** Read out by a live region while a sweep is drawn ("New event, 14:00 to 15:00"). */
+  announce?: string
 }
 
 /** Minutes from midnight as shown to the user, in their time format (date-time-preferences D2). */

@@ -34,6 +34,10 @@ type graphEvent struct {
 	Attendees   []struct {
 		Type string `json:"type"`
 	} `json:"attendees"`
+	Body *struct {
+		ContentType string `json:"contentType"`
+		Content     string `json:"content"`
+	} `json:"body"`
 	ShowAs       string `json:"showAs"`
 	LastModified string `json:"lastModifiedDateTime"`
 	Location     *struct {
