@@ -164,7 +164,7 @@ func (t *graphTransport) fetch(ctx context.Context, _ string, ids []string) (map
 // their occurrences.
 func (t *graphTransport) window(ctx context.Context, cal string, win calfeed.Window) ([]remote, error) {
 	next := calendarPath(cal) + "/calendarView?" + query(url.Values{"startDateTime": {graphStamp(win.From)}, "endDateTime": {graphStamp(win.To)},
-		"$top": {"250"}, "$expand": {expandProperty}})
+		"$top": {"250"}, "$expand": {expandProperty}, "$select": {windowSelect}})
 	var out []remote
 	for page := 0; next != ""; page++ {
 		if page >= maxGraphPages {
@@ -283,3 +283,7 @@ func (t *graphTransport) commit(ctx context.Context) error {
 	}
 	return nil
 }
+
+// windowSelect is what the window read asks for: a calendarView without $select
+// is not guaranteed to carry seriesMasterId (calendar-event-series D9).
+const windowSelect = "id,subject,start,end,isAllDay,showAs,type,isOrganizer,attendees,location,isCancelled,lastModifiedDateTime,seriesMasterId"

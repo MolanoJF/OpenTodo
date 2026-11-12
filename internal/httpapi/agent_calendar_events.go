@@ -55,6 +55,10 @@ func (calendarEventEditor) toolError(err error) error {
 		return err
 	}
 	switch ee.Code {
+	case calsync.EventScopeRequired:
+		return toolCode("scope_required", "this event repeats: say which events the change is for with scope (this, following or all)")
+	case calsync.EventInvalid:
+		return toolCode("invalid_input", ee.Reason+": "+invalidReason(ee.Reason))
 	case calsync.EventNotFound:
 		return toolCode("not_found", "calendar event not found")
 	case calsync.EventEditsOff:
@@ -88,7 +92,7 @@ func (e calendarEventEditor) Update(ctx context.Context, uid string, u agenttool
 	if err != nil {
 		return agenttools.EventOutcome{}, e.toolError(err)
 	}
-	e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, u.ConnectionID, res.Provider, "updated"))
+	e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, u.ConnectionID, res.Provider, "updated", ""))
 	out := eventOfRow(res.Event, res.ConnectionID)
 	return agenttools.EventOutcome{Event: out, Replaces: res.Replaces}, nil
 }
@@ -100,11 +104,11 @@ func (e calendarEventEditor) Delete(ctx context.Context, uid, connID, eventID, r
 	if !e.s.calsyncEventLimiter.allow(uid) {
 		return toolCode("rate_limited", "too many calendar event changes; try again later")
 	}
-	res, err := e.s.calsync.DeleteEvent(ctx, uid, connID, eventID, rev)
+	res, err := e.s.calsync.DeleteEvent(ctx, uid, connID, eventID, rev, "")
 	if err != nil {
 		return e.toolError(err)
 	}
-	e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, connID, res.Provider, "deleted"))
+	e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, connID, res.Provider, "deleted", ""))
 	return nil
 }
 
@@ -188,7 +192,7 @@ func (e calendarEventEditor) Create(ctx context.Context, uid string, c agenttool
 		return agenttools.EventOutcome{}, e.toolError(err)
 	}
 	if res.Created {
-		e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, c.ConnectionID, res.Provider, "created"))
+		e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, c.ConnectionID, res.Provider, "created", ""))
 	}
 	return agenttools.EventOutcome{Event: eventOfRow(res.Event, res.ConnectionID), Replayed: !res.Created}, nil
 }

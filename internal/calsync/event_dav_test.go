@@ -250,8 +250,9 @@ func TestDAVReadOnlyCalendarIsRefused(t *testing.T) {
 func TestDAVLockedObjectsAreRefused(t *testing.T) {
 	for name, tc := range map[string]struct{ extra, reason string }{
 		"guests":    {"ATTENDEE;CN=A:mailto:a@example.org\r\n", LockGuests},
-		"recurring": {"RRULE:FREQ=DAILY;COUNT=3\r\n", LockRecurring},
-		"exdate":    {"EXDATE:20261022T100000Z\r\n", LockRecurring},
+		"rdate":     {"RRULE:FREQ=DAILY;COUNT=3\r\nRDATE:20261030T100000Z\r\n", LockSeriesUnsupported},
+		"exrule":    {"RRULE:FREQ=DAILY;COUNT=3\r\nEXRULE:FREQ=WEEKLY\r\n", LockSeriesUnsupported},
+		"two rules": {"RRULE:FREQ=DAILY;COUNT=3\r\nRRULE:FREQ=WEEKLY\r\n", LockSeriesUnsupported},
 	} {
 		t.Run(name, func(t *testing.T) {
 			h, _, w, ref := setupDAV(t, strings.Replace(richEvent, "BEGIN:VALARM", tc.extra+"BEGIN:VALARM", 1))

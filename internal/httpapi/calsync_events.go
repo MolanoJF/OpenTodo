@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -43,6 +45,34 @@ type eventPatch struct {
 	Location    *string     `json:"location"`    // "" clears it
 	Description *string     `json:"description"` // plain text; "" clears it
 	Free        *bool       `json:"free"`
+	// Scope says how much of a repeating event the change is for (calendar-event-series D3):
+	// required for an occurrence, refused for any other event. Repeat is omitted (unchanged),
+	// an object (set the repeat) or null (stop repeating, following only); Reminders are the
+	// minutes before the start, [] removes the ones the form shows.
+	Scope     *string     `json:"scope"`
+	Repeat    repeatField `json:"repeat"`
+	Reminders *[]int      `json:"reminders"`
+}
+
+// repeatField is the repeat member of a body: absent, null or an object.
+type repeatField struct {
+	Set  bool
+	Rule *calfeed.Repeat
+}
+
+func (f *repeatField) UnmarshalJSON(b []byte) error {
+	f.Set = true
+	if string(b) == "null" {
+		return nil
+	}
+	var r calfeed.Repeat
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&r); err != nil {
+		return err
+	}
+	f.Rule = &r
+	return nil
 }
 
 // point turns a client point into the event's own form: a date for all-day, a
@@ -146,14 +176,17 @@ func (in eventPatch) editOf() (calsync.EventEdit, string, string) {
 		edit.Description = &v
 	}
 	edit.Free = in.Free
+	if field, msg := in.seriesParts(&edit); field != "" {
+		return edit, field, msg
+	}
 	if (in.Start == nil) != (in.End == nil) {
 		return edit, "end", "start and end go together"
 	}
 	if in.AllDay != nil && in.Start == nil {
 		return edit, "allDay", "allDay needs a start and an end"
 	}
-	if edit.Summary == nil && in.Start == nil && edit.Location == nil && edit.Description == nil && edit.Free == nil {
-		return edit, "summary", "nothing to change: send a summary, a start and an end, a location, a description or free"
+	if edit.Summary == nil && in.Start == nil && edit.Location == nil && edit.Description == nil && edit.Free == nil && !in.Repeat.Set && in.Reminders == nil {
+		return edit, "summary", "nothing to change: send a summary, a start and an end, a location, a description, free, a repeat or reminders"
 	}
 	if in.Start == nil {
 		return edit, "", ""
@@ -172,7 +205,9 @@ func (s *Server) eventFailure(w http.ResponseWriter, err error) {
 	}
 	switch ee.Code {
 	case calsync.EventInvalid:
-		writeFieldError(w, ee.Reason, "the calendar or client id is not valid for this connection")
+		writeFieldError(w, ee.Reason, invalidReason(ee.Reason))
+	case calsync.EventScopeRequired:
+		writeError(w, http.StatusBadRequest, "scope_required", "this event repeats: send scope "+scopeValues+" for the change")
 	case calsync.EventNotFound:
 		writeError(w, http.StatusNotFound, "not_found", "calendar event not found")
 	case calsync.EventEditsOff:
@@ -214,8 +249,10 @@ func (s *Server) handlePatchCalendarEvent(w http.ResponseWriter, r *http.Request
 		s.eventFailure(w, err)
 		return
 	}
-	s.audit.Record(ctx, audit.CalendarEventChanged(uid, connID, res.Provider, "updated"))
-	writeJSON(w, http.StatusOK, map[string]any{"event": res.Event, "replaces": res.Replaces})
+	s.audit.Record(ctx, audit.CalendarEventChanged(uid, connID, res.Provider, "updated", string(edit.Scope)))
+	out := map[string]any{"event": res.Event, "replaces": res.Replaces}
+	seriesAnswer(out, res)
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleDeleteCalendarEvent(w http.ResponseWriter, r *http.Request) {
@@ -225,16 +262,21 @@ func (s *Server) handleDeleteCalendarEvent(w http.ResponseWriter, r *http.Reques
 		writeFieldError(w, "rev", "send the rev of the event you saw")
 		return
 	}
+	scope, field, msg := deleteScopeOf(r)
+	if field != "" {
+		writeFieldError(w, field, msg)
+		return
+	}
 	if !s.calsyncEventLimiter.allow(uid) {
 		writeError(w, http.StatusTooManyRequests, "rate_limited", "too many calendar event changes; try again later")
 		return
 	}
 	connID := r.PathValue("id")
-	res, err := s.calsync.DeleteEvent(ctx, uid, connID, r.PathValue("eventId"), rev)
+	res, err := s.calsync.DeleteEvent(ctx, uid, connID, r.PathValue("eventId"), rev, scope)
 	if err != nil {
 		s.eventFailure(w, err)
 		return
 	}
-	s.audit.Record(ctx, audit.CalendarEventChanged(uid, connID, res.Provider, "deleted"))
+	s.audit.Record(ctx, audit.CalendarEventChanged(uid, connID, res.Provider, "deleted", string(scope)))
 	w.WriteHeader(http.StatusNoContent)
 }

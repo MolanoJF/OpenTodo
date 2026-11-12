@@ -51,6 +51,19 @@ type Event struct {
 	Type         string
 	NotOrganizer bool
 	Attendees    []string
+	// Series: SeriesMasterID names the master of an occurrence or exception, Recurrence is
+	// a master's pattern (Type "seriesMaster"), Original the date of the occurrence an
+	// exception replaces, Cancelled hides it.
+	SeriesMasterID, Original string
+	Recurrence               *Recurrence
+	Cancelled                bool
+	// Reminder, attachments and the members a following copy takes along.
+	ReminderMinutes         int
+	ReminderOn              bool
+	HasAttachments          bool
+	IsOnlineMeeting         bool
+	Importance, Sensitivity string
+	Categories              []string
 }
 
 // Calendar is one calendar of the account.
@@ -124,6 +137,7 @@ func New() *Server {
 	mux.HandleFunc("GET /v1.0/me/calendars/{cal}/calendarView", s.guard(s.view))
 	mux.HandleFunc("POST /v1.0/me/calendars/{cal}/events", s.guard(s.create))
 	mux.HandleFunc("GET /v1.0/me/events/{id}", s.guard(s.get))
+	mux.HandleFunc("GET /v1.0/me/events/{id}/instances", s.guard(s.instances))
 	mux.HandleFunc("PATCH /v1.0/me/events/{id}", s.guard(s.patch))
 	mux.HandleFunc("DELETE /v1.0/me/events/{id}", s.guard(s.remove))
 	s.Server = httptest.NewServer(mux)
@@ -490,6 +504,24 @@ func (s *Server) render(e *Event, r *http.Request, expand bool) map[string]any {
 		guests = append(guests, map[string]any{"type": "required", "emailAddress": map[string]string{"address": a}})
 	}
 	out["attendees"] = guests
+	out["hasAttachments"], out["isOnlineMeeting"] = e.HasAttachments, e.IsOnlineMeeting
+	out["isReminderOn"], out["reminderMinutesBeforeStart"] = e.ReminderOn, e.ReminderMinutes
+	out["importance"], out["sensitivity"] = firstNonEmpty(e.Importance, "normal"), firstNonEmpty(e.Sensitivity, "normal")
+	out["categories"] = append([]string{}, e.Categories...)
+	out["isCancelled"] = e.Cancelled
+	if e.SeriesMasterID != "" {
+		out["seriesMasterId"] = e.SeriesMasterID
+	}
+	if e.Type == "seriesMaster" {
+		out["recurrence"] = e.Recurrence
+		ex := []map[string]string{}
+		for _, x := range s.events {
+			if x.SeriesMasterID == e.ID && x.Type == "exception" {
+				ex = append(ex, map[string]string{"id": x.ID})
+			}
+		}
+		out["exceptionOccurrences"] = ex
+	}
 	if expand && e.TaskID != "" {
 		out["singleValueExtendedProperties"] = []map[string]string{{"id": s.Property, "value": e.TaskID}}
 	}
@@ -547,7 +579,14 @@ func (s *Server) view(w http.ResponseWriter, r *http.Request) {
 	}
 	items := []map[string]any{}
 	for _, e := range s.sorted(cal) {
-		if s.inWindow(e, from, to) {
+		switch {
+		case e.Type == "seriesMaster":
+			for _, o := range s.occurrences(e, from, to) {
+				items = append(items, s.render(o, r, false))
+			}
+		case e.Type == "exception":
+			// shown with its master's occurrences
+		case s.inWindow(e, from, to):
 			items = append(items, s.render(e, r, s.expands(r)))
 		}
 	}
@@ -600,7 +639,7 @@ func (s *Server) delta(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		for _, e := range s.sorted(cal) {
-			if s.inWindow(e, from, to) {
+			if e.Type != "seriesMaster" && e.Type != "exception" && s.inWindow(e, from, to) {
 				items = append(items, s.render(e, r, false))
 			}
 		}
@@ -620,10 +659,16 @@ type input struct {
 		ContentType string `json:"contentType"`
 		Content     string `json:"content"`
 	} `json:"body"`
-	Start         *DT    `json:"start"`
-	End           *DT    `json:"end"`
-	IsAllDay      *bool  `json:"isAllDay"`
-	TransactionID string `json:"transactionId"`
+	Start         *DT         `json:"start"`
+	End           *DT         `json:"end"`
+	IsAllDay      *bool       `json:"isAllDay"`
+	Recurrence    *Recurrence `json:"recurrence"`
+	ReminderMin   *int        `json:"reminderMinutesBeforeStart"`
+	ReminderOn    *bool       `json:"isReminderOn"`
+	Importance    *string     `json:"importance"`
+	Sensitivity   *string     `json:"sensitivity"`
+	Categories    []string    `json:"categories"`
+	TransactionID string      `json:"transactionId"`
 	Props         []struct {
 		ID    string `json:"id"`
 		Value string `json:"value"`
@@ -652,6 +697,29 @@ func (in *input) apply(e *Event) {
 	if in.IsAllDay != nil {
 		e.IsAllDay = *in.IsAllDay
 	}
+	if in.ReminderMin != nil {
+		e.ReminderMinutes = *in.ReminderMin
+	}
+	if in.ReminderOn != nil {
+		e.ReminderOn = *in.ReminderOn
+	}
+	if in.Importance != nil {
+		e.Importance = *in.Importance
+	}
+	if in.Sensitivity != nil {
+		e.Sensitivity = *in.Sensitivity
+	}
+	if in.Categories != nil {
+		e.Categories = in.Categories
+	}
+	if in.Recurrence != nil {
+		e.Recurrence, e.Type = in.Recurrence, "seriesMaster"
+	}
+}
+
+// changesSeries says the input changes what an exception depends on: the master's times or pattern.
+func (in *input) changesSeries() bool {
+	return in.Start != nil || in.End != nil || in.Recurrence != nil || in.IsAllDay != nil
 }
 
 func readInput(r *http.Request) (*input, bool) {
@@ -703,7 +771,7 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 func (s *Server) get(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	e := s.events[r.PathValue("id")]
+	e := s.find(r.PathValue("id"))
 	if e == nil {
 		graphError(w, 404, "ErrorItemNotFound")
 		return
@@ -727,7 +795,7 @@ func (s *Server) patch(w http.ResponseWriter, r *http.Request) {
 	in, ok := readInput(r)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	e := s.events[r.PathValue("id")]
+	e := s.find(r.PathValue("id"))
 	switch {
 	case e == nil:
 		graphError(w, 404, "ErrorItemNotFound")
@@ -747,6 +815,16 @@ func (s *Server) patch(w http.ResponseWriter, r *http.Request) {
 	if !s.precondition(w, r, e) {
 		return
 	}
+	if e.Type == "occurrence" { // a generated occurrence becomes an exception of its master
+		e.Type = "exception"
+	}
+	if e.Type == "seriesMaster" && in.changesSeries() {
+		if in.Recurrence != nil && in.Start == nil && in.End == nil && fmt.Sprint(in.Recurrence.Pattern) == fmt.Sprint(e.Recurrence.Pattern) && in.Recurrence.Range.Type == "endDate" {
+			s.dropExceptionsAfter(e.ID, in.Recurrence.Range.EndDate) // the range ends: the later ones go
+		} else {
+			s.dropExceptions(e.ID) // Graph drops them when the master's times or pattern change
+		}
+	}
 	in.apply(e)
 	e.Modified = s.now()
 	s.store(e)
@@ -756,7 +834,7 @@ func (s *Server) patch(w http.ResponseWriter, r *http.Request) {
 func (s *Server) remove(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	e := s.events[r.PathValue("id")]
+	e := s.find(r.PathValue("id"))
 	switch {
 	case e == nil:
 		graphError(w, 404, "ErrorItemNotFound")
@@ -767,7 +845,17 @@ func (s *Server) remove(w http.ResponseWriter, r *http.Request) {
 	case !s.precondition(w, r, e):
 		return
 	}
-	s.drop(e.ID)
+	switch e.Type {
+	case "seriesMaster":
+		s.dropExceptions(e.ID)
+		s.drop(e.ID)
+	case "occurrence", "exception": // Graph records a cancelled exception
+		e.Type, e.Cancelled = "exception", true
+		e.Modified = s.now()
+		s.store(e)
+	default:
+		s.drop(e.ID)
+	}
 	w.WriteHeader(204)
 }
 

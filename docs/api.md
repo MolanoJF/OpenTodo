@@ -1278,7 +1278,7 @@ The server records security-relevant events in its own database (never synced to
 | `issue_connection.updated` | success | actor = user | `connection_id`, `provider`, `setting`: the changed settings by name, comma-separated (`host`, `filter`, `project`, `labels`, `interval`, `name`, `enabled`, `token`), never a value. Polls and the tasks they write are not recorded |
 | `calendar_connection.created`, `calendar_connection.deleted` | success | actor = user | `connection_id`, `provider` (`caldav` or `google`); never the server address, username, password, token or a calendar's name |
 | `calendar_connection.updated` | success | actor = user | `connection_id`, `provider`, `setting`: the changed settings by name, comma-separated (`name`, `calendars`, `options`, `enabled`, `password`, `reconnected`, `edit_events`), never a value. Sync cycles and the task changes they make are not recorded |
-| `calendar_event.changed` | success | actor = user | `connection_id`, `provider`, `event_action` (`created`, `updated` or `deleted`); never the event's title, time or calendar. Written by the event routes, the agent tools and the CLI ([calendar sync](#calendar-sync)) |
+| `calendar_event.changed` | success | actor = user | `connection_id`, `provider`, `event_action` (`created`, `updated` or `deleted`), `event_scope` (`this`, `following` or `all`, for a change of an occurrence of a repeating event only); never the event's title, time or calendar. Written by the event routes, the agent tools and the CLI ([calendar sync](#calendar-sync)) |
 | `notification_channel.created`, `notification_channel.deleted` | success | actor = user | `notification_channel_id`, `channel_kind` (`ntfy`, `pushover`, `gotify`, `webhook`); never the address, topic, token, user key or signing secret |
 | `notification_channel.updated` | success | actor = user | `notification_channel_id`, `channel_kind`, `setting`: the changed settings by name, comma-separated (`name`, `url`, `topic`, `events`, `include_titles`, `enabled`, `token`, `user_key`, `secret`), never a value. Messages sent are not recorded |
 | `invitation.created` | success | actor = owner | `invitation_id`, `invited_email` (bound email, if any) |
@@ -1947,7 +1947,7 @@ The write routes need a session or a full token (a read or agent token gets `403
 | 404 | `not_found` | the connection or the event is not the caller's, or the event is not cached |
 | 404 | `event_gone` | the calendar no longer has the event; the cached copy is dropped and devices are told. For `POST`: this `clientId` was used before and that event has been deleted since |
 | 409 | `event_changed` | (`PATCH`, `DELETE`) `rev` is not the stored one, or the calendar answered `412`; nothing was written, refetch and decide again |
-| 422 | `event_not_editable` | the event is locked; the message names `recurring`, `has_guests`, `not_organizer` or `no_etag`, or `description_rich` for a `description` on a body with formatting |
+| 422 | `event_not_editable` | the event is locked; the message names `series_unsupported`, `has_guests`, `not_organizer` or `no_etag`, or `description_rich` for a `description` on a body with formatting |
 | 429 | `rate_limited` | more than 600 event changes per account per hour, creates included |
 | 502 | `calendar_unreachable` | the calendar failed; the message is the reason (`timeout`, `connection_failed`, `unauthorized_remote` for a refused credential, `calendar_missing` when the calendar is gone, `href_taken` when a CalDAV object address is held by a different UID, …) |
 
@@ -2829,8 +2829,9 @@ Every error answers `{"error":{"code","message"}}`; some validation errors add `
 | `calendar_unreachable` | 502 | discovery of a calendar account failed; the message is the reason (`timeout`, `connection_failed`, …) |
 | `event_edits_off` | 403 | changing or deleting an event of a connection whose "Edit events in OpenTodo" (`edit_events`) is off |
 | `calendar_read_only` | 403 | changing or deleting an event of a calendar whose capabilities forbid it, or that answered the write with `403` ([calendar sync](#calendar-sync)) |
-| `event_not_editable` | 422 | changing or deleting a recurring event, one with guests, one the user does not organise (Microsoft) or one the calendar gave no version for; the message names the reason |
+| `event_not_editable` | 422 | changing or deleting an event with guests, one the user does not organise (Microsoft), one the calendar gave no version for, or a repeating series OpenTodo cannot write back without loss (`series_unsupported`; `following_unsupported` for a Microsoft series with attachments or an online meeting); the message names the reason |
 | `event_changed` | 409 | the `rev` is not the event's stored one, or the calendar answered `412`; nothing was written |
+| `scope_required` | 400 | (`PATCH`, `DELETE`) the event is an occurrence of a repeating series and the request names no `scope` (`this`, `following` or `all`); nothing was written |
 | `event_gone` | 404 | the calendar no longer has the event; its cached copy is dropped |
 | `google_not_configured` | 409 | connecting Google while the owner has not set up a Google client |
 | `base_url_mismatch` | 409 | connecting Google from a page whose origin is not the redirect address's (behind a proxy without `OPENTODO_BASE_URL`, or the app opened under another address) |

@@ -118,7 +118,7 @@ func TestCreateEventReplayAndDeletedReplay(t *testing.T) {
 		t.Fatalf("replay after edit = %+v %v", again, err)
 	}
 	// Deleted since: the same id does not make it again.
-	if _, err := e.w.DeleteEvent(e.ctx, "alice", e.c.ID, edited.Event.ID, edited.Event.Rev); err != nil {
+	if _, err := e.w.DeleteEvent(e.ctx, "alice", e.c.ID, edited.Event.ID, edited.Event.Rev, ""); err != nil {
 		t.Fatal(err)
 	}
 	puts := e.srv.Count("PUT")

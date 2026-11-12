@@ -47,6 +47,19 @@ type graphEvent struct {
 		ID    string `json:"id"`
 		Value string `json:"value"`
 	} `json:"singleValueExtendedProperties"`
+	// What a series write reads (calendar-event-series D9).
+	SeriesMasterID  string           `json:"seriesMasterId"`
+	Recurrence      *graphRecurrence `json:"recurrence"`
+	ReminderMinutes *int             `json:"reminderMinutesBeforeStart"`
+	IsReminderOn    bool             `json:"isReminderOn"`
+	HasAttachments  bool             `json:"hasAttachments"`
+	IsOnlineMeeting bool             `json:"isOnlineMeeting"`
+	Importance      string           `json:"importance"`
+	Sensitivity     string           `json:"sensitivity"`
+	Categories      []string         `json:"categories"`
+	Exceptions      []struct {
+		ID string `json:"id"`
+	} `json:"exceptionOccurrences"`
 }
 
 // taskID is the task OpenTodo's property names, "" for another event.
@@ -110,11 +123,28 @@ func (e *graphEvent) event() (calfeed.Event, bool) {
 	return ev, true
 }
 
+// inSeries reports an occurrence or exception of a series.
+func (e *graphEvent) inSeries() bool {
+	return strings.EqualFold(e.Type, "occurrence") || strings.EqualFold(e.Type, "exception")
+}
+
+// supported reports whether the event is a single event or an occurrence the
+// editor can address: one of a series needs the id of its master (design D9).
+func (e *graphEvent) supported() bool {
+	switch {
+	case e.Type == "" || strings.EqualFold(e.Type, "singleInstance"):
+		return true
+	case e.inSeries():
+		return e.SeriesMasterID != ""
+	}
+	return false
+}
+
 // locked is the reason the event can not be edited, "" when it can (design D2).
 func (e *graphEvent) locked() string {
 	switch {
-	case e.Type != "" && !strings.EqualFold(e.Type, "singleInstance"):
-		return LockRecurring
+	case !e.supported():
+		return LockSeriesUnsupported
 	case len(e.Attendees) > 0:
 		return LockGuests
 	case e.IsOrganizer != nil && !*e.IsOrganizer:
@@ -135,9 +165,12 @@ func (e *graphEvent) remote() (remote, bool) {
 	if e.Start != nil && e.End != nil {
 		when = e.Start.DateTime + e.Start.TimeZone + e.End.DateTime + e.End.TimeZone
 	}
-	return remote{Href: e.ID, ETag: e.ETag, Events: []calfeed.Event{ev}, TaskID: e.taskID(),
-		Locked:  e.locked(),
-		Version: e.ETag + "\x00" + hash16(e.Subject+"\x00"+when)}, true
+	r := remote{Href: e.ID, ETag: e.ETag, Events: []calfeed.Event{ev}, TaskID: e.taskID(), Locked: e.locked(),
+		Version: e.ETag + "\x00" + hash16(e.Subject+"\x00"+when)}
+	if e.inSeries() && e.SeriesMasterID != "" {
+		r.Series = &calfeed.SeriesInfo{Key: e.SeriesMasterID}
+	}
+	return r, true
 }
 
 // mailboxWindows is the Windows id and location of the mailbox zone (an IANA
