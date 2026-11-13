@@ -2,7 +2,7 @@
 // A new event is drawn at once as a pending row and queued as one create command in the device's
 // outbox (calendarEventEdits sends it); the calendar is the source of truth, nothing here is an op.
 import { armTimer, EDIT_SETTLE_MS } from './calendarEventEdits'
-import { pendingRowOf } from './calendarFeeds'
+import { pendingRowOf } from './calendarEventPatch'
 import { DAY_MINUTES } from './calendar'
 import { addDaysISO, localDueOf, logicalToday, todayISO, viewerZone } from './dates'
 import { db } from './db'
@@ -12,7 +12,7 @@ import { uuid } from './ids'
 import { setEventCalendar } from './writableCalendars'
 import type { CalendarEvent, CalendarEventDraft, CalendarSubscription } from './types'
 
-export { isPendingId, pendingRowOf } from './calendarFeeds'
+export { isPendingId, pendingRowOf } from './calendarEventPatch'
 export * from './writableCalendars'
 
 /** A fresh client id: one per new event, sent so a retried create makes one event. */

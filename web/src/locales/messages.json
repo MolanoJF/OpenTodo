@@ -5340,10 +5340,10 @@
   ],
   "Discard": [
     "web/src/app/SettingsSaveBar.tsx",
-    "web/src/app/ToastActionHost.tsx",
     "web/src/app/assistant/ChangeSetReview.tsx",
     "web/src/app/calendar/EventPanel.tsx",
     "web/src/app/calendar/EventWriteState.tsx",
+    "web/src/app/calendar/eventEditToasts.ts",
     "web/src/app/routines/RoutineEditor.tsx",
     "web/src/app/themes/ThemeEditor.tsx",
     "web/src/ui/patterns/SaveBar.tsx"
@@ -5753,7 +5753,7 @@
     "web/src/app/themes/YourThemes.tsx"
   ],
   "Edit again": [
-    "web/src/app/ToastActionHost.tsx"
+    "web/src/app/calendar/eventEditToasts.ts"
   ],
   "Edit as text": [
     "web/src/app/views/ViewToolbar.tsx"
@@ -9758,7 +9758,8 @@
     "web/src/app/ProjectNote.tsx"
   ],
   "Loading the event": [
-    "web/src/app/calendar/EventPanel.tsx"
+    "web/src/app/calendar/EventPanel.tsx",
+    "web/src/app/calendar/TodayAgenda.tsx"
   ],
   "Loading the guests": [
     "web/src/app/calendar/EventGuests.tsx",
@@ -15270,9 +15271,9 @@
     "web/src/app/InviteScreen.tsx",
     "web/src/app/ProjectInviteScreen.tsx",
     "web/src/app/ResetScreen.tsx",
-    "web/src/app/ToastActionHost.tsx",
     "web/src/app/WorkspaceInviteScreen.tsx",
-    "web/src/app/calendar/EventWriteState.tsx"
+    "web/src/app/calendar/EventWriteState.tsx",
+    "web/src/app/calendar/eventEditToasts.ts"
   ],
   "Retry now": [
     "web/src/app/EmailScreens.tsx",

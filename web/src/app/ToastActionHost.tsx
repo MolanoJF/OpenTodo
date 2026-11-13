@@ -7,12 +7,9 @@
 // Like the offer, it never covers the focused element (useToastClearance).
 import { useEffect, useRef, useState } from 'react'
 import { Icon, ToastRegion, useToastClearance } from '../ui'
-import { ACTION_TOAST_MS, hideActionToast, hideBulkToast, showActionToast, showBulkToast, useActionToast, useBulkToast, useToastTimer } from './bulk/toastStore'
-import { openEventEditor } from './calendar/eventEditorStore'
-import { navigate } from './router'
+import { ACTION_TOAST_MS, hideActionToast, showActionToast, useActionToast, useBulkToast, useToastTimer } from './bulk/toastStore'
 import { actionErrorMessage } from './actionError'
 import { onEntryFailure, type EntryFailure } from '../lib/focus/failures'
-import { discardEventWrite, eventEditNoticeText, onEventEditNotice, retryEventWrite, startEventOutbox } from '../lib/calendarEventEdits'
 import { useResetOnChange } from '../lib/useResetOnChange'
 import { t } from '../lib/i18n'
 
@@ -33,20 +30,8 @@ export function ToastActionHost() {
   const region = useRef<HTMLDivElement>(null)
   // The focus session reports a failed time entry; this is where it becomes a message.
   useEffect(() => onEntryFailure((failure) => showActionToast(entryFailureMessage(failure))), [])
-  // A refused edit of a calendar event is told here, wherever the app is; the outbox sends what waits (calendar-event-edits D6).
-  useEffect(() => {
-    const off = onEventEditNotice((notice) => {
-      const { draft, failure } = notice
-      // A write that failed stays on the device: Retry sends it again, Discard puts the event back (calendar-event-edits D6).
-      if (failure) return showBulkToast(eventEditNoticeText(notice), null, { ttl: 2 * ACTION_TOAST_MS, action: { label: t('Retry'), run: () => void retryEventWrite(failure.key) }, second: { label: t('Discard'), run: () => { void discardEventWrite(failure.key); hideBulkToast() } } })
-      if (!draft) return showActionToast(eventEditNoticeText(notice))
-      // A refused create hands back what the person typed: the toast offers to reopen the editor on it (calendar-event-editor D9).
-      const again = () => { navigate({ view: 'day', date: draft.start.date }); openEventEditor({ mode: 'create', draft }) }
-      showBulkToast(eventEditNoticeText(notice), null, { ttl: 2 * ACTION_TOAST_MS, action: { label: t('Edit again'), run: again } })
-    })
-    const stop = startEventOutbox()
-    return () => { off(); stop() }
-  }, [])
+  // Calendar event writes that waited for this session are sent by the outbox, loaded only when one waits (calendar-event-edits D6).
+  useEffect(() => { void import('../lib/eventOutboxBoot') }, [])
   /** Where focus was before it entered the toast, to give it back on dismiss. */
   const returnTo = useRef<HTMLElement | null>(null)
   // Removing the focused (or hovered) toast fires no blur (or pointerleave): the hold

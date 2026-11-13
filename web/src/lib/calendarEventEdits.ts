@@ -5,8 +5,10 @@
 // it, or refuses, and then the device restores the row, refetches and says why.
 import { useLiveQuery } from 'dexie-react-hooks'
 import { api, ApiError, RequestTimeoutError } from './api'
-import { applyDraftPatch, applyEventPatch, eventPatchBetween, isNoChange, isPendingId, onEventsRefreshed, pendingRowOf, refetchEvents, refreshEvents } from './calendarFeeds'
+import { applyDraftPatch, applyEventPatch, eventPatchBetween, isNoChange, isPendingId, pendingRowOf } from './calendarEventPatch'
+import { onEventsRefreshed, refetchEvents, refreshEvents } from './calendarFeeds'
 import { db } from './db'
+import { notify, type EventEditNotice } from './eventEditNotices'
 import { t } from './i18n'
 import { resettable } from './moduleState'
 import { platform } from './platform'
@@ -33,28 +35,7 @@ export const createBodyOf = (d: CalendarEventDraft): CalendarEventCreateBody => 
 })
 const changeOf = (p: Patch | undefined) => p as CalendarEventChange | undefined
 
-/** What a refused edit tells the person (the app words it with `eventEditNoticeText`). */
-export interface EventEditNotice {
-  code: string
-  title: string
-  message: string
-  /** Why an event is not editable (422 `event_not_editable`): the reason code the server's message ends with. */
-  reason?: string
-  /** Which provider the event's calendar is, for the words of a refusal (calendar-event-guests D11). */
-  provider?: 'google' | 'microsoft'
-  /** A refused create: what the person typed, so the toast can reopen the editor on it (calendar-event-editor D9). */
-  draft?: CalendarEventDraft
-  /** A write that failed and stays on the device: the toast offers Retry and Discard on the command with this key. */
-  failure?: { key: string }
-}
-
-const listeners = new Set<(n: EventEditNotice) => void>()
-export const notify = (n: EventEditNotice) => { for (const fn of [...listeners]) fn(n) }
-/** Calls `fn` with every later refusal; returns the unsubscribe. */
-export function onEventEditNotice(fn: (n: EventEditNotice) => void): () => void {
-  listeners.add(fn)
-  return () => { listeners.delete(fn) }
-}
+export { notify, onEventEditNotice, type EventEditNotice } from './eventEditNotices'
 
 /** The id an event has now: an edit that moved it gave it a new one (the calendar's answer), and the old id still names it. */
 export function currentEventId(id: string): string {
@@ -75,7 +56,8 @@ let again = false
 let wantNow = 0
 let wantWaiting = false
 let retryTimer: ReturnType<typeof setTimeout> | undefined
-resettable('calendarEventEdits', () => { swapped.clear(); started = false; flushing = null; again = false; wantNow = 0; wantWaiting = false; clearTimeout(retryTimer); retryTimer = undefined; listeners.clear() })
+let stopOutbox: (() => void) | null = null
+resettable('calendarEventEdits', () => { swapped.clear(); started = false; flushing = null; again = false; wantNow = 0; wantWaiting = false; clearTimeout(retryTimer); retryTimer = undefined; stopOutbox?.() })
 
 /** A command the person edits again is tried once more at once, whether or not the device was offline. */
 const withoutOffline = (c: EventCommand): EventCommand => { const { offline: _, ...rest } = c; return rest }
@@ -104,6 +86,7 @@ function inverseOf(row: CalendarEvent, patch: CalendarEventChange, before?: Edit
 
 /** A flush when the earliest waiting command is due: a settle or a delete's delay. A failed or offline command has no timer: it waits for the person or for the device. */
 export async function armTimer(): Promise<void> {
+  startEventOutbox(false) // the first command of a session starts the outbox (the shell starts it for the ones that waited)
   clearTimeout(retryTimer)
   const next = await db.eventOutbox.orderBy('notBefore').filter((c) => !c.sending && !c.failed && !c.offline).first()
   if (next) retryTimer = setTimeout(() => void flushEventEdits(Date.now(), false), Math.max(0, next.notBefore - Date.now()) + 20)
@@ -357,11 +340,13 @@ export function flushEventEdits(now = Date.now(), waiting = true): Promise<void>
   return flushing
 }
 
-/** Starts the outbox for this session: sends what waits, and again whenever the device is online or the views refresh. */
-export function startEventOutbox(): () => void {
+/** Starts the outbox for this session, once: sends what waits, and again whenever the device is online or the views refresh. Returns what stops it. */
+export function startEventOutbox(flush = true): () => void {
+  if (stopOutbox) { if (flush) void flushEventEdits(); return stopOutbox }
   const offs = [platform.network.onOnline(() => void flushEventEdits()), onEventsRefreshed(() => void flushEventEdits())]
-  void flushEventEdits()
-  return () => offs.forEach((off) => off())
+  stopOutbox = () => { offs.forEach((off) => off()); stopOutbox = null }
+  if (flush) void flushEventEdits()
+  return stopOutbox
 }
 
 /** The queued commands by event id, for the blocks that show a saving state. */

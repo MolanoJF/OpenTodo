@@ -2,7 +2,7 @@
 // Video call fields show and what editing them means for Save. They are shown where the calendar lets the person change
 // guests (Microsoft), and read-only for an event that has some. A change that tells guests is sent when confirmed and
 // never queued, so while the device is offline Save waits with the reason.
-import { isPendingId } from '../../lib/calendarFeeds'
+import { isPendingId } from '../../lib/calendarEventPatch'
 import type { EventFull } from '../../lib/eventFull'
 import { useOnline } from '../../lib/online'
 import type { CalendarEvent, CalendarEventDetail, CalendarSubscription } from '../../lib/types'
