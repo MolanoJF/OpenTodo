@@ -380,7 +380,7 @@ func TestSeriesKeepsWhatItDoesNotChange(t *testing.T) {
 		}
 		name := filepath.Base(dir)
 		t.Run(name, func(t *testing.T) {
-			e, res, err, _ := runCase(t, dir)
+			e, res, _, err := runCase(t, dir)
 			if err != nil || len(res.Objects) == 0 {
 				return
 			}
