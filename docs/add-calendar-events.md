@@ -34,11 +34,11 @@ Open an existing event the same way, with a double-click on it, or **All details
 
 The panel's **More actions** menu has two more moves:
 
-- **Duplicate** opens a new event with the same title, times, location and description, in the same calendar. Guests, reminders and the repeat are not copied.
+- **Duplicate** opens a new event with the same title, times, location and description, in the same calendar. Guests, reminders, the video call and the repeat are not copied.
 - **Convert to task…** makes a task from the event, in the Inbox: its title, its notes with the location, and its time and length. The switch **Delete the event from your calendar** is on by default, since a timed task and its event would otherwise both be in your calendar. **Undo** within 8 seconds moves the task to the Trash and keeps the event; after that the event is gone from your calendar.
 
 ## Offline, and what is not here
 
 Offline, the event shows at once and is added when you are back online, once. If your calendar refuses it, a toast offers **Edit again** with what you typed.
 
-Guests and links to a video call are not part of this; the same [limits as editing](calendar-sync.md#what-stays-read-only) apply. Assistants and scripts can add events too: [`create_calendar_event`](mcp.md#write-tools) and [`ot calendar event add`](cli.md#calendar-events).
+On Outlook the editor also adds guests and a Teams meeting, and asks you to confirm before it tells them; see [Guests, replies and join links](calendar-event-guests.md). On other calendars guests are not part of this, and the same [limits as editing](calendar-sync.md#what-stays-read-only) apply. Assistants and scripts can add events too: [`create_calendar_event`](mcp.md#write-tools) and [`ot calendar event add`](cli.md#calendar-events).

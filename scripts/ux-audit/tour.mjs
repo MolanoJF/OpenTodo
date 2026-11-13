@@ -41,7 +41,7 @@ import {
   chromeRows, credentialFields, focusWalk, horizontalOverflow, installHelpers, layoutShift, LAYOUT_SHIFT_INIT, motionSeen,
   overlaps, primaryDestinations, reflow, rowMetaItems, targetSize, targetSizeWcag, TEXT_SPACING_CSS, textSpacingClip, truncation, watchMotion,
 } from './audit-measures.mjs'
-import { calendarEventDetail, calendarEvents, seed } from './seed.mjs'
+import { calendarEventDetail, calendarEventGuests, calendarEvents, seed } from './seed.mjs'
 import { OVERLAYS, chooseLayout, openScreen, screens as layoutScreens } from './layout-screens.mjs'
 import { inventory } from './inventory.mjs'
 import { A11Y_RULES, STRICT_RULES, summarize, writeReport } from './report.mjs'
@@ -273,6 +273,8 @@ function serial(key, fn) {
 // needs an outbound fetch): the Day, Week and Month screens show them and the event editor opens.
 const withEvents = async (c) => {
   await c.route('**/api/v1/calendar-feeds/events?*', (route) => route.fulfill({ json: calendarEvents(Date.now()) }))
+  // The guest list a popover opens, from the cache only (calendar-event-guests D3).
+  await c.route('**/api/v1/calendar-feeds/events/*/guests', (route) => route.fulfill({ json: calendarEventGuests() }))
   // The full event editor reads the event and its description when it opens (calendar-event-editor D4).
   await c.route('**/api/v1/calendar-sync/connections/*/events/*', (route) => {
     const detail = calendarEventDetail(Date.now(), decodeURIComponent(new URL(route.request().url()).pathname.split('/').pop()))
