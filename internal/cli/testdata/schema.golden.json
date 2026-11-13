@@ -284,6 +284,57 @@
           "name": "client-id",
           "type": "string",
           "description": "idempotency key for scripts that retry: 8 to 64 letters, digits, - or _"
+        },
+        {
+          "name": "repeat",
+          "type": "string",
+          "enum": [
+            "daily",
+            "weekdays",
+            "weekly",
+            "monthly",
+            "yearly"
+          ],
+          "description": "repeat the event; with edit it is the whole new rule and needs --scope following or all"
+        },
+        {
+          "name": "every",
+          "type": "int",
+          "description": "repeat every N days, weeks, months or years (1 to 99; needs --repeat)"
+        },
+        {
+          "name": "days",
+          "type": "string",
+          "description": "weekdays of a weekly repeat, such as mo,we,fr (needs --repeat weekly)"
+        },
+        {
+          "name": "by",
+          "type": "string",
+          "enum": [
+            "monthday",
+            "weekday"
+          ],
+          "description": "monthly repeat on the same day number or the same weekday of the month"
+        },
+        {
+          "name": "until",
+          "type": "string",
+          "description": "the last day an occurrence may start on: YYYY-MM-DD, today, tomorrow or a weekday (needs --repeat)"
+        },
+        {
+          "name": "count",
+          "type": "int",
+          "description": "stop after N occurrences (needs --repeat; not with --until)"
+        },
+        {
+          "name": "remind",
+          "type": "string_list",
+          "description": "a reminder before the start, such as 10m, 1h or 1d, repeatable; the calendar app sends it, a Microsoft calendar takes one"
+        },
+        {
+          "name": "no-remind",
+          "type": "bool",
+          "description": "add no reminders (the default); on edit it removes the event's reminders"
         }
       ],
       "writes": true,
@@ -318,6 +369,16 @@
           "name": "on",
           "type": "string",
           "description": "a day near the event, when it is more than 45 days from today"
+        },
+        {
+          "name": "scope",
+          "type": "string",
+          "enum": [
+            "this",
+            "following",
+            "all"
+          ],
+          "description": "for an event of a repeating series, which events to delete: this one, it and every later one, or all; required there"
         }
       ],
       "writes": true,
@@ -378,6 +439,72 @@
           "name": "busy",
           "type": "bool",
           "description": "show you as busy during the event"
+        },
+        {
+          "name": "scope",
+          "type": "string",
+          "enum": [
+            "this",
+            "following",
+            "all"
+          ],
+          "description": "for an event of a repeating series (see the REPEATS column), which events the change is for: this one, it and every later one (the series is split), or all; required there, refused for other events"
+        },
+        {
+          "name": "repeat",
+          "type": "string",
+          "enum": [
+            "daily",
+            "weekdays",
+            "weekly",
+            "monthly",
+            "yearly"
+          ],
+          "description": "repeat the event; with edit it is the whole new rule and needs --scope following or all"
+        },
+        {
+          "name": "every",
+          "type": "int",
+          "description": "repeat every N days, weeks, months or years (1 to 99; needs --repeat)"
+        },
+        {
+          "name": "days",
+          "type": "string",
+          "description": "weekdays of a weekly repeat, such as mo,we,fr (needs --repeat weekly)"
+        },
+        {
+          "name": "by",
+          "type": "string",
+          "enum": [
+            "monthday",
+            "weekday"
+          ],
+          "description": "monthly repeat on the same day number or the same weekday of the month"
+        },
+        {
+          "name": "until",
+          "type": "string",
+          "description": "the last day an occurrence may start on: YYYY-MM-DD, today, tomorrow or a weekday (needs --repeat)"
+        },
+        {
+          "name": "count",
+          "type": "int",
+          "description": "stop after N occurrences (needs --repeat; not with --until)"
+        },
+        {
+          "name": "remind",
+          "type": "string_list",
+          "description": "a reminder before the start, such as 10m, 1h or 1d, repeatable; the calendar app sends it, a Microsoft calendar takes one"
+        },
+        {
+          "name": "no-repeat",
+          "type": "bool",
+          "description": "stop repeating (needs --scope following; not for a Microsoft series)"
+        },
+        {
+          "name": "no-remind",
+          "type": "bool",
+          "description": "remove the event's reminders"
         },
         {
           "name": "on",
@@ -3163,7 +3290,12 @@
     {
       "code": "event_not_editable",
       "exit": 1,
-      "meaning": "the event is recurring, has guests or is not the user's own; the message names why"
+      "meaning": "the event has guests, is not the user's own, or repeats in a way ot cannot edit (series_unsupported, following_unsupported); the message names why"
+    },
+    {
+      "code": "scope_required",
+      "exit": 2,
+      "meaning": "the event belongs to a repeating series: pass --scope this, following or all"
     },
     {
       "code": "event_changed",

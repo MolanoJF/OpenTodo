@@ -216,6 +216,9 @@ func (c *client) mapError(status int, raw []byte) error {
 	if notPermittedCodes[ae.Code] {
 		ee.code = ExitNotPermitted
 	}
+	if ae.Code == "scope_required" {
+		ee.code = ExitUsage
+	}
 	if status == http.StatusUnauthorized {
 		ee.code = ExitAuth
 		if ae.Code == "unauthorized" {

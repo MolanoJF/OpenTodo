@@ -69,14 +69,22 @@
         },
         "flags": {
           "all-day": "bool",
+          "by": "string",
           "calendar": "string",
           "client-id": "string",
+          "count": "int",
+          "days": "string",
           "description": "string",
           "end": "string",
+          "every": "int",
           "for": "string",
           "free": "bool",
           "location": "string",
-          "start": "string"
+          "no-remind": "bool",
+          "remind": "string_list",
+          "repeat": "string",
+          "start": "string",
+          "until": "string"
         },
         "output": {
           "(type)": "ref:calendar_event"
@@ -88,6 +96,7 @@
         },
         "flags": {
           "on": "string",
+          "scope": "string",
           "yes": "bool"
         },
         "output": {
@@ -101,13 +110,23 @@
         "flags": {
           "all-day": "bool",
           "busy": "bool",
+          "by": "string",
+          "count": "int",
+          "days": "string",
           "description": "string",
           "end": "string",
+          "every": "int",
           "free": "bool",
           "location": "string",
+          "no-remind": "bool",
+          "no-repeat": "bool",
           "on": "string",
+          "remind": "string_list",
+          "repeat": "string",
+          "scope": "string",
           "start": "string",
-          "title": "string"
+          "title": "string",
+          "until": "string"
         },
         "output": {
           "(type)": "ref:calendar_event"
@@ -1006,6 +1025,7 @@
       "provider_rate_limited": "1",
       "rate_limited": "1",
       "read_only": "5",
+      "scope_required": "2",
       "too_many_appends": "1",
       "too_many_objectives": "1",
       "unauthorized": "3",
@@ -2688,6 +2708,16 @@
         "end.tz": "string?",
         "free": "boolean?",
         "location": "string?",
+        "reminders": "array?",
+        "repeat": "object?",
+        "repeat.by": "string?",
+        "repeat.days": "array?",
+        "repeat.ends": "object?",
+        "repeat.ends.count": "integer?",
+        "repeat.ends.date": "string?",
+        "repeat.ends.type": "string",
+        "repeat.freq": "string",
+        "repeat.interval": "integer?",
         "start": "object",
         "start.date": "string",
         "start.time": "string?",
@@ -2801,7 +2831,8 @@
       "arguments": {
         "connection_id": "string",
         "event_id": "string",
-        "rev": "string"
+        "rev": "string",
+        "scope": "string?"
       },
       "kind": "write"
     },
@@ -3238,7 +3269,18 @@
         "event_id": "string",
         "free": "boolean?",
         "location": "string?",
+        "reminders": "array?",
+        "repeat": "object|null?",
+        "repeat.by": "string?",
+        "repeat.days": "array?",
+        "repeat.ends": "object?",
+        "repeat.ends.count": "integer?",
+        "repeat.ends.date": "string?",
+        "repeat.ends.type": "string",
+        "repeat.freq": "string",
+        "repeat.interval": "integer?",
         "rev": "string",
+        "scope": "string?",
         "start": "object?",
         "start.date": "string",
         "start.time": "string?",
