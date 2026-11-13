@@ -18,7 +18,8 @@ func init() {
 		return writeDef("create_calendar_event", "Create a calendar event",
 			"Add one event to a connected calendar. Choose the calendar from the calendars array of list_calendar_events (connection_id and calendar_url, can_create true). "+
 				"start and end are {date, time, tz}; an all-day event takes dates only, its end being the day after its last day. Optional: location, description (plain text), free (true: the user shows as free), repeat (makes a repeating event) and reminders. A new event takes no scope. "+
-				"It works only when the user turned on editing events for that connection; no invitation is ever sent. "+
+				"It works only when the user turned on editing events for that connection. guests invites people (an array of {email, name?, optional?}), which makes the calendar send them an invitation: notify_guests must then be true, and the calendar must be one that tells guests (Microsoft). online_meeting true adds a join link. "+
+				notifyGuestsText+" "+
 				"client_id is an optional key of 8 to 64 letters, digits, - or _: reuse it when you retry, and the event is made once. The answer holds the event with its id and rev.",
 			object([]string{"connection_id", "calendar_url", "title", "start", "end"}, map[string]any{
 				"connection_id": map[string]any{"type": "string", "description": "From the calendars array of list_calendar_events."},
@@ -31,6 +32,7 @@ func init() {
 				"free":        map[string]any{"type": "boolean", "description": "true: shown as free; default busy."},
 				"client_id":   map[string]any{"type": "string", "minLength": 8, "maxLength": 64, "description": "Idempotency key; reuse it when retrying."},
 				"repeat":      repeatProp(false), "reminders": remindersProp,
+				"guests": guestsAddProp(), "notify_guests": notifyGuestsProp, "online_meeting": onlineMeetingProp,
 			}), false, true, nil, false)
 	}, plan: (*Registry).planCreateCalendarEvent})
 }
@@ -38,7 +40,7 @@ func init() {
 // eventCreate reads create_calendar_event's arguments.
 func (a args) eventCreate() (EventCreate, error) {
 	var c EventCreate
-	if err := a.only("", "connection_id", "calendar_url", "title", "start", "end", "all_day", "location", "description", "free", "client_id", "repeat", "reminders"); err != nil {
+	if err := a.only("", "connection_id", "calendar_url", "title", "start", "end", "all_day", "location", "description", "free", "client_id", "repeat", "reminders", "guests", "notify_guests", "online_meeting"); err != nil {
 		return c, err
 	}
 	var err error
@@ -96,7 +98,7 @@ func (a args) eventCreate() (EventCreate, error) {
 	} else if r != nil {
 		c.Reminders = *r
 	}
-	return c, nil
+	return c.withGuests(a)
 }
 
 // newClientID is a random UUID, used when the agent sends no client_id.

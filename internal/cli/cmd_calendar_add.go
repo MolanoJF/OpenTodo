@@ -193,6 +193,8 @@ func calendarEventAdd(a *App, ctx context.Context, g *globalFlags, args []string
 	free := fs.Bool("free", false, "show you as free during it")
 	var sf seriesFlags
 	sf.bind(fs, false, true, false)
+	var gf guestFlags
+	gf.bind(fs, true, false, true)
 	clientID := fs.String("client-id", "", "idempotency key for scripts that retry: 8 to 64 letters, digits, - or _")
 	pos, err := a.parse(g, fs, "calendar event add", args)
 	if err != nil {
@@ -200,7 +202,7 @@ func calendarEventAdd(a *App, ctx context.Context, g *globalFlags, args []string
 	}
 	title := strings.TrimSpace(strings.Join(pos, " "))
 	if title == "" {
-		return usageErr("usage: ot calendar event add <title> --start DATE[Thh:mm] [--end DATE[Thh:mm] | --for 45m] [--all-day] [--calendar <name or url>] [--location T] [--description T] [--free] [--repeat daily|weekdays|weekly|monthly|yearly [--every N] [--days mo,we] [--by monthday|weekday] [--until DATE | --count N]] [--remind 10m]...")
+		return usageErr("usage: ot calendar event add <title> --start DATE[Thh:mm] [--end DATE[Thh:mm] | --for 45m] [--all-day] [--calendar <name or url>] [--location T] [--description T] [--free] [--repeat daily|weekdays|weekly|monthly|yearly [--every N] [--days mo,we] [--by monthday|weekday] [--until DATE | --count N]] [--remind 10m]... [--guest ana@example.com[:optional]]... [--online-meeting] [--notify-guests]")
 	}
 	rule, err := a.repeatBody(&sf)
 	if err != nil {
@@ -208,6 +210,9 @@ func calendarEventAdd(a *App, ctx context.Context, g *globalFlags, args []string
 	}
 	reminders, err := remindersBody(&sf)
 	if err != nil {
+		return err
+	}
+	if err := gf.needNotify(nil, ""); err != nil {
 		return err
 	}
 	s, e, kind, err := a.newEventTimes(*start, *end, *dur, *allDay)
@@ -242,6 +247,9 @@ func calendarEventAdd(a *App, ctx context.Context, g *globalFlags, args []string
 	}
 	if reminders != nil {
 		body["reminders"] = reminders
+	}
+	if err := gf.createBody(body); err != nil {
+		return err
 	}
 	a.target(title, "", title, "created in "+target.label())
 	var res struct {

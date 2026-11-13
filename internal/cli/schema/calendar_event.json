@@ -15,13 +15,29 @@
     "allDay": {"type": "boolean"},
     "free": {"type": "boolean"},
     "rev": {"type": "string", "description": "the version of the event the command saw; every change is conditional on it"},
+    "guests": {
+      "type": "object",
+      "description": "present for an event with other guests or an answer of yours: counts and your own answer, never an address",
+      "properties": {
+        "count": {"type": "integer"},
+        "you": {"type": "string", "description": "your answer: needs-action, accepted, tentative or declined; absent when you are not a guest"},
+        "organizer": {"type": "boolean", "description": "you organise the event"},
+        "canRespond": {"type": "boolean", "description": "ot calendar event respond can answer it"}
+      }
+    },
+    "conference": {
+      "type": "object",
+      "description": "the join link of an online call, text from the remote calendar",
+      "properties": {"url": {"type": "string"}, "provider": {"type": "string", "description": "meet, teams, zoom, webex or other"}}
+    },
     "access": {
       "type": "object",
       "required": ["update", "delete"],
       "properties": {
         "update": {"type": "boolean"},
         "delete": {"type": "boolean"},
-        "reason": {"type": "string", "description": "why it cannot be changed: edits_off, calendar_read_only, recurring, guests, not_organizer or refresh_pending"}
+        "reason": {"type": "string", "description": "why it cannot be changed: edits_off, calendar_read_only, recurring, guests, not_organizer or refresh_pending"},
+        "notifies": {"type": "boolean", "description": "changing or deleting the event makes the calendar tell its guests, so the command needs --notify-guests"}
       }
     }
   },

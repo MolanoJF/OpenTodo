@@ -24,6 +24,39 @@ type EventAccess struct {
 	Update bool   `json:"update"`
 	Delete bool   `json:"delete"`
 	Reason string `json:"reason,omitempty"`
+	// Notifies: changing or deleting the event tells its guests, so the change needs notify_guests.
+	Notifies bool `json:"notifies,omitempty"`
+}
+
+// EventGuestSummary is what a row says of an event's guests: counts and the user's own
+// answer, never a name or an address (calendar-event-guests D14).
+type EventGuestSummary struct {
+	Count      int    `json:"count"`
+	You        string `json:"you,omitempty"`
+	Organizer  bool   `json:"organizer"`
+	CanRespond bool   `json:"can_respond"`
+}
+
+// EventConference says an event has a join link; the link itself is untrusted text.
+type EventConference struct {
+	Provider string `json:"provider"`
+}
+
+// EventPerson is an organiser or a guest as the calendar names them: text from a remote
+// calendar and someone else's personal data, shown only inside untrusted_text.
+type EventPerson struct {
+	Name     string `json:"name,omitempty"`
+	Email    string `json:"email"`
+	Role     string `json:"role,omitempty"`
+	Response string `json:"response,omitempty"`
+	You      bool   `json:"you,omitempty"`
+}
+
+// EventGuestList is the cache's list of an event's people and join link.
+type EventGuestList struct {
+	Organizer     *EventPerson
+	Guests        []EventPerson
+	ConferenceURL string
 }
 
 // CalendarEvent is one event of the calendar view. ConnectionID, Rev and
@@ -39,6 +72,9 @@ type CalendarEvent struct {
 	Access       *EventAccess `json:"access,omitempty"`
 	// Series is set for an occurrence of a repeating event: a change of it needs a scope.
 	Series *EventSeries `json:"series,omitempty"`
+	// Guests and Conference carry counts and a provider name only.
+	Guests     *EventGuestSummary `json:"guests,omitempty"`
+	Conference *EventConference   `json:"conference,omitempty"`
 	// Title and Location are text from the remote calendar.
 	Title    string `json:"-"`
 	Location string `json:"-"`
@@ -70,6 +106,19 @@ type EventRepeatEnd struct {
 	Count int    `json:"count,omitempty"`
 }
 
+// EventGuest is a guest to invite; Optional makes them an optional attendee.
+type EventGuest struct {
+	Email    string `json:"email"`
+	Name     string `json:"name,omitempty"`
+	Optional bool   `json:"optional,omitempty"`
+}
+
+// EventGuestsChange adds and removes guests of an existing event.
+type EventGuestsChange struct {
+	Add    []EventGuest
+	Remove []string
+}
+
 // EventUpdate is the change update_calendar_event asks for.
 type EventUpdate struct {
 	ConnectionID string
@@ -88,11 +137,25 @@ type EventUpdate struct {
 	RepeatSet bool
 	Repeat    *EventRepeat
 	Reminders *[]int
+	// Guests, NotifyGuests and OnlineMeeting are passed on as the route takes them
+	// (calendar-event-guests D3): nil is "not sent", and the server decides what false means.
+	Guests        *EventGuestsChange
+	NotifyGuests  *bool
+	OnlineMeeting *bool
 }
 
 // EventDelete is the removal delete_calendar_event asks for; Rev is the version the caller saw.
+// NotifyGuests confirms that the calendar tells the guests of the cancellation.
 type EventDelete struct {
 	ConnectionID, EventID, Rev, Scope string
+	NotifyGuests                      bool
+}
+
+// EventReply is respond_to_calendar_event's answer to an invitation. Response is accepted,
+// tentative or declined; Scope this or all (an occurrence only); SendResponse nil is true.
+type EventReply struct {
+	ConnectionID, EventID, Rev, Response, Scope string
+	SendResponse                                *bool
 }
 
 // EventCreate is the change create_calendar_event asks for (calendar-event-editor
@@ -108,6 +171,10 @@ type EventCreate struct {
 	// Repeat makes a repeating event and Reminders are minutes before the start; no scope.
 	Repeat    *EventRepeat
 	Reminders []int
+	// Guests are invited when the event is made, which tells them (NotifyGuests confirms it).
+	Guests        []EventGuest
+	NotifyGuests  *bool
+	OnlineMeeting *bool
 }
 
 // EventCalendar is a calendar an event can be created in.
@@ -146,6 +213,14 @@ type EventEditor interface {
 	Create(ctx context.Context, userID string, c EventCreate) (EventOutcome, error)
 	// Delete removes one event, or the events of a series the scope names.
 	Delete(ctx context.Context, userID string, d EventDelete) error
+	// ValidateRespond checks an answer as the route does, without writing.
+	ValidateRespond(r EventReply) error
+	// Respond answers an invitation (r.Rev is the version the caller saw) and returns the
+	// event as the calendar now holds it.
+	Respond(ctx context.Context, userID string, r EventReply) (EventOutcome, error)
+	// GuestLists reads, from the cache and never the calendar, the people and join link of
+	// the events with these ids (those it knows).
+	GuestLists(ctx context.Context, userID string, eventIDs []string) (map[string]EventGuestList, error)
 }
 
 func calendarEventsOff() *ToolError {

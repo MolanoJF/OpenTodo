@@ -257,7 +257,7 @@ func TestCalendarCompletion(t *testing.T) {
 	for _, it := range subcommandCandidates(st.top) {
 		got = append(got, it.value)
 	}
-	if strings.Join(got, ",") != "add,edit,delete,rm" {
+	if strings.Join(got, ",") != "add,edit,delete,rm,respond" {
 		t.Fatalf("after calendar event: %v", got)
 	}
 	top := map[string]bool{}
