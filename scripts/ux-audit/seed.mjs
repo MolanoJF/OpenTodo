@@ -28,6 +28,8 @@ export function calendarEvents(now) {
       ev('layout-sync', 'Team sync', { date: day(0), time: '11:00' }, { date: day(0), time: '11:30' }, { location: 'Room 4' }),
       ev('layout-long', 'Quarterly planning review with the whole department and guests', { date: day(1), time: '09:00' }, { date: day(1), time: '10:30' }),
       ev('layout-edit', 'Coffee with Sam', { date: day(0), time: '14:00' }, { date: day(0), time: '14:30' }, { subscriptionId: 'layout-managed', rev: 'a41c9d03e2b7f610', access: { update: true, delete: true } }),
+      // An occurrence of a repeating event (calendar-event-series): moving it asks which events to change.
+      ev('layout-series', 'Morning routine', { date: day(0), time: '08:00' }, { date: day(0), time: '08:30' }, { subscriptionId: 'layout-managed', rev: 'c52d1e14f3a8b720', access: { update: true, delete: true }, series: { id: 'layout-series-1', rrule: 'FREQ=DAILY', repeat: { freq: 'daily', interval: 1, days: [], ends: { type: 'never' } }, custom: false, first: false, rev: '9b7d4c2a10e65f38' } }),
       ev('layout-free', 'Focus time', { date: day(1), time: '13:00' }, { date: day(1), time: '15:00' }, { free: true }),
       ...[8, 10, 12, 15].map((h, i) => ev(`layout-busy-${i}`, `Meeting ${i + 1}`, { date: day(3), time: `${String(h).padStart(2, '0')}:00` }, { date: day(3), time: `${String(h).padStart(2, '0')}:45` })),
       ev('layout-offsite', 'Offsite', { date: day(5) }, { date: day(7) }),
