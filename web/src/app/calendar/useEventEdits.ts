@@ -2,12 +2,12 @@
 // a drop, an arrow key and Delete end in the same commands as the popover (eventActions).
 // Event blocks are keyed `event:<id>` like their layout entries.
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { cachedEvent, currentEventId, EDIT_SETTLE_MS, useEventCommands } from '../../lib/calendarEventEdits'
+import { cachedEvent, currentEventId, EDIT_SETTLE_MS, useEventCommands, writeStateOf } from '../../lib/calendarEventEdits'
 import { localDueOf } from '../../lib/dates'
 import { eventDropChange, eventEditable, type EventNudge, eventNudgeChange, type EventTarget } from '../../lib/eventDrop'
 import { previewedOriginal, previewEvent, restoreEvent } from '../../lib/eventPreview'
 import { needsScope } from '../../lib/eventScope'
-import type { CalendarEvent, CalendarEventChange } from '../../lib/types'
+import type { CalendarEvent, CalendarEventChange, WriteState } from '../../lib/types'
 import { reportActionError } from '../actionError'
 import type { DropTarget } from '../calendarDrag'
 import { changeEvent, deleteEvent } from './eventActions'
@@ -29,8 +29,8 @@ export function nudgeOf(key: EventKeys, dir: -1 | 1): EventNudge {
 export interface EventEdits {
   /** The shown events by layout id (`event:<id>`). */
   byKey: Map<string, CalendarEvent>
-  /** Layout ids of events with a queued change. */
-  saving: ReadonlySet<string>
+  /** Layout ids of events with a queued change, and what it is doing: saving, waiting for the device or failed. */
+  saving: ReadonlyMap<string, WriteState>
   drop: (key: string, target: DropTarget) => void
   /** An arrow key on the event: calls `done` with the day it lands on. Quick presses run in order on the freshest row. */
   nudge: (key: string, n: EventNudge, done?: (date: string) => void) => void
@@ -41,7 +41,7 @@ export function useEventEdits(events: readonly CalendarEvent[], zone: string | u
   const byKey = useMemo(() => new Map(events.map((e) => [`event:${e.id}`, e])), [events])
   const commands = useEventCommands()
   const asked = useScopeRequest() // the block shows the saving state while the scope menu is open
-  const saving = useMemo(() => new Set([...commands.keys(), ...(asked ? [asked.event.id] : [])].map((id) => `event:${id}`)), [commands, asked])
+  const saving = useMemo(() => new Map<string, WriteState>([...[...commands].map(([id, c]) => [id, writeStateOf(c)] as const), ...(asked ? [[asked.event.id, 'saving'] as const] : [])].map(([id, state]) => [`event:${id}`, state])), [commands, asked])
   const settling = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   // Leaving the calendar with keys still settling: the blocks go back where they were.
   useEffect(() => { const timers = settling.current; return () => { for (const [id, timer] of timers) { clearTimeout(timer); void restoreEvent(id) } timers.clear() } }, [])

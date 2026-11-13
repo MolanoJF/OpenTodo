@@ -2869,4 +2869,11 @@ export interface EventCommand {
   notBefore: number
   sending?: boolean
   tries: number
+  /** The device got no answer (offline): kept until it is back, shown as "Waiting to send", never retried on a timer. */
+  offline?: boolean
+  /** The server answered with a failure that is not a refusal (5xx, a rate limit, a refused sign-in): stopped and shown as failed until the person retries or discards it. */
+  failed?: { code: string; status: number; message: string; retryAfter?: number }
 }
+
+/** What a queued calendar event write is doing: on its way, waiting for the device to be online, or failed and waiting for Retry or Discard. */
+export type WriteState = 'saving' | 'waiting' | 'failed'

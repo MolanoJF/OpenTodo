@@ -24,6 +24,11 @@ import { ApiError } from './api'
 import { cachedWindow, refreshEvents } from './calendarFeeds'
 import { cancelEventDelete, createBodyOf, currentEventId, DELETE_DELAY_MS, EDIT_SETTLE_MS, editEvent, eventAccessText, eventEditNoticeText, flushEventEdits, onEventEditNotice, type EventEditNotice } from './calendarEventEdits'
 import { clearLocalData, db, setMeta, useDatabase } from './db'
+import { platform } from './platform'
+
+let online = true
+const setOnline = (v: boolean) => { online = v }
+vi.spyOn(platform.network, 'online').mockImplementation(() => online)
 import { createEvent, getEventCalendar } from './eventCreate'
 import { sendNow, startNotifiedDelete } from './eventSendNow'
 import type { CalendarEventDraft } from './types'
@@ -37,9 +42,9 @@ const SETTLED = T0 + EDIT_SETTLE_MS
 let n = 0
 beforeEach(async () => {
   useDatabase(`event-edits-${Date.now()}-${n++}`)
-  updateCalendarEvent.mockReset()
+  updateCalendarEvent.mockReset(); setOnline(true)
   deleteCalendarEvent.mockReset()
-  createCalendarEvent.mockReset()
+  createCalendarEvent.mockReset(); setOnline(true)
   calendarEvents.mockReset()
   await db.calendarSubscriptions.put({ id: 's1', name: 'Work', color: '', enabled: true, lastSuccessAt: 1, managed: true, connectionId: 'c1' })
   await db.calendarEvents.put(base)
@@ -51,7 +56,7 @@ const refused = (status: number, code: string) => new ApiError(status, code, `se
 
 describe('editEvent: merge, optimistic patch, inverse', () => {
   it('patches the cached row at once and queues one command', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     const inverse = await edit(base, moved('10:00', '10:30'), T0)
     expect(inverse).toEqual(moved('09:00', '09:30'))
     expect((await db.calendarEvents.get('e1'))!.start.time).toBe('10:00')
@@ -61,18 +66,16 @@ describe('editEvent: merge, optimistic patch, inverse', () => {
   })
 
   it('coalesces two moves and a rename offline into one command, sent once when the device is back', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     await edit(base, moved('10:00', '10:30'), T0)
     await edit(base, moved('11:00', '11:30'), T0)
     await edit(base, { summary: 'Planning' }, T0)
     expect(await db.eventOutbox.count()).toBe(1)
     expect((await db.eventOutbox.get('c1:e1'))!.patch).toEqual({ ...moved('11:00', '11:30'), summary: 'Planning' })
-    // Offline: kept, with a backoff.
-    const kept = (await db.eventOutbox.get('c1:e1'))!
-    expect(kept.tries).toBeGreaterThan(0)
-    expect(kept.notBefore).toBeGreaterThan(T0)
+    // Offline: kept, waiting for the device (no timer).
+    expect(await db.eventOutbox.get('c1:e1')).toMatchObject({ offline: true })
     // Online again: one request.
-    updateCalendarEvent.mockReset()
+    updateCalendarEvent.mockReset(); setOnline(true)
     updateCalendarEvent.mockResolvedValue({ event: { ...base, id: 'e2', rev: 'r2', summary: 'Planning', start: at('11:00'), end: at('11:30') }, replaces: 'e1' })
     await flushEventEdits(T0 + 10 * 60_000)
     expect(updateCalendarEvent).toHaveBeenCalledTimes(1)
@@ -81,12 +84,12 @@ describe('editEvent: merge, optimistic patch, inverse', () => {
   })
 
   it('removes the command when the event is moved back before it is sent', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     await edit(base, moved('10:00', '10:30'), T0)
     await edit(base, moved('09:00', '09:30'), T0)
     expect(await db.eventOutbox.count()).toBe(0)
     expect((await db.calendarEvents.get('e1'))!.start.time).toBe('09:00')
-    updateCalendarEvent.mockReset()
+    updateCalendarEvent.mockReset(); setOnline(true)
     await flushEventEdits(T0 + 60_000)
     expect(updateCalendarEvent).not.toHaveBeenCalled()
   })
@@ -103,7 +106,7 @@ describe('editEvent: merge, optimistic patch, inverse', () => {
   })
 
   it('Undo is an edit with the inverse', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     const inverse = await edit(base, moved('10:00', '10:30'), T0)
     await edit(base, inverse as never, T0)
     expect(await db.eventOutbox.count()).toBe(0)
@@ -113,13 +116,14 @@ describe('editEvent: merge, optimistic patch, inverse', () => {
 
 describe('delete', () => {
   it('waits for Undo, then sends; a delete replaces an edit and wins', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     await edit(base, moved('10:00', '10:30'), T0)
     deleteCalendarEvent.mockResolvedValue(undefined)
     await edit(base, { delete: true }, T0)
     expect(await db.calendarEvents.get('e1')).toBeUndefined()
     await flushEventEdits(T0 + DELETE_DELAY_MS - 1)
     expect(deleteCalendarEvent).not.toHaveBeenCalled()
+    setOnline(true)
     await flushEventEdits(T0 + DELETE_DELAY_MS)
     expect(deleteCalendarEvent).toHaveBeenCalledWith('c1', 'e1', 'r1')
     expect(await db.eventOutbox.count()).toBe(0)
@@ -135,7 +139,7 @@ describe('delete', () => {
   })
 
   it('Undo of a delete that followed a queued move keeps the move queued', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     await edit(base, moved('10:00', '10:30'), T0)
     const shown = (await db.calendarEvents.get('e1'))!
     await edit(shown, { delete: true }, T0)
@@ -233,22 +237,12 @@ describe('flushEventEdits', () => {
     expect(await db.calendarEvents.get('e1')).toEqual(base)
   })
 
-  it('keeps the command on a 5xx and retries with a growing backoff', async () => {
-    updateCalendarEvent.mockRejectedValue(new ApiError(503, 'unavailable', 'down'))
-    await edit(base, { summary: 'Planning' }, T0)
-    const first = (await db.eventOutbox.get('c1:e1'))!
-    expect(first.tries).toBe(1)
-    await flushEventEdits(first.notBefore)
-    const second = (await db.eventOutbox.get('c1:e1'))!
-    expect(second.tries).toBe(2)
-    expect(second.notBefore - first.notBefore).toBeGreaterThan(first.notBefore - T0)
-  })
 })
 
 describe('refreshEvents keeps queued edits (4.5)', () => {
   const sub = { id: 's1', name: 'Work', color: '', enabled: true, lastSuccessAt: 2, managed: true, connectionId: 'c1' }
   it('draws a queued edit over the fetched row and hides a queued delete', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     calendarEvents.mockResolvedValue({ events: [base, { ...base, id: 'e5', uid: 'u5' }], subscriptions: [sub] })
     await edit(base, moved('10:00', '10:30'), T0)
     await edit({ ...base, id: 'e5', uid: 'u5' }, { delete: true }, T0)
@@ -293,16 +287,15 @@ describe('create', () => {
     expect(currentEventId('pending:k1')).toBe('real-k1')
   })
 
-  it('offline: kept with a backoff, then one request once online', async () => {
-    createCalendarEvent.mockRejectedValue(new TypeError('offline'))
+  it('offline: kept as waiting, then one request once online', async () => {
+    createCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     await createEvent(draftOf('k2'), T0)
     await flushEventEdits(SETTLED)
-    const kept = (await db.eventOutbox.get('c1:pending:k2'))!
-    expect(kept.tries).toBe(1)
+    expect(await db.eventOutbox.get('c1:pending:k2')).toMatchObject({ offline: true })
     expect(await db.calendarEvents.get('pending:k2')).toBeDefined()
-    createCalendarEvent.mockReset()
+    createCalendarEvent.mockReset(); setOnline(true)
     createCalendarEvent.mockResolvedValue({ event: created('k2'), clientId: 'k2' })
-    await flushEventEdits(kept.notBefore)
+    await flushEventEdits(T0 + 60_000)
     expect(createCalendarEvent).toHaveBeenCalledTimes(1)
   })
 
@@ -386,8 +379,8 @@ describe('create', () => {
 
   it('a refresh keeps the pending event and a queued description edit', async () => {
     const sub = { id: 's1', name: 'Work', color: '', enabled: true, lastSuccessAt: 2, managed: true, connectionId: 'c1' }
-    createCalendarEvent.mockRejectedValue(new TypeError('offline'))
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    createCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     calendarEvents.mockResolvedValue({ events: [base], subscriptions: [sub] })
     const row = await createEvent(draftOf('k9'), T0)
     await editEvent(row, { location: 'Room 4' }, T0)
@@ -410,18 +403,18 @@ describe('create', () => {
   })
 
   it('location, free and a description of an existing event are sent; the description is never on the row', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     expect(await edit(base, { description: 'Notes', location: 'Room 4', free: true }, T0, { description: 'Old' })).toEqual({ location: '', free: false, description: 'Old' })
     expect(await db.eventOutbox.get('c1:e1')).toMatchObject({ patch: { description: 'Notes', location: 'Room 4', free: true } })
     expect(await db.calendarEvents.get('e1')).toMatchObject({ location: 'Room 4', free: true })
     // A command whose only change is a description does not return to base.
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     await edit({ ...base, id: 'e7', uid: 'u7' }, { description: 'x' }, T0)
     expect((await db.eventOutbox.get('c1:e7'))!.patch).toEqual({ description: 'x' })
   })
 
   it('sign-out deletes the outbox and the meta rows', async () => {
-    createCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    createCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     await createEvent(draftOf('k11'), T0)
     await clearLocalData()
     expect(await db.eventOutbox.count()).toBe(0)
@@ -490,7 +483,7 @@ describe('sendNow, a notified change, a reply and a create with guests', () => {
   })
 
   it('does not queue a change that could not reach the server: it is restored and never sent later', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     expect(await sendNow(guestRow, { kind: 'change', change: { summary: 'Planning' } })).toBe(false)
     expect(await db.eventOutbox.count()).toBe(0)
     expect((await db.calendarEvents.get('e1'))!.summary).toBe('Standup')
@@ -509,7 +502,7 @@ describe('sendNow, a notified change, a reply and a create with guests', () => {
   it('still queues a change of an event that has guests but tells nobody', async () => {
     const quiet = { ...guestRow, access: { update: true, delete: true } }
     await db.calendarEvents.put(quiet)
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     expect(await edit(quiet, { summary: 'Planning' }, T0)).toEqual({ summary: 'Standup' })
     expect(await db.eventOutbox.count()).toBe(1)
   })

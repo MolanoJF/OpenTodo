@@ -101,9 +101,10 @@ export function overlayQueued(events: Map<string, CalendarEvent>, commands: read
     }
     const ev = events.get(cmd.eventId)
     if (!ev) continue
-    if ('delete' in cmd.patch) { events.delete(cmd.eventId); continue }
+    if ('delete' in cmd.patch) { if (!cmd.failed) events.delete(cmd.eventId); continue } // a delete that failed stays drawn, marked
     const next = cmd.next
-    if (next && 'delete' in next) { events.delete(cmd.eventId); continue }
+    if (next && 'delete' in next && !cmd.failed) { events.delete(cmd.eventId); continue }
+    if (next && 'delete' in next) { events.set(cmd.eventId, applyEventPatch(ev, cmd.patch)); continue }
     events.set(cmd.eventId, applyEventPatch(applyEventPatch(ev, cmd.patch), next ?? {}))
   }
 }

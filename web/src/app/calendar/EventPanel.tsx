@@ -10,6 +10,7 @@ import { showBulkToast } from '../bulk/toastStore'
 import { PanelFrame } from '../PanelFrame'
 import { ConvertToTask } from './ConvertToTask'
 import { EventForm } from './EventForm'
+import { EventWriteState } from './EventWriteState'
 import { addTaskRequest, type EventEditorRequest } from './eventEditorStore'
 import { useEventEditing } from './useEventEditing'
 
@@ -66,6 +67,7 @@ export function EventPanel({ request, frame, onClose }: { request: EventEditorRe
   ) : <Skeleton shape="line" count={4} label={t('Loading the event')} />
   const inner = (
     <div ref={root} data-event-editor-frame={frame} onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); void s.save() } }}>
+      {s.ev && <EventWriteState id={s.ev.id} />}
       {body}
       {asking && <ConfirmDialog title={t('Discard changes?')} consequence={t('What you changed in this event is not saved.')} confirmLabel={t('Discard')} cancelLabel={t('Keep editing')} onConfirm={onClose} onCancel={() => setAsking(false)} />}
       {converting && s.ev && s.form && (

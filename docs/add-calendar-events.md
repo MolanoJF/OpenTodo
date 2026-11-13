@@ -39,6 +39,6 @@ The panel's **More actions** menu has two more moves:
 
 ## Offline, and what is not here
 
-Offline, the event shows at once and is added when you are back online, once. If your calendar refuses it, a toast offers **Edit again** with what you typed.
+Offline, the event shows at once, **Waiting to send**, and is added when you are back online, once. If the server answers with an error, it stays **Not saved** with **Retry** and **Discard**; nothing is sent again by itself. If your calendar refuses it, a toast offers **Edit again** with what you typed.
 
 On Outlook the editor also adds guests and a Teams meeting, and asks you to confirm before it tells them; see [Guests, replies and join links](calendar-event-guests.md). On other calendars guests are not part of this, and the same [limits as editing](calendar-sync.md#what-stays-read-only) apply. Assistants and scripts can add events too: [`create_calendar_event`](mcp.md#write-tools) and [`ot calendar event add`](cli.md#calendar-events).

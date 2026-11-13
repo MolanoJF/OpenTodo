@@ -36,10 +36,13 @@ export class ApiError extends Error {
   /** `message` is translated by code when the client knows it (app-localization D6). */
   /** The input field a 400 invalid_input names, when the server says (issue-connections). */
   readonly field?: string
-  constructor(public status: number, public code: string, message: string, field?: string) {
+  /** Seconds a 429 or 503 asks to wait (Retry-After), when the answer says. */
+  readonly retryAfter?: number
+  constructor(public status: number, public code: string, message: string, field?: string, retryAfter?: number) {
     super(errorMessage(code, message))
     this.serverMessage = message
     this.field = field
+    this.retryAfter = retryAfter
   }
 }
 
@@ -244,7 +247,8 @@ async function parse<T>(res: Response): Promise<T> {
   })
   if (!res.ok) {
     const err = (data as { error?: { code: string; message: string; field?: string } }).error
-    throw new ApiError(res.status, err?.code ?? 'error', err?.message ?? res.statusText, err?.field)
+    const wait = Number(res.headers?.get('Retry-After'))
+    throw new ApiError(res.status, err?.code ?? 'error', err?.message ?? res.statusText, err?.field, Number.isFinite(wait) && wait > 0 ? wait : undefined)
   }
   return data as T
 }
