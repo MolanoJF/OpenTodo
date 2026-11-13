@@ -232,11 +232,10 @@ func TestWorkerSeriesRefusalsWriteAndCacheNothing(t *testing.T) {
 func TestWorkerLegacyRecurringRowIsRefreshPending(t *testing.T) {
 	in, _ := loadCase(t, "this-move")
 	h, c, _ := seriesHarness(t, in)
-	row := h.rowOn(c, "2026-11-12")
 	if _, err := h.db.Exec(`UPDATE calendar_event_remote SET locked = 'recurring'`); err != nil {
 		t.Fatal(err)
 	}
-	row = h.rowOn(c, "2026-11-12")
+	row := h.rowOn(c, "2026-11-12")
 	if a := AccessOf(h.conn(c.ID), h.srv.CalendarURL("work"), row); a.Update || a.Delete || a.Reason != ReasonRefreshPending {
 		t.Fatalf("access = %+v", a)
 	}

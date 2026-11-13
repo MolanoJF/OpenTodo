@@ -129,7 +129,7 @@ type goldResult struct {
 	Objects      int    `json:"objects"`
 }
 
-func runCase(t *testing.T, dir string) (SeriesEdit, SeriesResult, error, *caldav.Component) {
+func runCase(t *testing.T, dir string) (SeriesEdit, SeriesResult, *caldav.Component, error) {
 	t.Helper()
 	in, err := os.ReadFile(filepath.Join(dir, "in.ics"))
 	if err != nil {
@@ -158,12 +158,12 @@ func runCase(t *testing.T, dir string) (SeriesEdit, SeriesResult, error, *caldav
 		if !errors.Is(err, goldErrors[ch.Error]) {
 			t.Fatalf("error = %v, want %s", err, ch.Error)
 		}
-		return e, res, err, root
+		return e, res, root, err
 	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	return e, res, nil, root
+	return e, res, root, nil
 }
 
 func TestSeriesGolden(t *testing.T) {
@@ -176,7 +176,7 @@ func TestSeriesGolden(t *testing.T) {
 			continue
 		}
 		t.Run(filepath.Base(dir), func(t *testing.T) {
-			_, res, err, _ := runCase(t, dir)
+			_, res, _, err := runCase(t, dir)
 			if err != nil {
 				return
 			}
