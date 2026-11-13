@@ -231,7 +231,7 @@
     },
     {
       "name": "calendar event add",
-      "summary": "add an event to a connected calendar and print its id, title and time (needs a full token and editing turned on for the connection; no invitation is ever sent)",
+      "summary": "add an event to a connected calendar and print its id, title and time (needs a full token and editing turned on for the connection; guests are invited only with --notify-guests)",
       "args": [
         {
           "name": "title",
@@ -335,6 +335,21 @@
           "name": "no-remind",
           "type": "bool",
           "description": "add no reminders (the default); on edit it removes the event's reminders"
+        },
+        {
+          "name": "guest",
+          "type": "string_list",
+          "description": "invite a guest: ana@example.com or ana@example.com:optional, repeatable; the calendar sends the invitation itself, so it needs --notify-guests"
+        },
+        {
+          "name": "online-meeting",
+          "type": "bool",
+          "description": "add an online meeting with a join link, on a calendar that offers one; it cannot be removed afterwards"
+        },
+        {
+          "name": "notify-guests",
+          "type": "bool",
+          "description": "confirm that the calendar tells the guests (needed to invite guests, and to change or delete a meeting you organise that has guests); it cannot be turned off"
         }
       ],
       "writes": true,
@@ -379,6 +394,11 @@
             "all"
           ],
           "description": "for an event of a repeating series, which events to delete: this one, it and every later one, or all; required there"
+        },
+        {
+          "name": "notify-guests",
+          "type": "bool",
+          "description": "confirm that the calendar tells the guests of the cancellation; needed for a meeting you organise that has guests"
         }
       ],
       "writes": true,
@@ -391,7 +411,7 @@
     },
     {
       "name": "calendar event edit",
-      "summary": "change an event of a connected calendar (title, time, location, description, free or busy; needs a full token and editing turned on for the connection; no invitation is ever sent)",
+      "summary": "change an event of a connected calendar (title, time, location, description, free or busy, guests; needs a full token and editing turned on for the connection; a meeting you organise that has guests needs --notify-guests)",
       "args": [
         {
           "name": "id",
@@ -505,6 +525,85 @@
           "name": "no-remind",
           "type": "bool",
           "description": "remove the event's reminders"
+        },
+        {
+          "name": "guest",
+          "type": "string_list",
+          "description": "invite a guest: ana@example.com or ana@example.com:optional, repeatable; the calendar sends the invitation itself, so it needs --notify-guests"
+        },
+        {
+          "name": "online-meeting",
+          "type": "bool",
+          "description": "add an online meeting with a join link, on a calendar that offers one; it cannot be removed afterwards"
+        },
+        {
+          "name": "notify-guests",
+          "type": "bool",
+          "description": "confirm that the calendar tells the guests (needed to invite guests, and to change or delete a meeting you organise that has guests); it cannot be turned off"
+        },
+        {
+          "name": "no-guest",
+          "type": "string_list",
+          "description": "take a guest off the event by address, repeatable"
+        },
+        {
+          "name": "remove-guest",
+          "type": "string_list",
+          "description": "same as --no-guest"
+        },
+        {
+          "name": "on",
+          "type": "string",
+          "description": "a day near the event, when it is more than 45 days from today"
+        }
+      ],
+      "writes": true,
+      "destructive": false,
+      "dry_run": true,
+      "idempotency_key": false,
+      "output_schema": {
+        "$ref": "#/schemas/calendar_event"
+      }
+    },
+    {
+      "name": "calendar event respond",
+      "summary": "answer an invitation to an event of a connected calendar (needs a full token and editing turned on for the connection); the calendar tells the organiser unless --no-tell is allowed",
+      "args": [
+        {
+          "name": "id",
+          "required": true,
+          "repeatable": false
+        }
+      ],
+      "flags": [
+        {
+          "name": "yes",
+          "type": "bool",
+          "description": "accept the invitation"
+        },
+        {
+          "name": "maybe",
+          "type": "bool",
+          "description": "answer maybe (tentative)"
+        },
+        {
+          "name": "no",
+          "type": "bool",
+          "description": "decline the invitation"
+        },
+        {
+          "name": "scope",
+          "type": "string",
+          "enum": [
+            "this",
+            "all"
+          ],
+          "description": "for an event of a repeating series: this occurrence or all of them; required there"
+        },
+        {
+          "name": "no-tell",
+          "type": "bool",
+          "description": "do not tell the organiser; only on a calendar that allows it"
         },
         {
           "name": "on",
@@ -3409,7 +3508,7 @@
     {
       "code": "event_not_editable",
       "exit": 1,
-      "meaning": "the event has guests, is not the user's own, or repeats in a way ot cannot edit (series_unsupported, following_unsupported); the message names why"
+      "meaning": "the event cannot be changed or answered here: it is not the user's to organise (not_organizer), has guests the calendar cannot change (has_guests), cannot be answered (cannot_respond), or repeats in a way ot cannot edit (series_unsupported, following_unsupported); the message names why"
     },
     {
       "code": "scope_required",
@@ -3752,6 +3851,40 @@
           "type": "string",
           "description": "the version of the event the command saw; every change is conditional on it"
         },
+        "guests": {
+          "type": "object",
+          "description": "present for an event with other guests or an answer of yours: counts and your own answer, never an address",
+          "properties": {
+            "count": {
+              "type": "integer"
+            },
+            "you": {
+              "type": "string",
+              "description": "your answer: needs-action, accepted, tentative or declined; absent when you are not a guest"
+            },
+            "organizer": {
+              "type": "boolean",
+              "description": "you organise the event"
+            },
+            "canRespond": {
+              "type": "boolean",
+              "description": "ot calendar event respond can answer it"
+            }
+          }
+        },
+        "conference": {
+          "type": "object",
+          "description": "the join link of an online call, text from the remote calendar",
+          "properties": {
+            "url": {
+              "type": "string"
+            },
+            "provider": {
+              "type": "string",
+              "description": "meet, teams, zoom, webex or other"
+            }
+          }
+        },
         "access": {
           "type": "object",
           "required": [
@@ -3768,6 +3901,10 @@
             "reason": {
               "type": "string",
               "description": "why it cannot be changed: edits_off, calendar_read_only, recurring, guests, not_organizer or refresh_pending"
+            },
+            "notifies": {
+              "type": "boolean",
+              "description": "changing or deleting the event makes the calendar tell its guests, so the command needs --notify-guests"
             }
           }
         }

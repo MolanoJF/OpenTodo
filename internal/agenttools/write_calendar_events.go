@@ -34,7 +34,9 @@ func init() {
 	register(tool{def: func(Caller) Definition {
 		return writeDef("update_calendar_event", "Change a calendar event",
 			"Change one event of a connected calendar (see list_calendar_events for its connection_id, id and rev): summary, start and end together (and all_day), location, description (replaces the whole text; an empty string clears it) or free (true: shown as free). Send any of them. "+
-				"It works only when the user turned on editing events for that connection and the event's access.update is true; events with guests and events the user does not organise stay read-only, and so does a repeating event that repeats in a way the repeat argument cannot express. No invitation or update is ever sent to guests. "+
+				"It works only when the user turned on editing events for that connection and the event's access.update is true; an event the user was invited to stays read-only (answer it with respond_to_calendar_event), and so does a repeating event that repeats in a way the repeat argument cannot express. "+
+				"A meeting the user organises with guests can be changed only where the calendar tells the guests itself (its access.notifies is true): then every change, guests included, needs notify_guests true, and the guests get the calendar's own update. guests {add, remove} invites and removes people and online_meeting adds a join link. "+
+				notifyGuestsText+" "+
 				"For an event with a series in list_calendar_events pass scope (this, following or all), and use repeat to change how it repeats and reminders to set its reminders. "+
 				"The answer holds the event as the calendar now holds it: a move changes its id, and replaces names the old one.",
 			object([]string{"connection_id", "event_id", "rev"}, map[string]any{
@@ -46,13 +48,16 @@ func init() {
 				"description": map[string]any{"type": "string", "maxLength": 10000, "description": "The new description as plain text. It replaces the whole text; an empty string clears it. An event whose description is rich text in the calendar can not take one."},
 				"free":        map[string]any{"type": "boolean", "description": "true: the event shows the user as free; false: busy."},
 				"scope":       scopeProp, "repeat": repeatProp(true), "reminders": remindersProp,
+				"guests": guestsChangeProp(), "notify_guests": notifyGuestsProp, "online_meeting": onlineMeetingProp,
 			}), false, true, nil, false)
 	}, plan: (*Registry).planUpdateCalendarEvent})
 	register(tool{def: func(Caller) Definition {
 		return writeDef("delete_calendar_event", "Delete a calendar event",
-			"Delete one event from a connected calendar (see list_calendar_events for its connection_id, id and rev). It is removed from the user's calendar and can not be restored from here. It works only when the user turned on editing events for that connection and the event's access.delete is true. For an event with a series in list_calendar_events pass scope: this deletes that occurrence, following it and every later one, all the whole series.",
+			"Delete one event from a connected calendar (see list_calendar_events for its connection_id, id and rev). It is removed from the user's calendar and can not be restored from here. It works only when the user turned on editing events for that connection and the event's access.delete is true. For an event with a series in list_calendar_events pass scope: this deletes that occurrence, following it and every later one, all the whole series. "+
+				"Deleting a meeting the user organises with guests makes the calendar send the guests a cancellation: it needs notify_guests true when the event's access.notifies is true. "+
+				notifyGuestsText,
 			object([]string{"connection_id", "event_id", "rev"}, map[string]any{
-				"connection_id": connectionIDProp, "event_id": eventIDProp, "rev": eventRevProp, "scope": scopeProp,
+				"connection_id": connectionIDProp, "event_id": eventIDProp, "rev": eventRevProp, "scope": scopeProp, "notify_guests": notifyGuestsProp,
 			}), true, true, nil, false)
 	}, plan: (*Registry).planDeleteCalendarEvent})
 }
@@ -86,7 +91,7 @@ func (a args) eventTime(name string) (*EventTime, error) {
 
 // eventUpdate reads update_calendar_event's arguments.
 func (a args) eventUpdate() (EventUpdate, error) {
-	if err := a.only("", "connection_id", "event_id", "rev", "summary", "start", "end", "all_day", "location", "description", "free", "scope", "repeat", "reminders"); err != nil {
+	if err := a.only("", "connection_id", "event_id", "rev", "summary", "start", "end", "all_day", "location", "description", "free", "scope", "repeat", "reminders", "guests", "notify_guests", "online_meeting"); err != nil {
 		return EventUpdate{}, err
 	}
 	conn, id, rev, err := a.eventTarget()
@@ -115,7 +120,10 @@ func (a args) eventUpdate() (EventUpdate, error) {
 	if u, err = u.withText(a); err != nil {
 		return u, err
 	}
-	return u.withSeries(a)
+	if u, err = u.withSeries(a); err != nil {
+		return u, err
+	}
+	return u.withGuests(a)
 }
 
 // withText reads the location, description and free members of an update.
@@ -168,7 +176,7 @@ func (r *Registry) planDeleteCalendarEvent(_ context.Context, c Caller, a args, 
 	if r.eventEditor == nil {
 		return Plan{}, calendarEventsOff()
 	}
-	if err := a.only("", "connection_id", "event_id", "rev", "scope"); err != nil {
+	if err := a.only("", "connection_id", "event_id", "rev", "scope", "notify_guests"); err != nil {
 		return Plan{}, err
 	}
 	conn, id, rev, err := a.eventTarget()
@@ -179,11 +187,15 @@ func (r *Registry) planDeleteCalendarEvent(_ context.Context, c Caller, a args, 
 	if err != nil {
 		return Plan{}, err
 	}
+	notify, err := a.boolean("notify_guests")
+	if err != nil {
+		return Plan{}, err
+	}
 	return Plan{Result: map[string]any{}, Count: 1, execWrites: true, exec: func(ctx context.Context, maxWrites int) (map[string]any, int, error) {
 		if maxWrites < 1 {
 			return nil, 0, rateLimited(0, "no changed items left today for this token")
 		}
-		if err := r.eventEditor.Delete(ctx, c.UserID, EventDelete{ConnectionID: conn, EventID: id, Rev: rev, Scope: scope}); err != nil {
+		if err := r.eventEditor.Delete(ctx, c.UserID, EventDelete{ConnectionID: conn, EventID: id, Rev: rev, Scope: scope, NotifyGuests: notify}); err != nil {
 			return nil, 0, eventToolError(err)
 		}
 		return map[string]any{"deleted": id}, 1, nil

@@ -30,9 +30,10 @@ var notAStep = map[string]string{
 	"update_sections":     "as reorder_sections",
 	"update_labels":       "labels are created by Create labels; renaming is the person's",
 	// An event of a connected calendar is the person's own (calendar-event-edits).
-	"create_calendar_event": "an event in a connected calendar is the person's to make; a routine acts on tasks and projects",
-	"update_calendar_event": "an event of a connected calendar is the person's to move or rename; a routine acts on tasks and projects",
-	"delete_calendar_event": "as update_calendar_event",
+	"create_calendar_event":     "an event in a connected calendar is the person's to make; a routine acts on tasks and projects",
+	"update_calendar_event":     "an event of a connected calendar is the person's to move or rename; a routine acts on tasks and projects",
+	"delete_calendar_event":     "as update_calendar_event",
+	"respond_to_calendar_event": "an answer to an invitation is the person's own; it tells the organiser, and a routine acts on tasks and projects",
 	// No routine step creates, edits, enables or runs a routine (design D11).
 	"create_routine":      "a routine never makes routines",
 	"update_routine":      "a routine never edits routines",

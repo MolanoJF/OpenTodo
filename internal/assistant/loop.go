@@ -437,7 +437,9 @@ var notInApp = map[string]bool{"update_project": true, "set_favourite": true, "c
 	// review screen can not hold them; the list tool returns event titles the
 	// assistant disclosure does not name, so a provider never gets them
 	// (calendar-event-edits D8).
-	"list_calendar_events": true, "create_calendar_event": true, "update_calendar_event": true, "delete_calendar_event": true}
+	"list_calendar_events": true, "create_calendar_event": true, "update_calendar_event": true, "delete_calendar_event": true,
+	// Answering an invitation tells the organiser: the person does it, or an external agent they allowed does (calendar-event-guests D14).
+	"respond_to_calendar_event": true}
 
 // withWorkday gives find_free_time the device's working day when the model
 // names none (assistant-time-blocks D2), so its answer matches the block.

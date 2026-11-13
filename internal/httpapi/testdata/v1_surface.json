@@ -79,8 +79,11 @@
           "every": "int",
           "for": "string",
           "free": "bool",
+          "guest": "string_list",
           "location": "string",
           "no-remind": "bool",
+          "notify-guests": "bool",
+          "online-meeting": "bool",
           "remind": "string_list",
           "repeat": "string",
           "start": "string",
@@ -95,6 +98,7 @@
           "id": "required"
         },
         "flags": {
+          "notify-guests": "bool",
           "on": "string",
           "scope": "string",
           "yes": "bool"
@@ -117,16 +121,37 @@
           "end": "string",
           "every": "int",
           "free": "bool",
+          "guest": "string_list",
           "location": "string",
+          "no-guest": "string_list",
           "no-remind": "bool",
           "no-repeat": "bool",
+          "notify-guests": "bool",
           "on": "string",
+          "online-meeting": "bool",
           "remind": "string_list",
+          "remove-guest": "string_list",
           "repeat": "string",
           "scope": "string",
           "start": "string",
           "title": "string",
           "until": "string"
+        },
+        "output": {
+          "(type)": "ref:calendar_event"
+        }
+      },
+      "calendar event respond": {
+        "args": {
+          "id": "required"
+        },
+        "flags": {
+          "maybe": "bool",
+          "no": "bool",
+          "no-tell": "bool",
+          "on": "string",
+          "scope": "string",
+          "yes": "bool"
         },
         "output": {
           "(type)": "ref:calendar_event"
@@ -1137,11 +1162,20 @@
         "(type)": "object",
         "access": "object",
         "access.delete": "boolean",
+        "access.notifies": "boolean",
         "access.reason": "string",
         "access.update": "boolean",
         "allDay": "boolean",
+        "conference": "object",
+        "conference.provider": "string",
+        "conference.url": "string",
         "end": "ref:when",
         "free": "boolean",
+        "guests": "object",
+        "guests.canRespond": "boolean",
+        "guests.count": "integer",
+        "guests.organizer": "boolean",
+        "guests.you": "string",
         "id": "string",
         "location": "string",
         "rev": "string",
@@ -2829,7 +2863,13 @@
         "end.time": "string?",
         "end.tz": "string?",
         "free": "boolean?",
+        "guests": "array?",
+        "guests[].email": "string",
+        "guests[].name": "string?",
+        "guests[].optional": "boolean?",
         "location": "string?",
+        "notify_guests": "boolean?",
+        "online_meeting": "boolean?",
         "reminders": "array?",
         "repeat": "object?",
         "repeat.by": "string?",
@@ -2962,6 +3002,7 @@
       "arguments": {
         "connection_id": "string",
         "event_id": "string",
+        "notify_guests": "boolean?",
         "rev": "string",
         "scope": "string?"
       },
@@ -3032,6 +3073,7 @@
     "list_calendar_events": {
       "arguments": {
         "from": "string",
+        "include_guests": "boolean?",
         "to": "string"
       },
       "kind": "read"
@@ -3300,6 +3342,17 @@
       },
       "kind": "write"
     },
+    "respond_to_calendar_event": {
+      "arguments": {
+        "connection_id": "string",
+        "event_id": "string",
+        "response": "string",
+        "rev": "string",
+        "scope": "string?",
+        "send_response": "boolean?"
+      },
+      "kind": "write"
+    },
     "run_routine": {
       "arguments": {
         "note_id": "string?",
@@ -3435,7 +3488,15 @@
         "end.tz": "string?",
         "event_id": "string",
         "free": "boolean?",
+        "guests": "object?",
+        "guests.add": "array?",
+        "guests.add[].email": "string",
+        "guests.add[].name": "string?",
+        "guests.add[].optional": "boolean?",
+        "guests.remove": "array?",
         "location": "string?",
+        "notify_guests": "boolean?",
+        "online_meeting": "boolean?",
         "reminders": "array?",
         "repeat": "object|null?",
         "repeat.by": "string?",

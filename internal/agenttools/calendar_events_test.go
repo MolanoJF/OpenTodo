@@ -19,6 +19,9 @@ type fakeEditor struct {
 	seen         map[string]EventOutcome
 	deletes      []string
 	deleteScopes []string
+	deleteNotify []bool
+	replies      []EventReply
+	people       map[string]EventGuestList
 	err          error
 	// validate, when set, is what Validate answers.
 	validate error
@@ -59,7 +62,26 @@ func (f *fakeEditor) Delete(_ context.Context, uid string, d EventDelete) error 
 	}
 	f.deletes = append(f.deletes, d.ConnectionID+"/"+d.EventID+"@"+d.Rev)
 	f.deleteScopes = append(f.deleteScopes, d.Scope)
+	f.deleteNotify = append(f.deleteNotify, d.NotifyGuests)
 	return nil
+}
+
+func (f *fakeEditor) ValidateRespond(EventReply) error { return f.validate }
+func (f *fakeEditor) Respond(_ context.Context, uid string, r EventReply) (EventOutcome, error) {
+	if f.err != nil {
+		return EventOutcome{}, f.err
+	}
+	f.replies = append(f.replies, r)
+	return EventOutcome{Replaces: r.EventID, Event: CalendarEvent{ID: "answered", ConnectionID: r.ConnectionID, Rev: "r3", Title: "Planning"}}, nil
+}
+func (f *fakeEditor) GuestLists(_ context.Context, _ string, ids []string) (map[string]EventGuestList, error) {
+	out := map[string]EventGuestList{}
+	for _, id := range ids {
+		if l, ok := f.people[id]; ok {
+			out[id] = l
+		}
+	}
+	return out, nil
 }
 
 func eventFixture(t *testing.T) (*fixture, *fakeEditor) {
@@ -140,7 +162,7 @@ func TestCalendarEventWritesNeedTheGate(t *testing.T) {
 	} {
 		c := agent("u1")
 		mod(&c)
-		for _, tool := range []string{"update_calendar_event", "delete_calendar_event"} {
+		for _, tool := range []string{"update_calendar_event", "delete_calendar_event", "respond_to_calendar_event"} {
 			if _, err := f.call(c, tool, moveArgs); toolCode0(t, err) != name {
 				t.Fatalf("%s %s: %v", tool, name, err)
 			}

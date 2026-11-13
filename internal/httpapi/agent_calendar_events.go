@@ -46,7 +46,8 @@ func calRepeatOf(r *agenttools.EventRepeat) *calfeed.Repeat {
 
 func eventPatchOf(u agenttools.EventUpdate) eventPatch {
 	p := eventPatch{Rev: u.Rev, Summary: u.Summary, Start: eventPointOf(u.Start), End: eventPointOf(u.End), AllDay: u.AllDay,
-		Location: u.Location, Description: u.Description, Free: u.Free, Reminders: u.Reminders}
+		Location: u.Location, Description: u.Description, Free: u.Free, Reminders: u.Reminders,
+		Guests: guestsPatchOf(u.Guests), NotifyGuests: u.NotifyGuests, OnlineMeeting: u.OnlineMeeting}
 	if u.Scope != "" {
 		p.Scope = &u.Scope
 	}
@@ -57,7 +58,7 @@ func eventPatchOf(u agenttools.EventUpdate) eventPatch {
 // Validate applies the PATCH route's body rules.
 func (calendarEventEditor) Validate(u agenttools.EventUpdate) error {
 	if _, field, msg := eventPatchOf(u).editOf(); field != "" {
-		return &agenttools.ArgError{Msg: field + ": " + msg}
+		return &agenttools.ArgError{Msg: toolFieldMessage(field, msg)}
 	}
 	return nil
 }
@@ -72,7 +73,7 @@ func (calendarEventEditor) toolError(err error) error {
 	case calsync.EventScopeRequired:
 		return toolCode("scope_required", "this event repeats (it has a series in list_calendar_events): say which events the change is for with scope: this (only that occurrence), following (it and every later one) or all (every occurrence)")
 	case calsync.EventInvalid:
-		return toolCode("invalid_input", ee.Reason+": "+invalidReason(ee.Reason))
+		return toolInvalid(ee.Reason)
 	case calsync.EventNotFound:
 		return toolCode("not_found", "calendar event not found")
 	case calsync.EventEditsOff:
@@ -97,7 +98,7 @@ func (e calendarEventEditor) Update(ctx context.Context, uid string, u agenttool
 	}
 	edit, field, msg := eventPatchOf(u).editOf()
 	if field != "" {
-		return agenttools.EventOutcome{}, &agenttools.ArgError{Msg: field + ": " + msg}
+		return agenttools.EventOutcome{}, &agenttools.ArgError{Msg: toolFieldMessage(field, msg)}
 	}
 	if !e.s.calsyncEventLimiter.allow(uid) {
 		return agenttools.EventOutcome{}, toolCode("rate_limited", "too many calendar event changes; try again later")
@@ -106,7 +107,7 @@ func (e calendarEventEditor) Update(ctx context.Context, uid string, u agenttool
 	if err != nil {
 		return agenttools.EventOutcome{}, e.toolError(err)
 	}
-	e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, u.ConnectionID, res.Provider, "updated", string(edit.Scope)))
+	e.s.audit.Record(ctx, audit.CalendarEventChangedNotified(uid, u.ConnectionID, res.Provider, "updated", string(edit.Scope), res.Notified))
 	out := eventOfRow(res.Event, res.ConnectionID)
 	return agenttools.EventOutcome{Event: out, Replaces: res.Replaces}, nil
 }
@@ -122,11 +123,11 @@ func (e calendarEventEditor) Delete(ctx context.Context, uid string, d agenttool
 	if d.Scope != "" && !scope.Valid() {
 		return &agenttools.ArgError{Msg: "scope: " + scopeValues}
 	}
-	res, err := e.s.calsync.DeleteEvent(ctx, uid, d.ConnectionID, d.EventID, d.Rev, scope, false)
+	res, err := e.s.calsync.DeleteEvent(ctx, uid, d.ConnectionID, d.EventID, d.Rev, scope, d.NotifyGuests)
 	if err != nil {
 		return e.toolError(err)
 	}
-	e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, d.ConnectionID, res.Provider, "deleted", d.Scope))
+	e.s.audit.Record(ctx, audit.CalendarEventChangedNotified(uid, d.ConnectionID, res.Provider, "deleted", d.Scope, res.Notified))
 	return nil
 }
 
@@ -153,8 +154,8 @@ func (e calendarEventEditor) Events(ctx context.Context, uid, from, to string) (
 	for _, row := range rows {
 		conn := ""
 		if l, ok := links[row.SubscriptionID]; ok && row.Managed {
-			a := calsync.AccessOf(l.conn, l.calendar, row)
-			row.Access, conn = &a, l.conn.ID
+			calsync.Decorate(l.conn, l.calendar, &row)
+			conn = l.conn.ID
 		}
 		out = append(out, eventOfRow(row, conn))
 	}
@@ -180,19 +181,21 @@ func eventOfRow(row calfeed.EventRow, connID string) agenttools.CalendarEvent {
 	if row.Access != nil {
 		e.Access = &agenttools.EventAccess{Update: row.Access.Update, Delete: row.Access.Delete, Reason: row.Access.Reason}
 	}
+	withGuestSummary(&e, row)
 	return e
 }
 
 func eventCreateOf(c agenttools.EventCreate) eventCreate {
 	return eventCreate{ClientID: c.ClientID, CalendarURL: c.CalendarURL, Summary: c.Summary,
 		Start: eventPointOf(&c.Start), End: eventPointOf(&c.End), AllDay: c.AllDay, Location: c.Location, Description: c.Description, Free: c.Free,
-		Repeat: repeatField{Set: c.Repeat != nil, Rule: calRepeatOf(c.Repeat)}, Reminders: c.Reminders}
+		Repeat: repeatField{Set: c.Repeat != nil, Rule: calRepeatOf(c.Repeat)}, Reminders: c.Reminders,
+		Guests: guestInputsOf(c.Guests), NotifyGuests: c.NotifyGuests, OnlineMeeting: c.OnlineMeeting}
 }
 
 // ValidateCreate applies the POST route's body rules.
 func (calendarEventEditor) ValidateCreate(c agenttools.EventCreate) error {
 	if _, field, msg := eventCreateOf(c).eventOf(); field != "" {
-		return &agenttools.ArgError{Msg: field + ": " + msg}
+		return &agenttools.ArgError{Msg: toolFieldMessage(field, msg)}
 	}
 	return nil
 }
@@ -205,7 +208,7 @@ func (e calendarEventEditor) Create(ctx context.Context, uid string, c agenttool
 	}
 	ev, field, msg := eventCreateOf(c).eventOf()
 	if field != "" {
-		return agenttools.EventOutcome{}, &agenttools.ArgError{Msg: field + ": " + msg}
+		return agenttools.EventOutcome{}, &agenttools.ArgError{Msg: toolFieldMessage(field, msg)}
 	}
 	if !e.s.calsyncEventLimiter.allow(uid) {
 		return agenttools.EventOutcome{}, toolCode("rate_limited", "too many calendar event changes; try again later")
@@ -219,7 +222,7 @@ func (e calendarEventEditor) Create(ctx context.Context, uid string, c agenttool
 		return agenttools.EventOutcome{}, e.toolError(err)
 	}
 	if res.Created {
-		e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, c.ConnectionID, res.Provider, "created", ""))
+		e.s.audit.Record(ctx, audit.CalendarEventChangedNotified(uid, c.ConnectionID, res.Provider, "created", "", res.Notified))
 	}
 	return agenttools.EventOutcome{Event: eventOfRow(res.Event, res.ConnectionID), Replayed: !res.Created}, nil
 }
