@@ -21,6 +21,7 @@ type calFake struct {
 	status int      // status of PATCH, POST and DELETE (0: success)
 	conns  string   // body of GET /calendar-sync/connections (default: one writable calendar)
 	code   string
+	events string // body of GET /calendar-feeds/events (default eventsJSON)
 }
 
 const eventsJSON = `{"events":[
@@ -53,6 +54,10 @@ func newCalHarness(t *testing.T, scope string) (*harness, *calFake) {
 			_, _ = w.Write([]byte(body))
 			return
 		case r.URL.Path == "/api/v1/calendar-feeds/events":
+			if f.events != "" {
+				_, _ = w.Write([]byte(f.events))
+				return
+			}
 			_, _ = w.Write([]byte(eventsJSON))
 			return
 		}

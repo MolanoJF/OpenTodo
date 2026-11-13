@@ -75,3 +75,56 @@ func isToolCode(err error, code string) bool {
 	var te *agenttools.ToolError
 	return errors.As(err, &te) && te.Code == code
 }
+
+// Scope, repeat and reminders through the agent editor (calendar-event-series
+// task 6.1): the events carry their series, a change of an occurrence needs a
+// scope, and the audit event records it.
+func TestAgentEditorSeries(t *testing.T) {
+	v := newSeriesEnv(t)
+	var uid string
+	if err := v.e.db.QueryRow(`SELECT id FROM users LIMIT 1`).Scan(&uid); err != nil {
+		t.Fatal(err)
+	}
+	ed, ctx := calendarEventEditor{v.srv}, context.Background()
+	occ := v.occurrence("Daily", 3)
+	id, rev := occ["id"].(string), occ["rev"].(string)
+
+	events, err := ed.Events(ctx, uid, v.day, v.day)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var daily *agenttools.EventSeries
+	for _, e := range events {
+		if e.Title == "Daily" {
+			daily = e.Series
+		}
+	}
+	if daily == nil || !daily.Repeats || daily.ID == "" || daily.Custom || daily.Repeat == nil || daily.Repeat.Freq != "daily" || !daily.First {
+		t.Fatalf("series = %+v", daily)
+	}
+
+	title := "Renamed"
+	if _, err := ed.Update(ctx, uid, agenttools.EventUpdate{ConnectionID: v.connID, EventID: id, Rev: rev, Summary: &title}); !isToolCode(err, "scope_required") {
+		t.Fatalf("without scope: %v", err)
+	}
+	bad := agenttools.EventUpdate{ConnectionID: v.connID, EventID: id, Rev: rev, Scope: "this", RepeatSet: true, Repeat: &agenttools.EventRepeat{Freq: "weekly"}}
+	var ae *agenttools.ArgError
+	if err := ed.Validate(bad); !errors.As(err, &ae) {
+		t.Fatalf("repeat with this validated: %v", err)
+	}
+	rems := []int{30}
+	out, err := ed.Update(ctx, uid, agenttools.EventUpdate{ConnectionID: v.connID, EventID: id, Rev: rev, Scope: "all", Reminders: &rems})
+	if err != nil || out.Event.ID == "" {
+		t.Fatalf("update all = %+v %v", out, err)
+	}
+	list := v.e.events(audit.CalendarEventChangedName)
+	if last := list[len(list)-1]; last.Details["event_action"] != "updated" || last.Details["event_scope"] != "all" {
+		t.Fatalf("audit = %+v", last)
+	}
+	if err := ed.Delete(ctx, uid, agenttools.EventDelete{ConnectionID: v.connID, EventID: id, Rev: "x", Scope: "nope"}); !errors.As(err, &ae) {
+		t.Fatalf("bad delete scope: %v", err)
+	}
+	if err := ed.Delete(ctx, uid, agenttools.EventDelete{ConnectionID: v.connID, EventID: id, Rev: "stale"}); !isToolCode(err, "scope_required") && !isToolCode(err, "event_changed") {
+		t.Fatalf("delete without scope: %v", err)
+	}
+}

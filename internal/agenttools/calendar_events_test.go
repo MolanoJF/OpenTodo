@@ -12,13 +12,14 @@ import (
 
 // fakeEditor stands in for the server's EventEditor.
 type fakeEditor struct {
-	events  []CalendarEvent
-	updates []EventUpdate
-	creates []EventCreate
-	cals    []EventCalendar
-	seen    map[string]EventOutcome
-	deletes []string
-	err     error
+	events       []CalendarEvent
+	updates      []EventUpdate
+	creates      []EventCreate
+	cals         []EventCalendar
+	seen         map[string]EventOutcome
+	deletes      []string
+	deleteScopes []string
+	err          error
 	// validate, when set, is what Validate answers.
 	validate error
 }
@@ -52,11 +53,12 @@ func (f *fakeEditor) Update(_ context.Context, uid string, u EventUpdate) (Event
 	f.updates = append(f.updates, u)
 	return EventOutcome{Replaces: u.EventID, Event: CalendarEvent{ID: "new-id", ConnectionID: u.ConnectionID, Rev: "r2", Title: "Moved"}}, nil
 }
-func (f *fakeEditor) Delete(_ context.Context, uid, conn, id, rev string) error {
+func (f *fakeEditor) Delete(_ context.Context, uid string, d EventDelete) error {
 	if f.err != nil {
 		return f.err
 	}
-	f.deletes = append(f.deletes, conn+"/"+id+"@"+rev)
+	f.deletes = append(f.deletes, d.ConnectionID+"/"+d.EventID+"@"+d.Rev)
+	f.deleteScopes = append(f.deleteScopes, d.Scope)
 	return nil
 }
 

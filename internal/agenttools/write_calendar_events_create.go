@@ -17,7 +17,7 @@ func init() {
 	register(tool{def: func(Caller) Definition {
 		return writeDef("create_calendar_event", "Create a calendar event",
 			"Add one event to a connected calendar. Choose the calendar from the calendars array of list_calendar_events (connection_id and calendar_url, can_create true). "+
-				"start and end are {date, time, tz}; an all-day event takes dates only, its end being the day after its last day. Optional: location, description (plain text), free (true: the user shows as free). "+
+				"start and end are {date, time, tz}; an all-day event takes dates only, its end being the day after its last day. Optional: location, description (plain text), free (true: the user shows as free), repeat (makes a repeating event) and reminders. A new event takes no scope. "+
 				"It works only when the user turned on editing events for that connection; no invitation is ever sent. "+
 				"client_id is an optional key of 8 to 64 letters, digits, - or _: reuse it when you retry, and the event is made once. The answer holds the event with its id and rev.",
 			object([]string{"connection_id", "calendar_url", "title", "start", "end"}, map[string]any{
@@ -30,6 +30,7 @@ func init() {
 				"description": map[string]any{"type": "string", "maxLength": 10000, "description": "Plain text."},
 				"free":        map[string]any{"type": "boolean", "description": "true: shown as free; default busy."},
 				"client_id":   map[string]any{"type": "string", "minLength": 8, "maxLength": 64, "description": "Idempotency key; reuse it when retrying."},
+				"repeat":      repeatProp(false), "reminders": remindersProp,
 			}), false, true, nil, false)
 	}, plan: (*Registry).planCreateCalendarEvent})
 }
@@ -37,7 +38,7 @@ func init() {
 // eventCreate reads create_calendar_event's arguments.
 func (a args) eventCreate() (EventCreate, error) {
 	var c EventCreate
-	if err := a.only("", "connection_id", "calendar_url", "title", "start", "end", "all_day", "location", "description", "free", "client_id"); err != nil {
+	if err := a.only("", "connection_id", "calendar_url", "title", "start", "end", "all_day", "location", "description", "free", "client_id", "repeat", "reminders"); err != nil {
 		return c, err
 	}
 	var err error
@@ -84,6 +85,16 @@ func (a args) eventCreate() (EventCreate, error) {
 	}
 	if c.ClientID == "" {
 		c.ClientID = newClientID()
+	}
+	var set bool
+	if c.Repeat, set, err = a.eventRepeat(); err != nil {
+		return c, err
+	}
+	_ = set // null means no repeat
+	if r, err := a.eventReminders(); err != nil {
+		return c, err
+	} else if r != nil {
+		c.Reminders = *r
 	}
 	return c, nil
 }

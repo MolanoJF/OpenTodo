@@ -565,6 +565,17 @@ Web (`npm test`, `npm run build` in `web/`): `eventScope.test.ts` (which scopes 
 8. **Exceptions after a split follow the new series.** If feedback says people expect them to stay, they can be dropped instead with a one-function change and a spec edit.
 9. **A long series on a very large object.** The 256 KiB and 400-event limits lock it as `series_unsupported`; raise them if real calendars hit them.
 
+## As built (group 6)
+
+Agent tools and CLI. Where this differs from D13, this section wins.
+
+- **Tools.** `update_calendar_event` and `delete_calendar_event` take `scope` (an enum of the three values); `update_calendar_event` and `create_calendar_event` take `repeat` and `reminders`. `EventEditor.Delete` now takes an `EventDelete{ConnectionID, EventID, Rev, Scope}`; `EventUpdate` has `Scope`, `RepeatSet`/`Repeat` (omitted, object, or null) and `Reminders *[]int`; `EventCreate` has `Repeat` and `Reminders`. `list_calendar_events` rows carry `series: {id, repeats, first, custom, repeat?}` (`repeat` added to D13's shape so an agent sees the rule). The schema code is in `write_calendar_events_series.go`. The tool layer refuses an unknown scope, `repeat` with `this` and `repeat: null` with `all`; the rest (the form of the rule, the reminder limits) is `Validate`, the REST body rules.
+- **Wording.** The `scope` description is D13's text with one change: "Changing the repeat rule" reads "Changing the repeat", because `TestRulesResource` forbids the word "rule" in any tool definition.
+- **scope_required.** It stays a coded `ToolError` (`scope_required`, as group 3 mapped it) with a message that explains the three values, not an `ArgError`: the Worker raises it at write time (the editor's `Validate` has no event to look at), and a coded error is what an agent can branch on. An occurrence update or delete without scope therefore fails at the write, not at planning.
+- **Audit.** `calendar_event.changed` records `event_scope` for update and delete; create records none. No new tool: tool counts and `mcp_test.go` are unchanged, the goldens only changed in the schemas.
+- **CLI.** `--scope` (edit, delete), `--repeat daily|weekdays|weekly|monthly|yearly`, `--every`, `--days`, `--by`, `--until`, `--count`, `--remind` (repeatable: `0`, `10m`, `1h`, `1d`), `--no-remind` (add, edit), `--no-repeat` (edit only). `weekdays` is a weekly rule on mo to fr. A repeat given to `edit` is the whole new rule, as REST takes it, so `--every`, `--days`, `--by`, `--until` and `--count` without `--repeat` are a usage error. Local checks before any request: no `--scope` on an occurrence exits 2 with the three values (`scope_required`); `--scope` on a single event, `--scope this` with a repeat change, and `--no-repeat` without `following` are usage errors. The server's `scope_required` also exits 2. `ot calendar events` has a REPEATS column (`weekly`, `every 2 weeks`, `custom`, empty). `--remind-at` for all-day reminders (D13) is not built: the reminders are minutes, and the all-day presets of the editor are a client convenience.
+- **Not done.** Completion needed no code: the scripts take flags from the schema, which was regenerated (`internal/cli/testdata/schema.golden.json`, `internal/httpapi/testdata/v1_surface.json`).
+
 ## As built (groups 4–5)
 
 Web half, in the order of the tasks. Where this differs from D1, D3, D11, D12 and D15, this section wins.

@@ -35,7 +35,9 @@ type calEvent struct {
 	End            calWhen `json:"end"`
 	AllDay         bool    `json:"allDay"`
 	Rev            string  `json:"rev"`
-	Access         *struct {
+	// Series is set for an occurrence of a repeating event.
+	Series *calSeries `json:"series"`
+	Access *struct {
 		Update bool   `json:"update"`
 		Delete bool   `json:"delete"`
 		Reason string `json:"reason"`
@@ -181,9 +183,9 @@ func calendarEvents(a *App, ctx context.Context, g *globalFlags, args []string) 
 		fmt.Fprintln(a.Stdout, "No events.")
 		return nil
 	}
-	tbl := newTable("ID", "DATE", "TIME", "TITLE", "CALENDAR", "ACCESS")
+	tbl := newTable("ID", "DATE", "TIME", "TITLE", "REPEATS", "CALENDAR", "ACCESS")
 	for _, r := range rows {
-		tbl.add(cell{text: shortID(r.ID), style: styleCyan}, plain(r.Start.Date), plain(r.timeText()), plain(r.name()), plain(r.Calendar), plain(r.accessText()))
+		tbl.add(cell{text: shortID(r.ID), style: styleCyan}, plain(r.Start.Date), plain(r.timeText()), plain(r.name()), plain(r.Series.repeatText()), plain(r.Calendar), plain(r.accessText()))
 	}
 	tbl.render(a.Stdout, a.color())
 	return nil
@@ -249,18 +251,28 @@ func calendarEventEdit(a *App, ctx context.Context, g *globalFlags, args []strin
 	desc := fs.String("description", "", "new description, plain text; it replaces the whole text (\"\" clears it)")
 	free := fs.Bool("free", false, "show you as free during the event")
 	busy := fs.Bool("busy", false, "show you as busy during the event")
+	var sf seriesFlags
+	sf.bind(fs, true, true, true)
 	pos, err := a.parse(g, fs, "calendar event edit", args)
 	if err != nil {
 		return a.helpOr("calendar", err)
 	}
 	given := map[string]bool{}
 	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
-	changes := *title != "" || *start != "" || *end != "" || *allDay || given["location"] || given["description"] || *free || *busy
+	changes := *title != "" || *start != "" || *end != "" || *allDay || given["location"] || given["description"] || *free || *busy || sf.repeatGiven() || sf.noRepeat || sf.noRemind || len(sf.remind) > 0
 	if len(pos) != 1 || !changes {
-		return usageErr("usage: ot calendar event edit <id> [--title <t>] [--start DATE[Thh:mm]] [--end DATE[Thh:mm]] [--all-day] [--location <t>] [--description <t>] [--free | --busy]")
+		return usageErr("usage: ot calendar event edit <id> [--title <t>] [--start DATE[Thh:mm]] [--end DATE[Thh:mm]] [--all-day] [--location <t>] [--description <t>] [--free | --busy] [--scope this|following|all] [--repeat daily|weekdays|weekly|monthly|yearly [--every N] [--days mo,we] [--by monthday|weekday] [--until DATE | --count N] | --no-repeat] [--remind 10m]... [--no-remind]")
 	}
 	if *free && *busy {
 		return usageErr("give --free or --busy, not both")
+	}
+	rule, err := a.repeatBody(&sf)
+	if err != nil {
+		return err
+	}
+	reminders, err := remindersBody(&sf)
+	if err != nil {
+		return err
 	}
 	c, _, err := a.connect(g)
 	if err != nil {
@@ -274,7 +286,11 @@ func calendarEventEdit(a *App, ctx context.Context, g *globalFlags, args []strin
 	if err != nil {
 		return err
 	}
+	if err := needScope(ev, &sf, rule != nil, sf.noRepeat); err != nil {
+		return err
+	}
 	body := map[string]any{"rev": ev.Rev}
+	sf.apply(body, rule, reminders)
 	if *title != "" {
 		body["summary"] = *title
 	}
@@ -318,12 +334,14 @@ func calendarEventDelete(a *App, ctx context.Context, g *globalFlags, args []str
 	yes := fs.Bool("yes", false, "do not ask for confirmation")
 	fs.BoolVar(yes, "y", false, "do not ask for confirmation")
 	on := fs.String("on", "", "a day near the event, when it is more than 45 days from today")
+	var sf seriesFlags
+	sf.bind(fs, true, false, false)
 	pos, err := a.parse(g, fs, "calendar event delete", args)
 	if err != nil {
 		return a.helpOr("calendar", err)
 	}
 	if len(pos) != 1 {
-		return usageErr("usage: ot calendar event delete <id> [--yes]")
+		return usageErr("usage: ot calendar event delete <id> [--scope this|following|all] [--yes]")
 	}
 	c, _, err := a.connect(g)
 	if err != nil {
@@ -337,6 +355,9 @@ func calendarEventDelete(a *App, ctx context.Context, g *globalFlags, args []str
 	if err != nil {
 		return err
 	}
+	if err := needScope(ev, &sf, false, false); err != nil {
+		return err
+	}
 	a.target(pos[0], ev.ID, ev.name(), "deleted")
 	if !*yes && !a.dryRun() {
 		ok, err := a.confirm(fmt.Sprintf("Delete %q on %s from your calendar?", ev.name(), ev.Start.Date))
@@ -347,7 +368,7 @@ func calendarEventDelete(a *App, ctx context.Context, g *globalFlags, args []str
 			return usageErr("aborted")
 		}
 	}
-	if err := c.delete(ctx, eventPath(connID, ev.ID)+"?rev="+url.QueryEscape(ev.Rev)); err != nil {
+	if err := c.delete(ctx, eventPath(connID, ev.ID)+"?rev="+url.QueryEscape(ev.Rev)+sf.query()); err != nil {
 		return err
 	}
 	if g.json {
