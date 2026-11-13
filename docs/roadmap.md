@@ -79,6 +79,7 @@ Why each milestone exists, and the order inside it, is in [ROADMAP.md](../ROADMA
 | `outlook-calendar-sync` | Microsoft 365 and Outlook in calendar sync | Shipped in 0.20 |
 | `calendar-event-edits` | Move, resize, rename and delete the events of a connected calendar in Day and Week, off until turned on per connection; the calendar stays the source of truth (built and verified against Radicale; proposed in #1233) | Shipped |
 | `calendar-event-editor` | Add events to a connected calendar from Day and Week, edit all their details in a side panel, duplicate them and turn them into tasks; off until turned on per connection (built and verified against Radicale; proposed in #1233) | Shipped |
+| `calendar-event-series` | Change repeating events of a connected calendar for this event, this and following events or all events, and set their repeat and reminders in the editor (built; proposed in #1233) | In progress (32 of 38) |
 | `play-production` | Google Play production, F-Droid and reproducible builds: reproducible builds, the F-Droid metadata and the Play upload are in; the store listings wait for the owner's Play Console and F-Droid steps | In progress (13 of 18) |
 | `agent-tools-complete` | Agent and MCP tools for reminders, project notes, sections, fields, time and Focus | Shipped in 0.20 |
 | `theme-engine` | A documented theme format, tokens derived from a few seeds, applied before the first paint, chosen per light and dark side and synced, with a contrast gate; OpenTodo Light and Dark become themes | Shipped in 0.21 |

@@ -26,7 +26,7 @@ With such a calendar, adding on the [Day or Week](calendar-views.md) asks **Task
 
 The event opens in a side panel (a sheet on a phone) with its title, **All day**, start and end, **Time zone**, **Calendar**, **Location**, **Description** (plain text) and **Show as** Busy or Free. Choose **Add event**, or press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> (<kbd>⌘</kbd>+<kbd>Enter</kbd>). A toast confirms and offers **Undo**.
 
-The new event is written to your calendar by the server, so it shows in your calendar app and on your other devices. It carries no reminder and invites nobody.
+The new event is written to your calendar by the server, so it shows in your calendar app and on your other devices. It invites nobody. Set a repeat and reminders in the editor: [Change repeating calendar events](repeating-calendar-events.md).
 
 Open an existing event the same way, with a double-click on it, or **All details** in its popover. Change what you like and choose **Save**; a toast offers **Undo**. The description is read from your calendar when the panel opens. If it has formatting the editor can't keep, it is shown but not changed.
 
@@ -34,11 +34,11 @@ Open an existing event the same way, with a double-click on it, or **All details
 
 The panel's **More actions** menu has two more moves:
 
-- **Duplicate** opens a new event with the same title, times, location and description, in the same calendar. Guests and reminders are not copied, and a repeating event is copied as one occurrence.
+- **Duplicate** opens a new event with the same title, times, location and description, in the same calendar. Guests, reminders and the repeat are not copied.
 - **Convert to task…** makes a task from the event, in the Inbox: its title, its notes with the location, and its time and length. The switch **Delete the event from your calendar** is on by default, since a timed task and its event would otherwise both be in your calendar. **Undo** within 8 seconds moves the task to the Trash and keeps the event; after that the event is gone from your calendar.
 
 ## Offline, and what is not here
 
 Offline, the event shows at once and is added when you are back online, once. If your calendar refuses it, a toast offers **Edit again** with what you typed.
 
-Repeating events, reminders, guests and links to a video call are not part of this; the same [limits as editing](calendar-sync.md#what-stays-read-only) apply. Assistants and scripts can add events too: [`create_calendar_event`](mcp.md#write-tools) and [`ot calendar event add`](cli.md#calendar-events).
+Guests and links to a video call are not part of this; the same [limits as editing](calendar-sync.md#what-stays-read-only) apply. Assistants and scripts can add events too: [`create_calendar_event`](mcp.md#write-tools) and [`ot calendar event add`](cli.md#calendar-events).

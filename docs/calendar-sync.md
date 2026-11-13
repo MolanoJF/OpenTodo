@@ -56,7 +56,7 @@ With it on, an event in a calendar of that connection can be:
 - **Created**: add an event in a calendar of the connection, below.
 - **Deleted**: select it and press <kbd>Delete</kbd>, or choose **Delete** in its popover.
 
-A change is written to your calendar by the server, so it shows in your calendar app and on your other devices. A toast says what happened and offers **Undo**. For 8 seconds after a delete nothing has been sent and Undo brings the event back; after that a deleted event is gone from your calendar. Alarms, guests and everything else the editor does not show stay as your calendar has them, and nobody is invited or notified.
+A change is written to your calendar by the server, so it shows in your calendar app and on your other devices. A toast says what happened and offers **Undo**. For 8 seconds after a delete nothing has been sent and Undo brings the event back; after that a deleted event is gone from your calendar. Guests and everything else the editor does not show stay as your calendar has them, and nobody is invited or notified.
 
 ### Add events and edit all their details
 
@@ -64,14 +64,30 @@ In Day and Week, adding at a time asks **Task** or **Event** once at least one c
 
 The editor, a side panel from 1024 px wide and a sheet on a phone, holds the title, **All day**, start and end, **Time zone**, **Calendar**, **Location**, **Description** (plain text, up to 10,000 characters) and **Show as** Busy or Free. A description with formatting (Outlook) is shown as plain text and left unchanged. The calendar of an existing event can't be changed; **Duplicate** it into another calendar instead. Duplicate copies the title, times, zone, location, description and Busy or Free as one single event, never guests, reminders or links, and works for read-only events too. **Convert to task…** makes a task in the Inbox from the event's title, description and location, time and length, and by default deletes the event from your calendar; one **Undo** reverses both, as long as the 8 seconds before the delete is sent have not passed.
 
-Offline, an added event shows at once and is created when the device is back online. It is made once even if the connection drops mid-way. If your calendar refuses it, a toast offers **Edit again** with what you typed. Repeating events, reminders and guests are not created or edited here.
+Offline, an added event shows at once and is created when the device is back online. It is made once even if the connection drops mid-way. If your calendar refuses it, a toast offers **Edit again** with what you typed. The editor also sets the [repeat and reminders](#repeating-events-and-reminders); guests are not created or edited here.
+
+### Repeating events and reminders
+
+A repeating event can be changed too. Move or resize one occurrence, rename it, change it in the editor or delete it, and a small menu asks **Which events?** (the steps are in [Change repeating calendar events](repeating-calendar-events.md)).
+
+- **This event.** Only that one changes. The rest of the series is untouched; a deleted occurrence is skipped. Your calendar app shows it as a changed or removed occurrence.
+- **This and following events.** That one and every later one change. The series is split in two: the earlier events stay exactly as they were, and a new series starts at this one. There is **no Undo** for this, and the two halves can't be joined again. It isn't offered on the first occurrence, where it would mean the same as **All events**.
+- **All events.** Every occurrence, past and future. Moving the time moves them all. Occurrences you changed one by one keep their own day. Moving all events to another day works for daily and weekly repeats, not monthly or yearly ones; the menu says so.
+
+The menu appears after a drag, after the arrow keys stop for a moment, after a rename and on **Save** and **Delete**. <kbd>Esc</kbd> or a click outside cancels and the event goes back. A change for **This event** shows at once; the others show the block saving, then the calendar is read again. Delete keeps the 8 seconds of **Undo** for every choice, after which it is sent.
+
+In the editor, **Repeat** offers Does not repeat, Every day, Every weekday, Every week on a chosen day, Every month on the day or on the weekday (for example the second Tuesday), Every year, and **Custom…**: every 1 to 99 days, weeks, months or years, on chosen weekdays, ending never, on a date or after a number of times. A repeat the editor can't represent is shown as **Custom repeat**, read-only, and every other field still works. Changing the repeat needs **This and following** or **All events**, and resets occurrences you had changed individually.
+
+**Reminders** are a list of "time before" values, up to five. Your calendar app sends them, not OpenTodo, so nothing new reaches your devices from here. Outlook takes one. Google may still send the calendar's default reminders for an event that has none.
+
+Google and CalDAV calendars keep the series and its changed occurrences in one object and everything the editor doesn't show with it. On Outlook and Microsoft 365, changing the times or repeat of **All events** drops the occurrences you changed individually, and a series can't be set to stop repeating here. **This and following** is refused for a series with attachments or an online meeting, because the new series would lose them.
 
 ### What stays read-only
 
 An event can't be changed here, and its popover says why, when:
 
-- **It repeats.** Events of a series and single occurrences are read-only for now.
-- **It has guests.** Changing it would send updates to other people.
+- **Its repeat is too complex to change here.** Your calendar holds extra dates, an exclusion rule, more than one rule, a rule OpenTodo doesn't read (hourly, or by hour or day of the year), a change that applies to "this and all following", an occurrence moved onto a day the repeat doesn't have, a time zone it can't read, or a series with more than 400 events or 256 KiB. Rewriting it could lose something, so it is left as it is.
+- **It has guests**, in the event or in any occurrence of its series. Changing it would send updates to other people.
 - **You are not its organiser** (Outlook and Microsoft 365).
 - **Its calendar is read-only** in your account (holidays, calendars shared with you to view). The connection card lists them.
 - **The switch is off** for the connection.
@@ -219,8 +235,8 @@ The server cannot read an encrypted account's titles and notes. With encryption 
 
 - Up to 3 calendar accounts per person; one calendar to write into and up to 10 shown per account.
 - Up to 200 events written or removed per check; the rest follows about 20 seconds later.
-- Repeating tasks are written as their next occurrence, not as a series. Alarms, attendees and invitations are not written.
-- Editing and creating events: at most 600 changes per person an hour; a title is at most 500 characters, a location 500 and a description 10,000; repeating events, events with guests and events you don't organise are read-only (see [Edit events in OpenTodo](#edit-events-in-opentodo)).
+- Repeating tasks are written as their next occurrence, not as a series. Reminders (alarms), attendees and invitations are not written for tasks.
+- Editing and creating events: at most 600 changes per person an hour; a title is at most 500 characters, a location 500 and a description 10,000; events with guests, events you don't organise and repeats too complex to change are read-only (see [Edit events in OpenTodo](#edit-events-in-opentodo)).
 - Moving an event of a task you may only view in a shared project is undone: the next check writes the task's time back (for a multi-day task, its start and due dates).
 - Calendar sync is refused on a public demo instance.
 

@@ -524,6 +524,14 @@ export const OVERLAYS = {
     await p.locator('[data-event-edit]').waitFor()
     return { overlay: overlayLoc(p), trigger, kind: 'popover' }
   },
+  // The scope menu (calendar-event-series D12): a key press on an occurrence of a repeating event, once the keys settle, asks which events to change.
+  async 'event-scope-menu'(p) {
+    const trigger = p.locator('[data-event="layout-series"]')
+    await trigger.focus()
+    await p.keyboard.press('ArrowDown')
+    await p.locator('[data-event-scope]').first().waitFor({ timeout: 5000 })
+    return { overlay: overlayLoc(p), trigger, kind: 'popover' }
+  },
   // The full event editor (calendar-event-editor D11): a double-click on the event opens it, in the side panel from 1024 px and as a sheet below.
   async 'event-panel'(p) {
     const trigger = p.locator('[data-event="layout-edit"]')

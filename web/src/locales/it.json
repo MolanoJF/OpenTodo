@@ -7558,5 +7558,6 @@
   "{n, plural, one {# day before at {time}} other {# days before at {time}}}": "{n, plural, one {# day before at {time}} other {# days before at {time}}}",
   "{n, plural, one {# minute before} other {# minutes before}}": "{n, plural, one {# minute before} other {# minutes before}}",
   "{n, plural, one {# other reminder is kept} other {# other reminders are kept}}": "{n, plural, one {# other reminder is kept} other {# other reminders are kept}}",
-  "{n, plural, one {once} other {# times}}": "{n, plural, one {once} other {# times}}"
+  "{n, plural, one {once} other {# times}}": "{n, plural, one {once} other {# times}}",
+  "Choose which events of this repeating series to change: this event, this and following events, or all events.": "Choose which events of this repeating series to change: this event, this and following events, or all events."
 }
