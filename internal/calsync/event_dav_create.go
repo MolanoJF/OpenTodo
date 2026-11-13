@@ -78,11 +78,11 @@ func (e davEvents) Create(ctx context.Context, calendar string, ev EventNew) (Ev
 			etag = ge
 		}
 	}
-	obj, err := writtenOf(EventRef{Calendar: calendar, Href: href, ETag: etag}, body)
+	obj, err := e.writtenOf(EventRef{Calendar: calendar, Href: href, ETag: etag}, body)
 	if err != nil {
 		return EventState{}, err
 	}
-	st := EventState{Ref: obj.Ref, Event: obj.Events[0], Locked: obj.Locked}
+	st := obj.state()
 	if obj.Series != nil {
 		st.Wrote = SeriesWrite{Written: []WrittenObject{obj}, UID: obj.Events[0].UID, Instance: instanceOf(obj.Events[0])}
 	}
@@ -99,7 +99,7 @@ func (e davEvents) existing(ctx context.Context, calendar, href, uid string) (Ev
 		return EventState{}, &Error{Reason: ReasonHrefTaken}
 	}
 	if v, err := calfeed.ReadSeries(root); err == nil && v.Recurring {
-		if obj, err := writtenOf(st.Ref, root.Encode()); err == nil {
+		if obj, err := e.writtenOf(st.Ref, root.Encode()); err == nil {
 			st.Wrote = SeriesWrite{Written: []WrittenObject{obj}, UID: uid, Instance: instanceOf(obj.Events[0])}
 		}
 	}

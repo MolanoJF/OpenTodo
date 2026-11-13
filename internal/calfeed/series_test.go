@@ -248,17 +248,17 @@ func TestSeriesLockedFixtures(t *testing.T) {
 		"locked-guest-in-exception": LockGuests, "locked-orphan-exception": LockSeriesUnsupported, "locked-unknown-zone": LockSeriesUnsupported,
 	}
 	for name, reason := range want {
-		if got := SeriesLocked(loadFixture(t, name), `"e1"`); got != reason {
+		if got := SeriesLocked(loadFixture(t, name), `"e1"`, ""); got != reason {
 			t.Errorf("%s: locked %q, want %q (%s)", name, got, reason, unsupportedWhy(loadFixture(t, name)))
 		}
 	}
 	// The unlocked inputs of the goldens are editable.
 	for _, name := range []string{"this-move", "all-shift", "dst-crossing", "google-utc-dtstart", "google-date-series-this", "floating-this", "exception-before-master", "exdate-list-all", "duration-master-this"} {
-		if got := SeriesLocked(loadFixture(t, name), `"e1"`); got != "" {
+		if got := SeriesLocked(loadFixture(t, name), `"e1"`, ""); got != "" {
 			t.Errorf("%s: locked %q (%s)", name, got, unsupportedWhy(loadFixture(t, name)))
 		}
 	}
-	if got := SeriesLocked(loadFixture(t, "this-move"), ""); got != LockNoETag {
+	if got := SeriesLocked(loadFixture(t, "this-move"), "", ""); got != LockNoETag {
 		t.Errorf("no etag: %q", got)
 	}
 }
@@ -286,12 +286,12 @@ func TestSeriesLockedLimits(t *testing.T) {
 	}
 	// A single event is not a series and has no series reason, whatever its size.
 	single, _ := caldav.Parse([]byte("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:s\r\nDTSTART:20261001T070000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"))
-	if got := SeriesLocked(single, "e"); got != "" {
+	if got := SeriesLocked(single, "e", ""); got != "" {
 		t.Errorf("single event: %q", got)
 	}
 	// An attendee in the master.
 	guest, _ := caldav.Parse([]byte("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:s\r\nDTSTART:20261001T070000Z\r\nATTENDEE:mailto:a@b.c\r\nRRULE:FREQ=DAILY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"))
-	if got := SeriesLocked(guest, "e"); got != LockGuests {
+	if got := SeriesLocked(guest, "e", ""); got != LockGuests {
 		t.Errorf("guest: %q", got)
 	}
 }
@@ -467,8 +467,8 @@ func TestRoundTripGuard(t *testing.T) {
 	src := "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:s\r\nDTSTART:20261001T070000Z\r\nRRULE:FREQ=DAILY\r\nDESCRIPTION:" + strings.Repeat("ä\\,x ", 60) +
 		"\r\nATTACH;FMTTYPE=\"a/b;c\":https://example.org/x\r\nX-N;P=\"a,b\":v\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
 	root, err := caldav.Parse([]byte(src))
-	if err != nil || !RoundTrips(root) || SeriesLocked(root, "e") != "" {
-		t.Errorf("folded and quoted lines: %v %v %q", err, RoundTrips(root), SeriesLocked(root, "e"))
+	if err != nil || !RoundTrips(root) || SeriesLocked(root, "e", "") != "" {
+		t.Errorf("folded and quoted lines: %v %v %q", err, RoundTrips(root), SeriesLocked(root, "e", ""))
 	}
 	// Two trees that differ are not the same.
 	a, _ := caldav.Parse([]byte(src))

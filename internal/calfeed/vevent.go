@@ -51,6 +51,11 @@ type Event struct {
 	// Guests: the VEVENT has an ATTENDEE, so editing it would make the server
 	// send updates to people (calendar-event-edits D2).
 	Guests bool
+	// Organizer is the ORGANIZER's address (lower case, "" when absent or not an email
+	// address) and Attendees how many ATTENDEE properties the VEVENT has
+	// (calendar-event-guests D4); the engine functions read the tree, not these.
+	Organizer string
+	Attendees int
 	// LastModified is LAST-MODIFIED in Unix ms, 0 when absent (calendar sync
 	// compares it with the task's last change, calendar-two-way D8).
 	LastModified int64
@@ -165,6 +170,9 @@ func parseEvent(c *caldav.Component, defaultLoc *time.Location, w warnings) (Eve
 			ev.Free = strings.EqualFold(strings.TrimSpace(p.Value), "TRANSPARENT")
 		case "ATTENDEE":
 			ev.Guests = true
+			ev.Attendees++
+		case "ORGANIZER":
+			ev.Organizer = addressOf(p.Value)
 		case "SEQUENCE":
 			ev.Sequence, _ = strconv.Atoi(strings.TrimSpace(p.Value))
 		case "LAST-MODIFIED":

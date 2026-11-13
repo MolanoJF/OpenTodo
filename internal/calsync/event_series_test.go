@@ -151,7 +151,7 @@ func TestWorkerSeriesDeletesMatchACycle(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			h, c, _ := seriesHarness(t, in)
 			row := h.rowOn(c, tc.date)
-			res, err := h.w.DeleteEvent(h.ctx, "alice", c.ID, row.ID, row.Rev, tc.scope)
+			res, err := h.w.DeleteEvent(h.ctx, "alice", c.ID, row.ID, row.Rev, tc.scope, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -197,7 +197,7 @@ func TestWorkerSeriesRefusalsWriteAndCacheNothing(t *testing.T) {
 			t.Errorf("%s: %v, want %s %s", name, err, tc.code, tc.reason)
 		}
 	}
-	if _, err := h.w.DeleteEvent(h.ctx, "alice", c.ID, row.ID, row.Rev, ""); !errors.As(err, new(*EventError)) || err.(*EventError).Code != EventScopeRequired {
+	if _, err := h.w.DeleteEvent(h.ctx, "alice", c.ID, row.ID, row.Rev, "", false); !errors.As(err, new(*EventError)) || err.(*EventError).Code != EventScopeRequired {
 		t.Errorf("delete without scope: %v", err)
 	}
 	if _, err := h.w.EditEvent(h.ctx, "alice", c.ID, row.ID, "stale", EventEdit{Scope: calfeed.ScopeThis, Summary: ptr("x")}); err == nil || err.(*EventError).Code != EventChanged {

@@ -18,6 +18,18 @@ import (
 type davEvents struct {
 	d   *DAV
 	now func() time.Time
+	// owner is the user's address on a calendar (ownerAddress), "" when unknown; caps is
+	// what the connection's provider does with guests (D1).
+	owner func(calendar string) string
+	caps  GuestCaps
+}
+
+// ownerOf is the user's address on a calendar of the account, "" when unknown.
+func (e davEvents) ownerOf(calendar string) string {
+	if e.owner == nil {
+		return ""
+	}
+	return e.owner(calendar)
 }
 
 // maxDAVReminders is how many reminders the form writes to a CalDAV event.
@@ -36,7 +48,13 @@ func (e davEvents) read(ctx context.Context, ref EventRef) (EventState, *caldav.
 	if err != nil || len(cal.Events) == 0 {
 		return EventState{}, nil, &Error{Reason: ReasonInvalid}
 	}
-	st := EventState{Ref: EventRef{Calendar: ref.Calendar, Href: ref.Href, ETag: etag, Instance: ref.Instance}, Event: cal.Events[0], Locked: lockedOf(root, etag)}
+	st := EventState{Ref: EventRef{Calendar: ref.Calendar, Href: ref.Href, ETag: etag, Instance: ref.Instance}, Event: cal.Events[0], Locked: lockedOf(root, etag, e.ownerOf(ref.Calendar))}
+	if g, c := guestsOfRoot(root, ref.Instance, e.ownerOf(ref.Calendar)); g != nil || c != nil {
+		st.Conference = c
+		if g != nil {
+			st.Guests = *g
+		}
+	}
 	for _, ev := range cal.Events {
 		if ev.RecurrenceID == "" {
 			st.Event = ev
@@ -110,11 +128,11 @@ func (e davEvents) Update(ctx context.Context, ref EventRef, edit EventEdit) (Ev
 	if err != nil {
 		return EventState{}, err
 	}
-	obj, err := writtenOf(EventRef{Calendar: ref.Calendar, Href: ref.Href, ETag: etag}, body)
+	obj, err := e.writtenOf(EventRef{Calendar: ref.Calendar, Href: ref.Href, ETag: etag}, body)
 	if err != nil {
 		return EventState{}, err
 	}
-	st := EventState{Ref: obj.Ref, Event: obj.Events[0], Locked: obj.Locked}
+	st := obj.state()
 	if edit.Repeat != nil { // the event now repeats: the cache learns it as a series
 		st.Wrote = SeriesWrite{Written: []WrittenObject{obj}, UID: obj.Events[0].UID, Instance: instanceOf(obj.Events[0])}
 	}
@@ -144,12 +162,14 @@ func (e davEvents) putObject(ctx context.Context, href, etag string, body []byte
 }
 
 // writtenOf parses the body that was sent, as the cache will hold it.
-func writtenOf(ref EventRef, body []byte) (WrittenObject, error) {
+func (e davEvents) writtenOf(ref EventRef, body []byte) (WrittenObject, error) {
 	cal, root, err := calfeed.ParseCalendarRoot(body)
 	if err != nil || len(cal.Events) == 0 {
 		return WrittenObject{}, &Error{Reason: ReasonInvalid}
 	}
-	obj := WrittenObject{Ref: ref, Events: cal.Events, Locked: lockedOf(root, ref.ETag)}
+	owner := e.ownerOf(ref.Calendar)
+	obj := WrittenObject{Ref: ref, Events: cal.Events, Locked: lockedOf(root, ref.ETag, owner)}
+	obj.Guests, obj.Conference = guestsOfRoot(root, "", owner)
 	if v, err := calfeed.ReadSeries(root); err == nil {
 		obj.Series = v.Info()
 	}

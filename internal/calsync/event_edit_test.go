@@ -135,7 +135,7 @@ func TestEditEventRefusalsWriteNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	check("calendar read only", edit("alice", e.c.ID, plan.ID, plan.Rev), EventReadOnly, "")
-	_, err := e.w.DeleteEvent(e.ctx, "alice", e.c.ID, plan.ID, plan.Rev, "")
+	_, err := e.w.DeleteEvent(e.ctx, "alice", e.c.ID, plan.ID, plan.Rev, "", false)
 	check("delete on a read only calendar", err, EventReadOnly, "")
 	if got := e.srv.Get("work", "a.ics"); !strings.Contains(got, "SUMMARY:Plan") {
 		t.Fatalf("remote changed:\n%s", got)
@@ -197,7 +197,7 @@ func TestEditEventRefusedByCalendarClearsCaps(t *testing.T) {
 func TestDeleteEvent(t *testing.T) {
 	e := newEditEnv(t, true)
 	plan := e.row("Plan")
-	res, err := e.w.DeleteEvent(e.ctx, "alice", e.c.ID, plan.ID, plan.Rev, "")
+	res, err := e.w.DeleteEvent(e.ctx, "alice", e.c.ID, plan.ID, plan.Rev, "", false)
 	if err != nil || res.Replaces != plan.ID {
 		t.Fatalf("delete = %+v %v", res, err)
 	}

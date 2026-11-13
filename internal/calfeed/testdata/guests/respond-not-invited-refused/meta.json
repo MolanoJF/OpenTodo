@@ -1,0 +1,6 @@
+{
+  "kind": "respond",
+  "owner": "someone@example.com",
+  "response": "accepted",
+  "error": "ErrNotInvited"
+}

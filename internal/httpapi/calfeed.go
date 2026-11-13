@@ -46,6 +46,7 @@ func (s *Server) registerCalendarFeedRoutes(mux *routes) {
 	mux.handle("DELETE /api/v1/calendar-feeds/subscriptions/{id}", signedIn.DemoDenied(), s.feedsGate(s.handleDeleteSubscription))
 	mux.handle("POST /api/v1/calendar-feeds/subscriptions/{id}/refresh", signedIn.DemoDenied(), s.feedsGate(s.handleRefreshSubscription))
 	mux.handle("GET /api/v1/calendar-feeds/events", signedIn.DemoDenied(), s.eventsGate(s.handleCalendarEvents))
+	mux.handle("GET /api/v1/calendar-feeds/events/{eventId}/guests", signedIn.DemoDenied(), s.eventsGate(s.handleEventGuests))
 	mux.handle("GET /api/v1/calendar-feeds/feed", signedIn.DemoDenied(), s.feedsGate(s.handleGetFeed))
 	mux.handle("POST /api/v1/calendar-feeds/feed", signedIn.Recent().DemoDenied(), s.feedsGate(s.handleRotateFeed))
 	mux.handle("DELETE /api/v1/calendar-feeds/feed", signedIn.DemoDenied(), s.feedsGate(s.handleRevokeFeed))
@@ -268,8 +269,7 @@ func (s *Server) handleCalendarEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	for i := range events {
 		if l, ok := links[events[i].SubscriptionID]; ok && events[i].Managed {
-			a := calsync.AccessOf(l.conn, l.calendar, events[i])
-			events[i].Access = &a
+			calsync.Decorate(l.conn, l.calendar, &events[i])
 		}
 	}
 	type subInfo struct {
@@ -289,6 +289,8 @@ func (s *Server) handleCalendarEvents(w http.ResponseWriter, r *http.Request) {
 		// MaxReminders is how many reminders an event of the connection takes
 		// (calendar-event-series D3): 5, or 1 for Microsoft.
 		MaxReminders int `json:"maxReminders,omitempty"`
+		// Guests is what OpenTodo does with the guests of the connection's events (calendar-event-guests D1).
+		Guests *calsync.GuestCaps `json:"guests,omitempty"`
 	}
 	info := []subInfo{}
 	for i, sub := range subs {
@@ -297,6 +299,8 @@ func (s *Server) handleCalendarEvents(w http.ResponseWriter, r *http.Request) {
 			caps, on := l.caps(), l.conn.EditEvents
 			si.ConnectionID, si.CalendarURL, si.Caps, si.EditEvents = l.conn.ID, l.calendar, &caps, &on
 			si.MaxReminders = calsync.MaxReminders(l.conn.Provider)
+			gc := l.conn.GuestCaps()
+			si.Guests = &gc
 		}
 		info = append(info, si)
 	}

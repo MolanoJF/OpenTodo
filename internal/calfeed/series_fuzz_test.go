@@ -26,7 +26,7 @@ func FuzzSeriesEngine(f *testing.F) {
 			return
 		}
 		_, _ = ReadSeries(root)
-		_ = SeriesLocked(root, "e")
+		_ = SeriesLocked(root, "e", "")
 		if pick%2 == 0 {
 			instance = instances[int(pick/2)%len(instances)]
 		}

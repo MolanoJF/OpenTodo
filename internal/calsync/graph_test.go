@@ -16,9 +16,17 @@ import (
 // microsoft connects alice's Outlook account through the fake, writing into
 // its calendar "cal-work"; zone is the mailbox's Windows time zone.
 func (h *harness) microsoft(zone string) (*graphtest.Server, *Connection) {
+	return h.microsoftWith(zone, nil)
+}
+
+// microsoftWith is microsoft with the fake set up before the account is discovered.
+func (h *harness) microsoftWith(zone string, setup func(ms *graphtest.Server)) (*graphtest.Server, *Connection) {
 	h.t.Helper()
 	ms := graphtest.New()
 	h.t.Cleanup(ms.Close)
+	if setup != nil {
+		setup(ms)
+	}
 	ms.Now = func() time.Time { return h.clock }
 	ms.MailboxZone = zone
 	h.w.Microsoft.Env = config.MicrosoftConfig{ClientID: ms.ClientID, ClientSecret: ms.ClientSecret}

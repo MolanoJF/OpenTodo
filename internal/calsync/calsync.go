@@ -129,6 +129,9 @@ type Caps struct {
 	Create bool `json:"create"`
 	Update bool `json:"update"`
 	Delete bool `json:"delete"`
+	// OnlineMeeting says the calendar lists an online meeting provider Graph can make
+	// a meeting with (calendar-event-guests D7); false for every other provider.
+	OnlineMeeting bool `json:"onlineMeeting,omitempty"`
 }
 
 // EffectiveCaps are the calendar's caps, derived from ReadOnly when absent.

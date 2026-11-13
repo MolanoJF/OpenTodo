@@ -14,7 +14,10 @@ import (
 // graphEvents edits events of a Microsoft account (calendar-event-edits D5):
 // a PATCH with If-Match carrying only the changed members.
 type graphEvents struct {
-	g *Graph
+	caps GuestCaps
+	g    *Graph
+	// me is the mailbox address (Connection.Username), what "you" is matched with.
+	me string
 	// zone is the mailbox's zone (IANA, "" for UTC), the zone of all-day and
 	// floating points.
 	zone string
@@ -22,7 +25,7 @@ type graphEvents struct {
 }
 
 // eventSelect is what a read asks for (the fields the locks need).
-const eventSelect = "id,subject,start,end,isAllDay,showAs,type,isOrganizer,attendees,location,isCancelled,lastModifiedDateTime,seriesMasterId,reminderMinutesBeforeStart,isReminderOn"
+const eventSelect = "id,subject,start,end,isAllDay,showAs,type,isOrganizer,attendees,location,isCancelled,lastModifiedDateTime,seriesMasterId,reminderMinutesBeforeStart,isReminderOn,organizer,responseStatus,isOnlineMeeting,onlineMeeting"
 
 func (e graphEvents) read(ctx context.Context, ref EventRef) (EventState, error) {
 	var ev graphEvent
@@ -40,11 +43,16 @@ func (e graphEvents) read(ctx context.Context, ref EventRef) (EventState, error)
 }
 
 func (e graphEvents) state(ref EventRef, ev *graphEvent) (EventState, error) {
-	r, ok := ev.remote()
+	r, ok := ev.remote(e.me)
 	if !ok || len(r.Events) == 0 {
 		return EventState{}, &Error{Reason: ReasonInvalid}
 	}
-	return EventState{Ref: EventRef{Calendar: ref.Calendar, Href: firstOf(ev.ID, ref.Href), ETag: ev.ETag}, Event: r.Events[0], Locked: r.Locked}, nil
+	st := EventState{Ref: EventRef{Calendar: ref.Calendar, Href: firstOf(ev.ID, ref.Href), ETag: ev.ETag}, Event: r.Events[0], Locked: r.Locked, Conference: r.Conference,
+		OnlineMeeting: OnlineMeeting{On: ev.IsOnlineMeeting || (ev.OnlineMeeting != nil && ev.OnlineMeeting.JoinURL != "")}}
+	if r.Guests != nil {
+		st.Guests = *r.Guests
+	}
+	return st, nil
 }
 
 // Read returns the event as the account holds it now.
@@ -72,6 +80,9 @@ func (e graphEvents) Update(ctx context.Context, ref EventRef, edit EventEdit) (
 		if err != nil {
 			return EventState{}, err
 		}
+		if edit.Scope == calfeed.ScopeFollowing && len(s.master.Attendees) > 0 {
+			return EventState{}, ErrFollowingUnsupported // a second series would invite everyone again (D7)
+		}
 		if edit.Scope == calfeed.ScopeAll {
 			return e.updateAll(ctx, ref, edit, s)
 		}
@@ -96,11 +107,17 @@ func (e graphEvents) updateOne(ctx context.Context, ref EventRef, edit EventEdit
 	if edit.Description != nil && cur.DescriptionLocked {
 		return EventState{}, locked(LockRichDescription)
 	}
+	if err := requireNotify(cur.Guests, edit); err != nil {
+		return EventState{}, err
+	}
 	body := map[string]any{}
 	if edit.Summary != nil {
 		body["subject"] = *edit.Summary
 	}
 	e.editMembers(body, edit)
+	if err := e.guestMembers(body, cur, edit); err != nil {
+		return EventState{}, err
+	}
 	if err := e.reminderMembers(body, edit); err != nil {
 		return EventState{}, err
 	}
@@ -121,7 +138,7 @@ func (e graphEvents) updateOne(ctx context.Context, ref EventRef, edit EventEdit
 		return EventState{}, err
 	}
 	if err := refusal(resp.Status); err != nil {
-		return EventState{}, err
+		return EventState{}, onlineRefusal(err, edit.OnlineMeeting)
 	}
 	var ev graphEvent
 	if json.Unmarshal(resp.Body, &ev) != nil || ev.ID == "" {
@@ -133,7 +150,7 @@ func (e graphEvents) updateOne(ctx context.Context, ref EventRef, edit EventEdit
 	}
 	switch {
 	case occurrence:
-		r, _ := ev.remote()
+		r, _ := ev.remote(e.me)
 		st.Wrote = SeriesWrite{Written: []WrittenObject{{Ref: st.Ref, Events: r.Events, Locked: r.Locked, Series: r.Series}}, UID: ev.ID, Instance: calfeed.OccurrenceOf(r.Events[0]).Instance}
 	case edit.Repeat != nil: // the event is a series master now: its occurrences are what the cache holds
 		written, err := e.instancesOf(ctx, ref.Calendar, ev.ID)

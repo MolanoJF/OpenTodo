@@ -1,0 +1,6 @@
+{
+  "kind": "respond",
+  "owner": "you@example.com",
+  "response": "accepted",
+  "scope": "all"
+}

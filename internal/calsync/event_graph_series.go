@@ -19,7 +19,7 @@ import (
 // them); this file documents it and does not hide it.
 
 // masterSelect is what a series write reads of a master.
-const masterSelect = eventSelect + ",recurrence,body,categories,importance,sensitivity"
+const masterSelect = eventSelect + ",recurrence,body,categories,importance,sensitivity,cancelledOccurrences"
 
 // graphLayout is the dateTime text of a Graph time.
 const graphLayout = "2006-01-02T15:04:05"
@@ -28,6 +28,16 @@ const graphLayout = "2006-01-02T15:04:05"
 func (e graphEvents) fetch(ctx context.Context, id, sel string) (*graphEvent, error) {
 	var ev graphEvent
 	if err := e.g.get(ctx, eventPath(id)+"?"+query(url.Values{"$select": {sel}}), &ev); err != nil {
+		return nil, e.mapRead(err)
+	}
+	return &ev, nil
+}
+
+// fetchMaster reads a series master with its exceptions (the series rules for a master
+// with guests need to know whether it has any).
+func (e graphEvents) fetchMaster(ctx context.Context, id string) (*graphEvent, error) {
+	var ev graphEvent
+	if err := e.g.get(ctx, eventPath(id)+"?"+query(url.Values{"$select": {masterSelect}, "$expand": {"exceptionOccurrences($select=id)"}}), &ev); err != nil {
 		return nil, e.mapRead(err)
 	}
 	return &ev, nil
@@ -56,17 +66,20 @@ func (e graphEvents) readSeries(ctx context.Context, ref EventRef) (*graphSeries
 	case occ.locked() != "":
 		return nil, locked(occ.locked())
 	}
-	m, err := e.fetch(ctx, occ.SeriesMasterID, masterSelect)
+	m, err := e.fetchMaster(ctx, occ.SeriesMasterID)
 	if err != nil {
 		return nil, err
 	}
 	switch {
 	case !strings.EqualFold(m.Type, "seriesMaster") || m.Recurrence == nil || m.Start == nil || m.End == nil:
 		return nil, locked(LockSeriesUnsupported)
-	case len(m.Attendees) > 0:
-		return nil, locked(LockGuests)
 	case m.IsOrganizer != nil && !*m.IsOrganizer:
 		return nil, locked(LockNotOrganizer)
+	case len(m.Attendees) > 0 && m.IsOrganizer == nil:
+		return nil, locked(LockGuests)
+	case len(m.Attendees) > 0 && (len(m.Exceptions) > 0 || len(m.CancelledOccurrences) > 0):
+		// Graph sends one update for the master and one per exception (M2): not written.
+		return nil, locked(LockSeriesUnsupported)
 	case m.ETag == "":
 		return nil, locked(LockNoETag)
 	}
@@ -225,6 +238,16 @@ func (e graphEvents) updateAll(ctx context.Context, ref EventRef, edit EventEdit
 			return EventState{}, locked(LockRichDescription)
 		}
 	}
+	master, err := e.state(EventRef{Calendar: ref.Calendar, Href: s.master.ID}, s.master)
+	if err != nil {
+		return EventState{}, err
+	}
+	if err := requireNotify(master.Guests, edit); err != nil {
+		return EventState{}, err
+	}
+	if err := e.guestMembers(body, master, edit); err != nil {
+		return EventState{}, err
+	}
 	if sh.changed {
 		body["start"], body["end"] = s.dt(sh.start, e), s.dt(sh.end, e)
 	}
@@ -285,7 +308,7 @@ func (e graphEvents) instancesOf(ctx context.Context, calendar, masterID string)
 			return nil, e.mapRead(err)
 		}
 		for i := range p.Value {
-			if r, ok := p.Value[i].remote(); ok {
+			if r, ok := p.Value[i].remote(e.me); ok {
 				out = append(out, WrittenObject{Ref: EventRef{Calendar: calendar, Href: p.Value[i].ID, ETag: p.Value[i].ETag}, Events: r.Events, Locked: r.Locked, Series: r.Series})
 			}
 		}
@@ -550,6 +573,9 @@ func (e graphEvents) DeleteScoped(ctx context.Context, ref EventRef, scope calfe
 	s, err := e.readSeries(ctx, ref)
 	if err != nil {
 		return SeriesWrite{}, err
+	}
+	if scope == calfeed.ScopeFollowing && len(s.master.Attendees) > 0 {
+		return SeriesWrite{}, ErrFollowingUnsupported
 	}
 	if scope == calfeed.ScopeAll || s.first() {
 		resp, err := e.g.do(ctx, http.MethodDelete, eventPath(s.master.ID), map[string]string{"If-Match": s.master.ETag}, nil)

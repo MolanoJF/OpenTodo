@@ -40,7 +40,7 @@ func (w *Worker) expandWritten(ctx context.Context, wr SeriesWrite) ([]calfeed.O
 	for _, o := range wr.Written {
 		for _, ev := range o.Events {
 			events = append(events, ev)
-			refs[ev.UID] = calfeed.EventRemote{Href: o.Ref.Href, ETag: o.Ref.ETag, Locked: o.Locked, Series: o.Series}
+			refs[ev.UID] = calfeed.EventRemote{Href: o.Ref.Href, ETag: o.Ref.ETag, Locked: o.Locked, Series: o.Series, Guests: o.Guests, Conference: o.Conference}
 		}
 	}
 	ectx, cancel := context.WithTimeout(ctx, calfeed.MaxExpandTime)
@@ -72,8 +72,7 @@ func (w *Worker) cacheWrite(ctx context.Context, t *eventTarget, scope calfeed.S
 	case err != nil:
 		return nil, err
 	default:
-		a := AccessOf(t.conn, t.sub.CalendarURL, row)
-		row.Access = &a
+		Decorate(t.conn, t.sub.CalendarURL, &row)
 		res.Event = row
 	}
 	for _, o := range wr.Written {
@@ -116,7 +115,7 @@ func seriesIDOf(sub string, s *calfeed.SeriesInfo, uid string) string {
 func (w *Worker) addSeries(ctx context.Context, sub calfeed.ManagedCalendar, st EventState, connID, clientID string) (calfeed.Occurrence, error) {
 	first := calfeed.OccurrenceOf(st.Event)
 	obj := st.Wrote.Written[0]
-	remote := calfeed.EventRemote{Href: obj.Ref.Href, ETag: obj.Ref.ETag, Locked: obj.Locked, Series: obj.Series}
+	remote := calfeed.EventRemote{Href: obj.Ref.Href, ETag: obj.Ref.ETag, Locked: obj.Locked, Series: obj.Series, Guests: obj.Guests, Conference: obj.Conference}
 	if _, err := w.Feeds.AddEvent(ctx, sub.SubscriptionID, first, remote, connID, clientID); err != nil {
 		return first, err
 	}

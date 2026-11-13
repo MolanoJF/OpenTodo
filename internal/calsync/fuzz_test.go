@@ -72,7 +72,7 @@ func FuzzGraphPage(f *testing.F) {
 		}
 		for i := range p.Value {
 			e := &p.Value[i]
-			r, ok := e.remote()
+			r, ok := e.remote("")
 			if !ok {
 				continue
 			}

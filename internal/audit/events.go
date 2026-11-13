@@ -276,8 +276,10 @@ var allowedDetailKeys = map[string]bool{
 	"to":                true, // new value of a setting or role
 	"provider":          true, // identity provider name, or github | gitlab for an issue connection
 	"connection_id":     true, // id of an issue or calendar connection (never its host, username or secret)
-	"event_action":      true, // what was done to a calendar event: created | updated | deleted (never its title or time)
+	"event_action":      true, // what was done to a calendar event: created | updated | deleted | responded (never its title or time)
 	"event_scope":       true, // how much of a repeating series the change reached: this | following | all
+	"event_response":    true, // the answer given to an invitation: accepted | tentative | declined (never a guest or an address)
+	"event_notified":    true, // true when the write told people (an organiser update, a cancellation or a reply to the organiser), false when it told nobody
 	// OAuth clients (mcp-oauth): the client's id, never its secret or a token it
 	// was given, and never a client name it chose for itself.
 	"oauth_client_id": true,
@@ -539,6 +541,24 @@ func CalendarEventChanged(userID, connID, provider, action, scope string) Event 
 		return ev(CalendarEventChangedName, Success, userID, "", "connection_id", connID, "provider", provider, "event_action", action)
 	}
 	return ev(CalendarEventChangedName, Success, userID, "", "connection_id", connID, "provider", provider, "event_action", action, "event_scope", scope)
+}
+
+// CalendarEventResponded records an answer to an invitation of a connected calendar
+// (calendar-event-guests D3): the connection id, its provider, event_action
+// responded, the answer, the scope for an occurrence of a repeating event and whether
+// the organiser was told (sendResponse). Never a name, an address, a link, the title
+// or the time.
+func CalendarEventResponded(userID, connID, provider, response, scope string, notified bool) Event {
+	return ev(CalendarEventChangedName, Success, userID, "", "connection_id", connID, "provider", provider, "event_action", "responded",
+		"event_response", response, "event_scope", scope, "event_notified", strconv.FormatBool(notified))
+}
+
+// CalendarEventChangedNotified is CalendarEventChanged that also says whether the write
+// told people (calendar-event-guests D8): an update, a cancellation or an invitation the
+// provider sent after the user's confirmation.
+func CalendarEventChangedNotified(userID, connID, provider, action, scope string, notified bool) Event {
+	return ev(CalendarEventChangedName, Success, userID, "", "connection_id", connID, "provider", provider, "event_action", action,
+		"event_scope", scope, "event_notified", strconv.FormatBool(notified))
 }
 
 // ---- OAuth clients for the MCP endpoint ----

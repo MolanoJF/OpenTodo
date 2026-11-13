@@ -1,0 +1,50 @@
+{
+  "organizer": {
+    "name": "Ana Silva",
+    "email": "ana@example.com",
+    "role": "required",
+    "response": "accepted",
+    "you": false
+  },
+  "isOrganizer": false,
+  "you": "needs-action",
+  "guests": [
+    {
+      "name": "Ana Silva",
+      "email": "ana@example.com",
+      "role": "required",
+      "response": "accepted",
+      "you": false
+    },
+    {
+      "name": "Ben Costa",
+      "email": "ben@example.com",
+      "role": "optional",
+      "response": "tentative",
+      "you": false
+    },
+    {
+      "name": "Room 4, floor 2",
+      "email": "room-4@example.com",
+      "role": "room",
+      "response": "accepted",
+      "you": false
+    },
+    {
+      "name": "You",
+      "email": "you@example.com",
+      "role": "required",
+      "response": "needs-action",
+      "you": true
+    },
+    {
+      "name": "",
+      "email": "dora@example.com",
+      "role": "required",
+      "response": "declined",
+      "you": false
+    }
+  ],
+  "count": 4,
+  "truncated": false
+}

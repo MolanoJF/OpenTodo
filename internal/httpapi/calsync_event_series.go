@@ -139,6 +139,9 @@ func invalidReason(field string) string {
 	case "end":
 		return "the end must be after the start"
 	}
+	if msg := guestReason(field); msg != "" {
+		return msg
+	}
 	return "the calendar or client id is not valid for this connection"
 }
 

@@ -45,6 +45,9 @@ func (e graphEvents) Create(ctx context.Context, calendar string, ev EventNew) (
 	if err := e.reminderMembers(body, EventEdit{Reminders: &ev.Reminders}); err != nil && len(ev.Reminders) > 0 {
 		return EventState{}, err
 	}
+	if err := e.createGuestMembers(body, ev); err != nil {
+		return EventState{}, err
+	}
 	if ev.Repeat != nil {
 		rec, err := e.recurrenceForSingle(EventState{Event: calfeed.Event{Start: ev.When.Start}}, EventEdit{Repeat: &RepeatEdit{Rule: ev.Repeat}})
 		if err != nil {
@@ -61,7 +64,7 @@ func (e graphEvents) Create(ctx context.Context, calendar string, ev EventNew) (
 			if reasonOf(err) == ReasonCalendarReadOnly {
 				return EventState{}, ErrCalendarRO
 			}
-			return EventState{}, err
+			return EventState{}, onlineRefusal(err, ev.OnlineMeeting)
 		}
 	}
 	var created graphEvent
