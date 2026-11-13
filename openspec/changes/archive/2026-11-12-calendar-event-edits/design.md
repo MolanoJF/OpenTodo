@@ -31,7 +31,7 @@ Events live in somebody else's calendar and are cached server-side only (`calend
 - The device patches its Dexie cache optimistically and queues a **command** in a local outbox (D6). The server executes the command against the remote calendar and answers with the event as the remote now holds it.
 - Convergence: every device converges on the remote's state because every device re-reads the cache from the server (`NotifyCalendar`, then `refreshEvents`). Two devices editing the same event offline: the first command to reach the server wins, the second gets `409 event_changed` (D5) and rolls back to the winner's state.
 
-Rejected: an `event_override` op entity (a second truth, orphaned when the remote changes, raises E2EE and export questions); writing through the sync cycle like tasks (the cycle compares task snapshots and cannot express "this foreign event changed").
+Rejected: an `event_override` op entity (a second truth, orphaned when the remote changes, raises E2EE and export questions); reusing the cycle's task-snapshot comparison for event writes (it compares task snapshots and cannot express "this foreign event changed"). Event writes do go through `internal/calsync` on the server: they take the connection's cycle lock (`Worker.lock(connID)`) and use the cycle's transports and conditional writes (`If-Match`). The browser only sends the command.
 
 ### D2. Event identity and the migration (0066)
 
@@ -226,7 +226,7 @@ interface EventCommand {
 ```
 
 - `editEvent(ev, patch)`: in one Dexie transaction, merge into the row for the key (later fields win, a delete replaces everything, an edit that returns to `base` removes the row), put the patched copy in `calendarEvents`, and return the inverse patch for the Undo toast. Pending state is read from the outbox with `useLiveQuery`, never stored on the cached row.
-- `flushEventEdits()`: runs after every `editEvent`, on `online`, at start and after `refreshEvents`. It takes rows with `notBefore <= now` and sends one at a time. On 200 it replaces the old row by `event` (`replaces` -> `event.id`), deletes the command and sends `next` if any, against the new id and rev. On 409 `event_changed`, 404 `event_gone`, 403 and 422 it deletes the command, restores `base`, calls `refreshEvents()` and shows a toast with the reason. On a network failure or 5xx it keeps the row and retries with backoff on the existing online/visibility hooks in `sync.ts`. On 400 it drops the command, restores `base` and shows a toast.
+- `flushEventEdits()`: runs after every `editEvent`, on `online`, at start and after `refreshEvents`. It takes rows with `notBefore <= now` and sends one at a time. On 200 it replaces the old row by `event` (`replaces` -> `event.id`), deletes the command and sends `next` if any, against the new id and rev. On 409 `event_changed`, 404 `event_gone`, 403 and 422 it deletes the command, restores `base`, calls `refreshEvents()` and shows a toast with the reason. A command that fails while the device is online (a 5xx, a 429, a 502 `calendar_unreachable`, or no answer) is not retried: the row stays with a visible failed state that `flushEventEdits` skips, and the user's Retry sends it again or Discard deletes it and restores `base`. A command made while offline waits, shown as pending, and is sent on `online`. On 400 it drops the command, restores `base` and shows a toast.
 - `refreshEvents` (`calendarFeeds.ts`) now re-applies every queued patch over the fetched rows (matched by `eventId`; events whose command is a delete stay hidden), so a refresh in the middle of an offline edit does not undo it.
 - Undo: the toast's action calls `editEvent(ev, inverse)`, the inverse computed from `base` for the fields the edit changed. Undo of a delete before it is sent removes the command. After it was sent it cannot be undone (there is no create in this phase): the toast lasts the 8 seconds, then says "Deleted".
 - Time handling: a drop gives a wall time in the viewer's zone, the event keeps its own zone, so a helper `eventPointIn(zone, local)` (the inverse of `localDueOf` in `web/src/lib/dates.ts`, added beside it with vectors) converts back. Floating and all-day points stay floating and all-day.
@@ -261,7 +261,7 @@ Event blocks are `EventBlockView` in `web/src/app/CalendarEvents.tsx`, laid out 
 
 ### D9. E2EE
 
-Calendar events are server data the server already holds in the clear (it fetched them from the remote calendar). The edit route sends titles to the remote calendar as typed, so on an encrypted account the server learns nothing new and nothing is encrypted. Event titles are not content fields (`internal/e2ee/contentfields.go` is unchanged), and task titles are never involved. `list_calendar_events` is available on encrypted accounts because it exposes only data the server already holds; `internal/agenttools/encrypted.go` has no content fields to rewrite for it.
+Editing works on encrypted accounts because calendar event titles are server data the server already holds in the clear: it fetched them from the remote calendar, and they are never in the op log. The edit route sends titles to the remote calendar as typed, so on an encrypted account the server learns nothing new and nothing is encrypted. Event titles are not content fields (`internal/e2ee/contentfields.go` is unchanged), and task titles are never involved. `list_calendar_events` is available on encrypted accounts because it exposes only data the server already holds; `internal/agenttools/encrypted.go` has no content fields to rewrite for it.
 
 ### D10. Size and cost
 
@@ -287,3 +287,11 @@ Web (`npm test` and `npm run build` in `web/`): `calendarEventEdits.test.ts` (fa
 - **A server that re-serialises an object on PUT** may drop properties it does not know; we send them all back, and the post-write read shows what the server kept.
 - **Graph `$select` growth** (`attendees`) enlarges the window read for Microsoft connections; guests are the price of not sending invitations by accident. If it proves heavy, read `attendees` only for events that have `isOrganizer` true.
 - **Id change on move** means a rapid second drag on the same block races the swap; the outbox `next` field and the swap in one transaction cover it, and a test names it.
+
+**As built (review fixes, 2026-11-13).** Maintainer review on OpenTodoApp/OpenTodo#1233 asked for three things, and this design now follows them:
+
+- **Writes go through the sync cycle, not the browser.** `Worker.EditEvent` and `Worker.DeleteEvent` (`internal/calsync`; `CreateEvent` and `Respond` come with the later changes) take `Worker.lock(connID)`, write with the cycle's transports (CalDAV and Google CalDAV with `If-Match`, Microsoft Graph with `If-Match`), update the connection's cache (`calendar_events`, `calendar_event_remote`) and wake devices. The browser sends a command and renders the answer. Only the cycle's task-snapshot comparison is not reused (D1).
+- **Failures and conflicts are visible, not retried silently.** A write that fails while the device is online (server error, rate limit, calendar unreachable, no answer) is no longer retried in the background: the command stays in the outbox as a failed state with Retry and Discard (D6). A conflict (409) is shown and rolled back as before. Only a command made while offline waits, visibly, and is sent when the device is back online.
+- **Encrypted accounts** are addressed in D9: editing works there because event titles are server data the server already reads.
+
+Why: a background retry hid a failed write from the person, who may need to change it or drop it. The visible state keeps that decision with them.
