@@ -4,7 +4,7 @@
 import { parseTime } from './calendar'
 import { addDaysISO, localDueOf } from './dates'
 import { restRepeat, sameRepeat } from './eventRepeat'
-import type { CalendarEvent, CalendarEventChange, CalendarRepeat, CalendarWhen } from './types'
+import type { CalendarEvent, CalendarEventChange, CalendarRepeat, CalendarWhen, GuestInput } from './types'
 
 /** What the full editor shows of an event. Times are wall times in `zone` ('' = floating); an all-day event has dates only, its end date the last day it covers. */
 export interface EventFull {
@@ -22,6 +22,11 @@ export interface EventFull {
   repeat: CalendarRepeat | null
   /** Minutes before the start. */
   reminders: number[]
+  /** Guests added in this editor and addresses removed from the calendar's list (calendar-event-guests D3). The calendar's own guests are read from the list, never kept here. */
+  guestAdds: GuestInput[]
+  guestRemoves: string[]
+  /** Make a Teams meeting (it cannot be turned off again). */
+  teams: boolean
 }
 
 /** What the editor's detail read adds to the row (calendar-event-series D3): absent members were not loaded. */
@@ -40,7 +45,7 @@ export interface EventExtras {
 /** Whether the editor's field `key` holds the same value in `a` and `b` (the repeat and the reminders by value). */
 export function sameField(key: keyof EventFull, a: unknown, b: unknown): boolean {
   if (key === 'repeat') return sameRepeat(a as CalendarRepeat | null, b as CalendarRepeat | null)
-  return key === 'reminders' ? JSON.stringify(a) === JSON.stringify(b) : a === b
+  return key === 'reminders' || key === 'guestAdds' || key === 'guestRemoves' ? JSON.stringify(a) === JSON.stringify(b) : a === b
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -64,7 +69,7 @@ export function eventZoneOf(ev: CalendarEvent, viewerZone: string): string {
 /** The editor's fields for an event; `description` and `extras` are what the calendar gave when the editor opened. */
 export function eventFullOf(ev: CalendarEvent, viewerZone: string, description = '', extras?: EventExtras): EventFull {
   const zone = eventZoneOf(ev, viewerZone)
-  const base = { title: ev.summary, zone, location: ev.location, description, free: ev.free, repeat: extras?.repeat ?? ev.series?.repeat ?? null, reminders: extras?.reminders ?? [] }
+  const base = { title: ev.summary, zone, location: ev.location, description, free: ev.free, repeat: extras?.repeat ?? ev.series?.repeat ?? null, reminders: extras?.reminders ?? [], guestAdds: [], guestRemoves: [], teams: false }
   if (ev.allDay) {
     const last = addDaysISO(ev.end.date, -1)
     return { ...base, allDay: true, startDate: ev.start.date, startTime: '', endDate: last < ev.start.date ? ev.start.date : last, endTime: '' }
@@ -117,6 +122,9 @@ export function eventFullChange(ev: CalendarEvent, form: EventFull, viewerZone: 
   if (readable && !sameRepeat(form.repeat, before.repeat)) out.repeat = form.repeat && restRepeat(form.repeat)
   // Reminders were loaded with the detail: offline they are left out, so a queued edit never overwrites ones the person did not see.
   if (extras?.reminders && JSON.stringify(form.reminders) !== JSON.stringify(before.reminders)) out.reminders = form.reminders
+  // Guests and the video call (calendar-event-guests D3): a change that tells people; the caller asks before it sends it.
+  if (form.guestAdds.length || form.guestRemoves.length) out.guests = { ...(form.guestAdds.length ? { add: form.guestAdds } : {}), ...(form.guestRemoves.length ? { remove: form.guestRemoves } : {}) }
+  if (form.teams) out.onlineMeeting = true
   const times: (keyof EventFull)[] = ['allDay', 'startDate', 'startTime', 'endDate', 'endTime']
   if (times.some((k) => form[k] !== before[k]) || (!form.allDay && form.zone !== before.zone)) {
     const when = pointsOf(form)

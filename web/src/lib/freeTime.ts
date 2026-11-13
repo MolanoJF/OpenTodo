@@ -124,3 +124,10 @@ export function freeTime(input: FreeTimeInput): FreeDay[] {
   }
   return out
 }
+
+/**
+ * The calendar events as free time reads them: start, end, all-day and free, nothing else. A cached row also holds
+ * a guests summary and a join link (calendar-event-guests D12); neither reaches this twin of the assistant's
+ * `find_free_time`, so neither can reach a model, whatever shape a row grows into.
+ */
+export const freeEventsOf = (rows: readonly FreeEvent[]): FreeEvent[] => rows.map(({ start, end, allDay, free }) => ({ start, end, allDay, free }))

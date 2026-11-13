@@ -8,6 +8,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { formatTime as toHHMM, type EventBlock } from '../lib/calendar'
 import { eventAccessText } from '../lib/calendarEventEdits'
 import { eventEditable } from '../lib/eventDrop'
+import { providerOf } from '../lib/eventGuests'
 import { EventLocked } from './calendar/EventLocked'
 import { openEventEditor } from './calendar/eventEditorStore'
 import { onOpenEventRequest } from './calendar/eventOpen'
@@ -58,7 +59,7 @@ export function EventDetails({ ev, sub, zone, onDone, onClose }: { ev: CalendarE
         </p>
       )}
       {ev.free && <p className="text-meta text-faint">{t('Shown as free')}</p>}
-      {ev.access ? !editing && <EventLocked reason={ev.access.reason} /> : <p className="text-meta text-faint">{t('From a subscribed calendar. Edit it in its own app.')}</p>}
+      {ev.access ? !editing && <EventLocked reason={ev.access.reason} sub={sub} /> : <p className="text-meta text-faint">{t('From a subscribed calendar. Edit it in its own app.')}</p>}
       <Suspense fallback={null}><EventPopoverActions ev={ev} sub={sub} onClose={onDone ?? onClose} /></Suspense>
     </div>
   )
@@ -93,7 +94,7 @@ export function EventBlockView({ block, lane, lanes, overlap, pxPerMinute, minHe
   const height = Math.max(minHeight, (block.end - block.start) * pxPerMinute)
   const editable = !!edit && eventEditable(ev, zone)
   const faded = edit?.dragging || edit?.saving ? 'opacity-40' : '' // tone-lint-allow: the dragged or saving block's ghost
-  const reason = ev.access && !ev.access.update ? eventAccessText(ev.access.reason) : ''
+  const reason = ev.access && !ev.access.update ? eventAccessText(ev.access.reason, providerOf(sub)) : ''
   // The keyboard (Enter on the selected block) opens the same popover.
   useEffect(() => onOpenEventRequest((id) => { if (id === block.id) setOpen(true) }), [block.id])
   const pointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {

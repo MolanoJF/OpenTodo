@@ -168,3 +168,19 @@ describe('queued scoped edits over a refresh', () => {
     expect(isNoChange(occ(2), {})).toBe(true)
   })
 })
+
+// calendar-event-guests D11, D12: the rows keep the summary the server sends and nothing more; a refresh keeps them.
+describe('guests on cached rows', () => {
+  it('keeps guests, conference and notifies through a refresh, and holds no address', async () => {
+    const row = {
+      id: 'g1', subscriptionId: 's1', uid: 'u', summary: 'Review', location: '', start: { date: '2026-10-19', time: '10:00', tz: 'Europe/Berlin' }, end: { date: '2026-10-19', time: '11:00', tz: 'Europe/Berlin' }, allDay: false, free: false,
+      guests: { count: 3, you: 'needs-action', organizer: false, canRespond: true }, conference: { url: 'https://meet.google.com/abc-defg-hij', provider: 'meet' }, access: { update: false, delete: false, reason: 'not_organizer', notifies: false },
+    }
+    calendarEvents.mockResolvedValueOnce({ events: [row] as never, subscriptions: [{ id: 's1', name: 'Work', color: '#3b82f6', enabled: true, lastSuccessAt: 1, guests: { respond: true, silent: true, edit: true }, caps: { create: true, update: true, delete: true, onlineMeeting: true } }] as never })
+    await refreshEvents({ from: '2026-10-19', to: '2026-10-25' })
+    expect(await db.calendarEvents.get('g1')).toEqual(row)
+    expect((await db.calendarSubscriptions.get('s1'))?.guests).toEqual({ respond: true, silent: true, edit: true })
+    expect((await db.calendarSubscriptions.get('s1'))?.caps?.onlineMeeting).toBe(true)
+    expect(JSON.stringify(await db.calendarEvents.toArray())).not.toMatch(/@/)
+  })
+})

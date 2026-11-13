@@ -16,7 +16,8 @@ export function ConvertToTask({ ev, calendar, getFields, onClose }: {
   getFields: () => Promise<EventFull> | EventFull
   onClose: () => void
 }) {
-  const canDelete = !!ev.access?.delete
+  // An event with guests is never deleted by converting it: that would send a cancellation (calendar-event-guests D9).
+  const canDelete = !!ev.access?.delete && !ev.guests
   const [del, setDel] = useState(() => canDelete && rememberedConvertDelete())
   const [busy, setBusy] = useState(false)
   const create = async () => {
@@ -30,7 +31,7 @@ export function ConvertToTask({ ev, calendar, getFields, onClose }: {
       <div className="space-y-4">
         <p className="text-body text-default">{t('A task is made from the title, time and details of this event.')}</p>
         <Switch checked={del} disabled={!canDelete} label={calendar ? t('Delete the event from {calendar}', { calendar }) : t('Delete the event from its calendar')}
-          description={canDelete ? undefined : t('This event cannot be deleted from here.')} onChange={(on) => { setDel(on); rememberConvertDelete(on) }} />
+          description={canDelete ? undefined : ev.guests ? t('Deleting it would tell the guests, so the event stays.') : t('This event cannot be deleted from here.')} onChange={(on) => { setDel(on); rememberConvertDelete(on) }} />
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>{t('Cancel')}</Button>
           <Button variant="primary" busy={busy} data-autofocus data-convert-create onClick={() => void create()}>{t('Create task')}</Button>

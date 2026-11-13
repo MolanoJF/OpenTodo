@@ -29,6 +29,7 @@ export const isCreate = (p: Patch): p is { create: CalendarEventDraft } => 'crea
 export const createBodyOf = (d: CalendarEventDraft): CalendarEventCreateBody => ({
   clientId: d.clientId, calendarUrl: d.calendarUrl, summary: d.summary, start: d.start, end: d.end, allDay: d.allDay, location: d.location, description: d.description, free: d.free,
   ...(d.repeat ? { repeat: d.repeat } : {}), ...(d.reminders?.length ? { reminders: d.reminders } : {}),
+  ...(d.guests?.length ? { guests: d.guests } : {}), ...(d.onlineMeeting ? { onlineMeeting: true } : {}),
 })
 const changeOf = (p: Patch | undefined) => p as CalendarEventChange | undefined
 
@@ -39,12 +40,14 @@ export interface EventEditNotice {
   message: string
   /** Why an event is not editable (422 `event_not_editable`): the reason code the server's message ends with. */
   reason?: string
+  /** Which provider the event's calendar is, for the words of a refusal (calendar-event-guests D11). */
+  provider?: 'google' | 'microsoft'
   /** A refused create: what the person typed, so the toast can reopen the editor on it (calendar-event-editor D9). */
   draft?: CalendarEventDraft
 }
 
 const listeners = new Set<(n: EventEditNotice) => void>()
-const notify = (n: EventEditNotice) => { for (const fn of [...listeners]) fn(n) }
+export const notify = (n: EventEditNotice) => { for (const fn of [...listeners]) fn(n) }
 /** Calls `fn` with every later refusal; returns the unsubscribe. */
 export function onEventEditNotice(fn: (n: EventEditNotice) => void): () => void {
   listeners.add(fn)
@@ -63,7 +66,7 @@ export const cachedEvent = (id: string): Promise<CalendarEvent | undefined> => d
 export const eventKey = (connectionId: string, eventId: string) => `${connectionId}:${eventId}`
 
 /** Old id -> the id the calendar gave after a move, so an Undo of a sent edit finds its event. */
-const swapped = new Map<string, string>()
+export const swapped = new Map<string, string>()
 let started = false
 let flushing: Promise<void> | null = null
 let again = false
@@ -117,6 +120,7 @@ export async function editEvent(ev: CalendarEvent, patch: CalendarEventChange | 
     const row = (await db.calendarEvents.get(id)) ?? ev
     const connectionId = (await db.calendarSubscriptions.get(row.subscriptionId))?.connectionId
     if (!connectionId || (!row.rev && !isPendingId(row.id))) return null
+    if (row.access?.notifies) { blocked = row; return null } // a change that tells guests is sent when confirmed, never queued (calendar-event-guests D8)
     const key = eventKey(connectionId, row.id)
     const cmd = await db.eventOutbox.get(key)
     if (isPendingId(row.id) && !cmd) return null // a pending row whose create is gone
@@ -160,7 +164,10 @@ export async function editEvent(ev: CalendarEvent, patch: CalendarEventChange | 
     }
     return inverse
   })
-  if (blocked) notify({ code: 'edit_blocked', title: (blocked as CalendarEvent).summary, message: t('Saving this change first') })
+  if (blocked) {
+    const row = blocked as CalendarEvent
+    notify(row.access?.notifies ? { code: 'notify_required', title: row.summary, message: t('A change that tells guests is sent after you confirm it') } : { code: 'edit_blocked', title: row.summary, message: t('Saving this change first') })
+  }
   if (result) void armTimer().catch(() => undefined)
   return result
 }
@@ -188,6 +195,12 @@ export async function cancelEventDelete(ev: CalendarEvent): Promise<boolean> {
 
 const backoff = (tries: number) => BACKOFF_MS[Math.min(tries, BACKOFF_MS.length - 1)]
 
+/** Why an event is not editable (422 `event_not_editable`): the reason code the server's message ends with. */
+export const reasonOf = (err: ApiError): string | undefined => {
+  const cut = err.serverMessage.lastIndexOf(': ')
+  return err.code === 'event_not_editable' && cut >= 0 ? err.serverMessage.slice(cut + 2) : undefined
+}
+
 /** After a refusal: the row as it was, the command gone, the cache read again, the reason told. */
 async function rollBack(cmd: EventCommand, err: ApiError): Promise<void> {
   const draft = isCreate(cmd.patch) ? (cmd.next && !isDelete(cmd.next) ? applyDraftPatch(cmd.patch.create, cmd.next) : cmd.patch.create) : undefined
@@ -197,8 +210,7 @@ async function rollBack(cmd: EventCommand, err: ApiError): Promise<void> {
     else await db.calendarEvents.put(cmd.base)
   })
   const cancelled = !!cmd.next && isDelete(cmd.next) // the person already discarded it: nothing to offer back
-  const cut = err.serverMessage.lastIndexOf(': ')
-  const reason = err.code === 'event_not_editable' && cut >= 0 ? err.serverMessage.slice(cut + 2) : undefined
+  const reason = reasonOf(err)
   notify({ code: err.code, title: draft?.summary ?? cmd.base.summary, message: err.message, ...(reason ? { reason } : {}), ...(draft && !cancelled ? { draft } : {}) })
   void refreshEvents()
 }
@@ -300,12 +312,14 @@ export function useEventCommands(): Map<string, EventCommand> {
 }
 
 /** Why an event cannot be changed, in a sentence; empty when the reason is unknown (a newer server). */
-export function eventAccessText(reason: string | undefined): string {
+export function eventAccessText(reason: string | undefined, provider?: 'google' | 'microsoft'): string {
   switch (reason) {
     case 'series_unsupported': return t('This repeat is too complex to change here')
     case 'following_unsupported': return t('Splitting this series would lose its attachments or online meeting')
-    case 'has_guests': return t('This event has guests')
-    case 'not_organizer': return t('Only the organizer can change this event')
+    case 'has_guests': return provider === 'google' ? t("Google doesn't say whether changing this would tell the guests, so it's read-only here") : t('This event has guests')
+    case 'not_organizer': return t("You're a guest. Only the organizer can change this event")
+    case 'cannot_respond': return t("You can't answer this invitation from here")
+    case 'response_not_kept': return provider === 'google' ? t("Google didn't keep your answer") : t("The calendar didn't keep your answer")
     case 'calendar_read_only': return t('This calendar is read-only')
     case 'edits_off': return t('Editing events is off for this connection')
     case 'no_etag': return t('This calendar did not give a version for this event')
@@ -321,7 +335,9 @@ export function eventEditNoticeText(n: EventEditNotice): string {
     case 'event_changed': return t('{title} changed in your calendar; your edit was not applied.', { title })
     case 'event_gone': return t('{title} was deleted in your calendar.', { title })
     case 'scope_required': return t('Choose which events to change.')
-    case 'event_not_editable': return eventAccessText(n.reason) || n.message
+    case 'event_not_editable': return eventAccessText(n.reason, n.provider) || n.message
+    case 'response_not_kept': return eventAccessText('response_not_kept', n.provider)
+    case 'offline_guests': return t("Guests are told when you're online")
     case 'event_edits_off': return eventAccessText('edits_off')
     case 'calendar_read_only': return eventAccessText('calendar_read_only')
     default: return n.message
@@ -345,3 +361,4 @@ export async function queuedDraft(pendingId: string): Promise<CalendarEventDraft
   if (!cmd || !isCreate(cmd.patch)) return null
   return cmd.next && !isDelete(cmd.next) ? applyDraftPatch(cmd.patch.create, cmd.next) : cmd.patch.create
 }
+

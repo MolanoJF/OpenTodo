@@ -75,3 +75,38 @@ describe('calendar event edit API client', () => {
     expect(calls[0].body).toEqual(body)
   })
 })
+
+// calendar-event-guests D3: the reply, the cache-only guest list and the confirmation flag.
+describe('guests API client', () => {
+  let inits: RequestInit[]
+  beforeEach(() => {
+    inits = []
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      inits.push(init)
+      return new Response(init.method === 'DELETE' ? null : '{"event":{"id":"b"},"replaces":"a","guests":[],"count":0,"truncated":false}', { status: init.method === 'DELETE' ? 204 : 200, headers: { 'Content-Type': 'application/json' } })
+    }))
+  })
+
+  it('POSTs a reply to the response route with rev, answer, scope and sendResponse', async () => {
+    await api.respondToCalendarEvent('c 1', 'ev 1', { rev: 'r1', response: 'tentative', scope: 'all', sendResponse: false })
+    expect(inits[0].method).toBe('POST')
+    expect(JSON.parse(String(inits[0].body))).toEqual({ rev: 'r1', response: 'tentative', scope: 'all', sendResponse: false })
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/v1/calendar-sync/connections/c%201/events/ev%201/response')
+  })
+
+  it('GETs the guest list with no-store and never sends a body', async () => {
+    await api.calendarEventGuests('ev 1')
+    expect(vi.mocked(fetch).mock.calls[0][0]).toBe('/api/v1/calendar-feeds/events/ev%201/guests')
+    expect(inits[0]).toMatchObject({ method: 'GET', cache: 'no-store' })
+    expect(inits[0].body).toBeUndefined()
+  })
+
+  it('carries notifyGuests in a PATCH body, a POST body and a DELETE query', async () => {
+    await api.updateCalendarEvent('c1', 'ev1', { rev: 'r1', summary: 'x', notifyGuests: true, guests: { add: [{ email: 'a@b.co', role: 'optional' }], remove: ['c@d.co'] }, onlineMeeting: true })
+    expect(JSON.parse(String(inits[0].body))).toEqual({ rev: 'r1', summary: 'x', notifyGuests: true, guests: { add: [{ email: 'a@b.co', role: 'optional' }], remove: ['c@d.co'] }, onlineMeeting: true })
+    await api.deleteCalendarEvent('c1', 'ev1', 'r1', 'all', true)
+    expect(vi.mocked(fetch).mock.calls[1][0]).toBe('/api/v1/calendar-sync/connections/c1/events/ev1?rev=r1&scope=all&notifyGuests=true')
+    await api.deleteCalendarEvent('c1', 'ev1', 'r1')
+    expect(vi.mocked(fetch).mock.calls[2][0]).toBe('/api/v1/calendar-sync/connections/c1/events/ev1?rev=r1')
+  })
+})

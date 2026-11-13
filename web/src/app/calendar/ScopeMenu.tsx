@@ -7,7 +7,7 @@ import { scopesFor, type ScopeBlock } from '../../lib/eventScope'
 import { t } from '../../lib/i18n'
 import type { EventScope } from '../../lib/types'
 import { Menu, MenuItem } from '../../ui'
-import { answerScope, type ScopeRequest } from './eventScopeStore'
+import type { ScopeRequest } from './eventScopeStore'
 
 const LABEL: Record<EventScope, () => string> = {
   this: () => t('This event'),
@@ -24,9 +24,10 @@ function noteOf(scope: EventScope, blocked: ScopeBlock | undefined, resets: Scop
   return resets === 'repeat' ? t('Changing the repeat resets events you changed individually') : t('Events you changed individually go back to the series\' times')
 }
 
+/** The menu for a request of the store (the calendar views host it), or for one a control makes itself (the reply row's). */
 export default function ScopeMenu({ req }: { req: ScopeRequest }) {
   const deleting = req.change === 'delete'
-  const label = deleting ? t('Delete which events') : t('Change which events')
+  const label = req.only ? t('Answer for which events') : deleting ? t('Delete which events') : t('Change which events')
   const id = req.event.id
   // The block takes focus back when the menu closes, whatever the answer.
   useEffect(() => () => {
@@ -35,12 +36,12 @@ export default function ScopeMenu({ req }: { req: ScopeRequest }) {
   }, [id])
   return (
     <>
-      <span role="status" className="sr-only">{t('Choose which events to change')}</span>
+      <span role="status" className="sr-only">{req.only ? t('Choose which events to answer') : t('Choose which events to change')}</span>
       <Menu kind="menu" label={label} trigger={<span className="sr-only" />} triggerClassName="sr-only"
         triggerProps={{ style: { position: 'fixed', left: req.at.x, top: req.at.y }, 'data-event-scope-menu': '' }} align="start" width="sm:w-72" open
-        onOpenChange={(open) => { if (!open) answerScope(null) }}>
-        {scopesFor(req.event, req.change).map(({ scope, blocked }) => (
-          <MenuItem key={scope} label={LABEL[scope]()} description={noteOf(scope, blocked, req.resets)} disabled={!!blocked} data-event-scope={scope} onSelect={() => answerScope(scope)} />
+        onOpenChange={(open) => { if (!open) req.resolve(null) }}>
+        {(req.only ? req.only.map((scope): { scope: EventScope; blocked?: undefined } => ({ scope })) : scopesFor(req.event, req.change)).map(({ scope, blocked }) => (
+          <MenuItem key={scope} label={LABEL[scope]()} description={noteOf(scope, blocked, req.resets)} disabled={!!blocked} data-event-scope={scope} onSelect={() => req.resolve(scope)} />
         ))}
       </Menu>
     </>

@@ -33,7 +33,7 @@ export function EventPanel({ request, frame, onClose }: { request: EventEditorRe
 
   const canDelete = !creating && !!s.ev?.access?.delete
   const footer = (
-    <div className="flex items-center justify-between gap-2 pt-1">
+    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
       {creating || !s.ev ? <span /> : (
         <Menu label={t('More actions')} kind="menu" trigger={<Icon name="ellipsis" />} triggerClassName="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" align="start" triggerProps={{ 'data-event-form-menu': '' }}>
           {s.calendars.length > 0 && <MenuItem label={t('Duplicate')} icon="copy" data-event-form-duplicate onSelect={s.duplicate} />}
@@ -42,7 +42,8 @@ export function EventPanel({ request, frame, onClose }: { request: EventEditorRe
           {canDelete && <MenuItem label={t('Delete')} icon="trash-2" danger data-event-form-delete onSelect={() => void s.remove()} />}
         </Menu>
       )}
-      <Button variant="primary" type="submit" data-event-form-save disabled={s.invalid || (creating && !s.calendar) || (!creating && !s.dirty)}>{creating ? t('Add event') : t('Save')}</Button>
+      {s.offlineBlocked && <p className="order-last w-full text-right text-meta text-faint" data-event-form-offline>{t("Guests are told when you're online")}</p>}
+      <Button variant="primary" type="submit" data-event-form-save disabled={s.invalid || s.offlineBlocked || (creating && !s.calendar) || (!creating && !s.dirty)}>{creating ? t('Add event') : t('Save')}</Button>
     </div>
   )
   // Task | Event: Task closes the editor and opens the add dialog at the same place (D10).
@@ -57,7 +58,7 @@ export function EventPanel({ request, frame, onClose }: { request: EventEditorRe
   }
   const body = s.form ? (
     <EventForm onTask={creating && !request.draft ? toTask : undefined} form={s.form} set={s.set} setAllDay={s.setAllDay} viewerZone={s.viewerZone} floating={s.floating} description={s.description} invalid={s.timesInvalid}
-      repeat={s.repeatField} reminders={s.remindersField}
+      repeat={s.repeatField} reminders={s.remindersField} guests={s.guestsField} videoCall={s.videoCall}
       picker={creating ? { calendars: s.calendars, value: s.calendar?.id ?? '', onChange: s.chooseCalendar } : undefined} calendarLabel={s.eventCalendar}
       onSubmit={() => void s.save()}>
       {footer}

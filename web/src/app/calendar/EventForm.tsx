@@ -7,6 +7,8 @@ import type { CalendarSubscription } from '../../lib/types'
 import { Combobox, Field, hueFor, Input, SegmentedControl, Skeleton, Switch, Textarea } from '../../ui'
 import { useDateTimeFormat } from '../DateTimePrefsProvider'
 import { EventRemindersField, type RemindersFieldProps } from './EventRemindersField'
+import { EventVideoCall, type VideoCallProps } from './EventVideoCall'
+import { GuestsField, type GuestsFieldProps } from './GuestsField'
 import { EventRepeatField, type RepeatFieldProps } from './EventRepeatField'
 import { EventZoneField } from './EventZoneField'
 import type { DescriptionState } from './useEventDetail'
@@ -30,6 +32,9 @@ export interface EventFormProps {
   /** The repeat and the reminders (calendar-event-series D12); absent where the form has no calendar to ask (a story). */
   repeat?: Omit<RepeatFieldProps, 'startDate'>
   reminders?: Omit<RemindersFieldProps, 'allDay'>
+  /** The guests and the video call (calendar-event-guests D13): present where the calendar has them. */
+  guests?: GuestsFieldProps
+  videoCall?: VideoCallProps
   onSubmit: () => void
   children?: React.ReactNode
 }
@@ -42,7 +47,7 @@ function descriptionNote(d: DescriptionState): string {
   return ''
 }
 
-export function EventForm({ form, set, setAllDay, viewerZone, floating, picker, calendarLabel, description, onTask, invalid, repeat, reminders, onSubmit, children }: EventFormProps) {
+export function EventForm({ form, set, setAllDay, viewerZone, floating, picker, calendarLabel, description, onTask, invalid, repeat, reminders, guests, videoCall, onSubmit, children }: EventFormProps) {
   const dt = useDateTimeFormat()
   const inYourTime = startInViewerZone(form, viewerZone)
   const note = descriptionNote(description)
@@ -84,6 +89,8 @@ export function EventForm({ form, set, setAllDay, viewerZone, floating, picker, 
               getKey={(c) => c.id} getLabel={(c) => c.name} selected={[picker.value]} renderLeading={dot} emptyText={t('No calendar allows new events.')} onPick={(c) => picker.onChange(c.id)} />
           : calendarLabel && <p className="flex items-center gap-1.5 text-body text-default" data-event-form-calendar>{dot(calendarLabel)}{calendarLabel.name}</p>}
       </div>
+      {guests && <GuestsField {...guests} />}
+      {videoCall && <EventVideoCall {...videoCall} />}
       <Field label={t('Location')}>
         <Input data-event-form-location value={form.location} maxLength={500} onChange={(e) => set({ location: e.target.value })} />
       </Field>

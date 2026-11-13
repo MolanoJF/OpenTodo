@@ -6,7 +6,7 @@ import { Button, Field, Input } from '../../ui'
 import { eventFormChange, eventFormOf, type EventForm } from '../../lib/eventDrop'
 import { t } from '../../lib/i18n'
 import type { CalendarEvent } from '../../lib/types'
-import { changeEvent, deleteEvent, scopeFor } from './eventActions'
+import { askFirst, changeEvent, deleteEvent } from './eventActions'
 
 /** Title, date, start and end, Save, and Delete when the calendar allows it. */
 export function EventEditor({ ev, zone, onDone }: { ev: CalendarEvent; zone?: string; onDone: () => void }) {
@@ -14,20 +14,21 @@ export function EventEditor({ ev, zone, onDone }: { ev: CalendarEvent; zone?: st
   const change = eventFormChange(ev, form, zone)
   const invalid = change === 'invalid' || form.title.trim() === ''
   const set = (patch: Partial<EventForm>) => setForm((f) => ({ ...f, ...patch }))
-  // An occurrence asks which events first, anchored to the button; cancelling leaves the popover open.
+  // An occurrence asks which events first, anchored to the button, then a change that tells guests asks "Tell N guests?";
+  // cancelling either leaves the popover open.
   const save = async () => {
     if (invalid) return
     if (!change) return onDone()
-    const scope = await scopeFor(ev, change, { from: '[data-event-edit-save]' })
-    if (scope === null) return
+    const asked = await askFirst(ev, change, { from: '[data-event-edit-save]' })
+    if (!asked) return
     onDone()
-    void changeEvent(ev, change, Object.keys(change).join() === 'summary' ? 'renamed' : 'updated', undefined, scope)
+    void changeEvent(ev, change, Object.keys(change).join() === 'summary' ? 'renamed' : 'updated', undefined, asked.scope, asked.sure)
   }
   const remove = async () => {
-    const scope = await scopeFor(ev, 'delete', { from: '[data-event-edit-delete]' })
-    if (scope === null) return
+    const asked = await askFirst(ev, 'delete', { from: '[data-event-edit-delete]' })
+    if (!asked) return
     onDone()
-    void deleteEvent(ev, scope)
+    void deleteEvent(ev, asked.scope, asked.sure)
   }
   return (
     <form data-event-edit className="space-y-2" onSubmit={(e) => { e.preventDefault(); void save() }}>
