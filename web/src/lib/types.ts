@@ -1350,7 +1350,56 @@ export interface CalendarEvent {
   access?: CalendarEventAccess
   /** An occurrence of a repeating event (calendar-event-series D1): what groups it with the others; absent for a single event. */
   series?: CalendarEventSeries
+  /** Who else is invited (calendar-event-guests D11): a summary only; the list is read when a popover opens and never stored here. */
+  guests?: CalendarEventGuests
+  /** The call to join (calendar-event-guests D10); an `https` address the server checked. */
+  conference?: CalendarConference
 }
+
+/** A guest's answer; `needs-action` is "not answered yet". */
+export type GuestResponse = 'accepted' | 'tentative' | 'declined' | 'needs-action'
+
+/** What a device keeps of an event's guests: counts and the user's own answer, never a name or an address (D12). */
+export interface CalendarEventGuests {
+  count: number
+  /** The user's own answer; absent when the user is not a guest or their address is unknown. */
+  you?: GuestResponse
+  /** The user organises the event. */
+  organizer: boolean
+  canRespond: boolean
+}
+
+export interface CalendarConference {
+  url: string
+  provider: 'meet' | 'teams' | 'zoom' | 'webex' | 'other'
+}
+
+/** One person on the guest list the cache-only route and the detail answer give (D3). */
+export interface EventGuest {
+  name: string
+  email: string
+  role: 'required' | 'optional' | 'room'
+  response: GuestResponse
+  you: boolean
+}
+
+/** The guest list as the server serves it: held in memory while a popover or an editor is open, never in Dexie. */
+export interface EventGuestList {
+  organizer: { name: string; email: string; you: boolean } | null
+  guests: EventGuest[]
+  count: number
+  truncated: boolean
+}
+
+/** A guest to add (calendar-event-guests D3). */
+export interface GuestInput {
+  email: string
+  name?: string
+  role?: 'required' | 'optional'
+}
+
+/** What a reply answers (D3). */
+export type GuestAnswer = 'accepted' | 'tentative' | 'declined'
 
 /** Which events of a repeating series a change is for (calendar-event-series D1). */
 export type EventScope = 'this' | 'following' | 'all'
@@ -1382,12 +1431,14 @@ export interface CalendarEventSeries {
 }
 
 /** Why a connected calendar's event cannot be changed (calendar-event-edits D3); the first unmet condition. */
-export type CalendarEventReason = 'edits_off' | 'calendar_read_only' | 'series_unsupported' | 'has_guests' | 'not_organizer' | 'no_etag' | 'refresh_pending'
+export type CalendarEventReason = 'cannot_respond' | 'response_not_kept' | 'edits_off' | 'calendar_read_only' | 'series_unsupported' | 'has_guests' | 'not_organizer' | 'no_etag' | 'refresh_pending'
 
 export interface CalendarEventAccess {
   update: boolean
   delete: boolean
   reason?: string
+  /** A change or a delete of this event tells its guests (calendar-event-guests D8): it needs the person's confirmation. */
+  notifies?: boolean
 }
 
 /** What an account lets OpenTodo do in one calendar (calendar-event-edits D3). */
@@ -1395,6 +1446,17 @@ export interface CalendarCaps {
   create: boolean
   update: boolean
   delete: boolean
+  /** The calendar can make an online meeting (a Teams link) for a new or an existing event. */
+  onlineMeeting?: boolean
+}
+
+/** What OpenTodo may do with the guests of a connection's events (calendar-event-guests D1). */
+export interface GuestCaps {
+  respond: boolean
+  /** The answer can be sent without telling the organiser. */
+  silent: boolean
+  /** An organiser's change, guests added or removed, a delete: the provider tells the guests itself. */
+  edit: boolean
 }
 
 /** A subscribed calendar and its status. */
@@ -1418,6 +1480,8 @@ export interface CalendarSubscription {
   editEvents?: boolean
   /** Managed calendars: how many reminders an event takes (5; 1 for Microsoft), calendar-event-series D3. */
   maxReminders?: number
+  /** Managed calendars: what the account does with guests (calendar-event-guests D3). */
+  guests?: GuestCaps
 }
 
 /** One calendar of a calendar sync account, as discovery found it. */
@@ -2719,6 +2783,10 @@ export interface CalendarEventChange {
   repeat?: CalendarRepeat | null
   /** Minutes before the start; [] removes the ones the form shows. Not on the row either. */
   reminders?: number[]
+  /** Guests to add and addresses to remove (calendar-event-guests D3). Not on the row: only a request that tells people carries them, never the outbox. */
+  guests?: { add?: GuestInput[]; remove?: string[] }
+  /** Make a Teams meeting; it cannot be turned off again. */
+  onlineMeeting?: boolean
 }
 
 /** An event made on this device, not yet in the calendar (calendar-event-editor D9). */
@@ -2736,6 +2804,9 @@ export interface CalendarEventDraft {
   free: boolean
   repeat?: CalendarRepeat
   reminders?: number[]
+  /** Guests of a new event; a create with guests is sent at once and never queued (calendar-event-guests D11). */
+  guests?: GuestInput[]
+  onlineMeeting?: boolean
 }
 
 /** The body of `POST .../connections/{id}/events` (calendar-event-editor D4): a draft without the device's own ids. */
@@ -2754,6 +2825,10 @@ export interface CalendarEventDetail {
   remindersMax?: number
   /** Reminders the form cannot show and keeps. */
   remindersOther?: number
+  /** Read from the calendar now (calendar-event-guests D3). */
+  guests?: EventGuestList & { you?: GuestResponse; canRespond: boolean; canEdit: boolean }
+  conference?: CalendarConference
+  onlineMeeting?: { available: boolean; on: boolean }
 }
 
 /** What `PATCH` answers (calendar-event-series D3): `event` is null when the edited occurrence left the cached window. */
@@ -2762,6 +2837,14 @@ export interface CalendarEventUpdate {
   replaces: string
   series?: { id: string; rev?: string }
   /** Other occurrences changed: read the shown range again. */
+  refetch?: boolean
+}
+
+/** What `POST .../response` answers (calendar-event-guests D3): the event row as the events route serves it. */
+export interface CalendarEventReply {
+  event: CalendarEvent | null
+  replaces: string
+  series?: { id: string; rev?: string }
   refetch?: boolean
 }
 

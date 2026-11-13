@@ -2,6 +2,7 @@
 // editor: the first load holds only the grid's own edits (eventActions).
 import { cachedEvent, cancelEventDelete, currentEventId, DELETE_DELAY_MS, editEvent } from '../../lib/calendarEventEdits'
 import { isPendingId, setShowEvents, showEvents } from '../../lib/calendarFeeds'
+import { sendNow } from '../../lib/eventSendNow'
 import { createEvent } from '../../lib/eventCreate'
 import { t } from '../../lib/i18n'
 import type { CalendarEventDraft } from '../../lib/types'
@@ -17,11 +18,20 @@ export async function undoCreate(clientId: string): Promise<void> {
   showBulkToast(t('Event removed'), null, { ttl: DELETE_DELAY_MS, action: { label: t('Undo'), run: undo } })
 }
 
-/** Adds a new event: shown at once, sent when it can be. Turns calendars on first when this device hides them, and says so. */
-export async function addEvent(draft: CalendarEventDraft): Promise<boolean> {
+/**
+ * Adds a new event: shown at once, sent when it can be. Turns calendars on first when this device hides them, and says so.
+ * A draft that invites guests is sent now with the person's confirmation (`confirmed`) and never queued: the calendar tells
+ * the guests, so there is no Undo.
+ */
+export async function addEvent(draft: CalendarEventDraft, confirmed = false): Promise<boolean> {
   try {
     const hidden = !(await showEvents())
     if (hidden) await setShowEvents(true)
+    if (draft.guests?.length) {
+      if (!confirmed || !(await sendNow(null, { kind: 'create', draft, confirmed: true }))) return false
+      showBulkToast(t('Event added. Guests were told.'), null, { ttl: ACTION_TOAST_MS })
+      return true
+    }
     await createEvent(draft)
     const undo = () => { void undoCreate(draft.clientId).catch(reportActionError) }
     showBulkToast(hidden ? t('Event added. Calendars are shown again.') : t('Event added'), null, { ttl: ACTION_TOAST_MS, action: { label: t('Undo'), run: undo } })

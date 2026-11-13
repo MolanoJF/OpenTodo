@@ -20,6 +20,8 @@ export interface ScopeRequest {
   at: ScopeAnchor
   /** Events changed one by one go back to the series: with a new repeat, or (Microsoft) with new times; the items say so. */
   resets?: 'repeat' | 'times'
+  /** The menu offers only these scopes and asks for an answer to an invitation, not a change (calendar-event-guests D11). */
+  only?: EventScope[]
   /** The person's answer; null when they cancelled (Escape, a click outside). */
   resolve: (scope: EventScope | null) => void
 }

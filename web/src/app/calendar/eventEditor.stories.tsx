@@ -40,7 +40,7 @@ function Story({ initial, description = { status: 'ready', text: 'Bring the draf
   )
 }
 
-const created: EventFull = { title: '', allDay: false, startDate: '2026-11-13', startTime: '14:00', endDate: '2026-11-13', endTime: '15:30', zone: VIEWER, location: '', description: '', free: false, repeat: null, reminders: [] }
+const created: EventFull = { title: '', allDay: false, startDate: '2026-11-13', startTime: '14:00', endDate: '2026-11-13', endTime: '15:30', zone: VIEWER, location: '', description: '', free: false, repeat: null, reminders: [], guestAdds: [], guestRemoves: [], teams: false }
 
 export const Create: StoryObj = { render: () => <Story initial={created} description={{ status: 'ready', text: '', editable: true }} creating /> }
 export const EditInAnotherZone: StoryObj = { render: () => <Story initial={eventFullOf(event, VIEWER, 'Bring the draft and the numbers.')} /> }

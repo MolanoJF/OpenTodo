@@ -1,7 +1,8 @@
 // The state of the full event editor (OpenSpec changes calendar-event-editor D11 and calendar-event-series D12): the
 // fields as the person left them over the event as it is (an `edits` object over a `base`, so a description that
 // arrives late does not disturb what was typed), the Save for both modes, Duplicate and Delete. Saving or deleting
-// an occurrence of a repeating event asks which events first, and stays open when the person cancels.
+// an occurrence of a repeating event asks which events first, and a change that tells guests asks "Tell N guests?"
+// after that (calendar-event-guests D8); both stay open when the person cancels.
 import { useMemo, useState } from 'react'
 import { addDaysISO } from '../../lib/dates'
 import { formatTime } from '../../lib/calendar'
@@ -11,11 +12,12 @@ import { isMicrosoftCalendar, sameRepeat } from '../../lib/eventRepeat'
 import type { CalendarEvent, CalendarSubscription } from '../../lib/types'
 import { useViewerZone } from '../useViews'
 import { addEvent } from './eventAdd'
-import { changeEvent, deleteEvent, scopeFor } from './eventActions'
+import { askFirst, changeEvent, confirmInvite, deleteEvent } from './eventActions'
 import { type EventEditorRequest, openEventEditor } from './eventEditorStore'
 import type { RemindersFieldProps } from './EventRemindersField'
 import type { RepeatFieldProps } from './EventRepeatField'
 import { useEventDetail, type DescriptionState } from './useEventDetail'
+import { useEventGuestsField } from './useEventGuestsField'
 
 const DEFAULT_START = 9 * 60
 const DEFAULT_LENGTH = 30
@@ -24,14 +26,14 @@ const DEFAULT_MAX_REMINDERS = 5
 /** The fields of a new event: a place's start and end (or 09:00 and half an hour), or a draft's own. */
 function createBase(request: Extract<EventEditorRequest, { mode: 'create' }>, viewerZone: string): EventFull {
   const d = request.draft
-  if (d) return eventFullOf({ id: '', subscriptionId: d.subscriptionId, uid: d.clientId, summary: d.summary, location: d.location, start: d.start, end: d.end, allDay: d.allDay, free: d.free }, viewerZone, d.description, { repeat: d.repeat ?? null, reminders: d.reminders ?? [] })
+  if (d) return { ...eventFullOf({ id: '', subscriptionId: d.subscriptionId, uid: d.clientId, summary: d.summary, location: d.location, start: d.start, end: d.end, allDay: d.allDay, free: d.free }, viewerZone, d.description, { repeat: d.repeat ?? null, reminders: d.reminders ?? [] }), guestAdds: d.guests ?? [], teams: !!d.onlineMeeting }
   const date = request.place?.date ?? ''
   const start = request.place?.start ?? DEFAULT_START
   const end = Math.max(start + 15, request.place?.end ?? start + DEFAULT_LENGTH)
   const over = end >= 1440
   return {
     title: '', allDay: false, startDate: date, startTime: formatTime(start), endDate: over ? addDaysISO(date, 1) : date, endTime: formatTime(over ? end - 1440 : end),
-    zone: viewerZone, location: '', description: '', free: false, repeat: null, reminders: [],
+    zone: viewerZone, location: '', description: '', free: false, repeat: null, reminders: [], guestAdds: [], guestRemoves: [], teams: false,
   }
 }
 
@@ -79,13 +81,18 @@ export function useEventEditing(request: EventEditorRequest, close: () => void) 
     state: !editing || extras?.reminders ? 'ready' : waiting, reason: description.status === 'unavailable' ? description.reason : undefined,
   } : undefined
 
+  const gf = useEventGuestsField({ editing, ev, sub, form, set, info: detail.info, description })
+
   const save = async () => {
-    if (!form || invalid) return
+    if (!form || invalid || gf.offlineBlocked) return
     if (request.mode === 'create') {
       const draft = calendar && draftFromFull(form, calendar)
       if (!draft) return
+      // Invited guests are told by the calendar: asked first, and the editor stays open when the person cancels.
+      const sure = await confirmInvite(draft)
+      if (sure === false) return
       close()
-      await addEvent(draft)
+      await addEvent(draft, sure === true)
       return
     }
     if (!ev) return
@@ -93,30 +100,30 @@ export function useEventEditing(request: EventEditorRequest, close: () => void) 
     if (!change || change === 'invalid') { close(); return }
     // An occurrence asks which events first, anchored to Save; cancelling leaves the editor as it is.
     const resets = exceptions > 0 && (change.repeat !== undefined || (microsoft && !!change.start)) ? (change.repeat !== undefined ? 'repeat' as const : 'times' as const) : undefined
-    const scope = await scopeFor(ev, change, { from: '[data-event-form-save]', resets })
-    if (scope === null) return
+    const asked = await askFirst(ev, change, { from: '[data-event-form-save]', resets })
+    if (!asked) return
     close()
     const before = { ...(loaded !== null ? { description: loaded } : {}), ...(ev.series && base ? { repeat: base.repeat } : {}), ...(extras?.reminders && base ? { reminders: base.reminders } : {}) }
-    await changeEvent(ev, change, Object.keys(change).join() === 'summary' ? 'renamed' : 'updated', before, scope)
+    await changeEvent(ev, change, Object.keys(change).join() === 'summary' ? 'renamed' : 'updated', before, asked.scope, asked.sure)
   }
 
   /** Duplicate: the editor again, in create mode, with these fields (as a single event) in this event's calendar (else the default one). */
   const duplicate = () => {
     if (!ev || !form) return
     const cal = list.find((c) => c.id === ev.subscriptionId) ?? fallback
-    const draft = cal && (draftFromFull({ ...form, repeat: null }, cal) ?? draftFromEvent(ev, loaded ?? '', cal, viewerZone))
+    const draft = cal && (draftFromFull({ ...form, repeat: null, guestAdds: [], guestRemoves: [], teams: false }, cal) ?? draftFromEvent(ev, loaded ?? '', cal, viewerZone))
     if (draft) openEventEditor({ mode: 'create', draft })
   }
   const remove = async () => {
     if (!ev) return
-    const scope = await scopeFor(ev, 'delete', { from: '[data-event-form-save]' })
-    if (scope === null) return
+    const asked = await askFirst(ev, 'delete', { from: '[data-event-form-save]' })
+    if (!asked) return
     close()
-    await deleteEvent(ev, scope)
+    await deleteEvent(ev, asked.scope, asked.sure)
   }
 
   return {
     form, base, set, setAllDay, dirty, invalid, timesInvalid, save, duplicate, remove, ev, eventCalendar, description, loaded, gone: editing && detail.event === null,
-    calendars: list, calendar, chooseCalendar: setChosen, viewerZone, floating: !!base && base.zone === '' && !!ev, repeatField, remindersField,
+    calendars: list, calendar, chooseCalendar: setChosen, viewerZone, floating: !!base && base.zone === '' && !!ev, repeatField, remindersField, guestsField: gf.guests, videoCall: gf.videoCall, offlineBlocked: gf.offlineBlocked,
   }
 }

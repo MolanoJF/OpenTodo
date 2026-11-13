@@ -1,10 +1,11 @@
 import 'fake-indexeddb/auto'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CalendarEvent } from './types'
 
 const updateCalendarEvent = vi.fn()
 const deleteCalendarEvent = vi.fn()
 const createCalendarEvent = vi.fn()
+const respondToCalendarEvent = vi.fn()
 const calendarEvents = vi.fn()
 vi.mock('./api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./api')>()),
@@ -12,6 +13,7 @@ vi.mock('./api', async (importOriginal) => ({
     updateCalendarEvent: (...a: unknown[]) => updateCalendarEvent(...a),
     deleteCalendarEvent: (...a: unknown[]) => deleteCalendarEvent(...a),
     createCalendarEvent: (...a: unknown[]) => createCalendarEvent(...a),
+    respondToCalendarEvent: (...a: unknown[]) => respondToCalendarEvent(...a),
     calendarEvents: (...a: unknown[]) => calendarEvents(...a),
     calendarFeedsSwitch: { get: async () => ({ enabled: false }) },
     calendarSyncSwitch: { get: async () => ({ enabled: true }) },
@@ -23,6 +25,7 @@ import { cachedWindow, refreshEvents } from './calendarFeeds'
 import { cancelEventDelete, createBodyOf, currentEventId, DELETE_DELAY_MS, EDIT_SETTLE_MS, editEvent, eventAccessText, eventEditNoticeText, flushEventEdits, onEventEditNotice, type EventEditNotice } from './calendarEventEdits'
 import { clearLocalData, db, setMeta, useDatabase } from './db'
 import { createEvent, getEventCalendar } from './eventCreate'
+import { sendNow, startNotifiedDelete } from './eventSendNow'
 import type { CalendarEventDraft } from './types'
 
 const at = (time: string) => ({ date: '2026-11-12', time, tz: 'Europe/Berlin' })
@@ -423,5 +426,210 @@ describe('create', () => {
     await clearLocalData()
     expect(await db.eventOutbox.count()).toBe(0)
     expect(await getEventCalendar()).toBeNull()
+  })
+})
+
+// ---- guests: what tells people is sent now and never queued (calendar-event-guests D8, D11) ----
+describe('sendNow, a notified change, a reply and a create with guests', () => {
+  const guestRow: CalendarEvent = { ...base, rev: 'r1', access: { update: true, delete: true, notifies: true }, guests: { count: 3, organizer: true, canRespond: false } }
+  const invite: CalendarEvent = { ...base, id: 'inv', rev: 'r7', access: { update: false, delete: false, reason: 'not_organizer' }, guests: { count: 4, you: 'needs-action', organizer: false, canRespond: true } }
+  const notices: EventEditNotice[] = []
+  const online = (on: boolean) => vi.stubGlobal('navigator', { onLine: on })
+
+  beforeEach(async () => {
+    notices.length = 0
+    respondToCalendarEvent.mockReset()
+    onEventEditNotice((n) => notices.push(n))
+    await db.calendarEvents.bulkPut([guestRow, invite])
+    online(true)
+  })
+  afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
+
+  it('sends a notified change with notifyGuests, draws it, swaps in the answer and leaves the outbox empty', async () => {
+    updateCalendarEvent.mockResolvedValue({ event: { ...guestRow, id: 'e1b', rev: 'r2', summary: 'Planning' }, replaces: 'e1' })
+    expect(await sendNow(guestRow, { kind: 'change', change: { summary: 'Planning' }, confirmed: true })).toBe(true)
+    expect(updateCalendarEvent).toHaveBeenCalledWith('c1', 'e1', { rev: 'r1', summary: 'Planning', notifyGuests: true })
+    expect(await db.eventOutbox.count()).toBe(0)
+    expect(await db.calendarEvents.get('e1')).toBeUndefined()
+    expect((await db.calendarEvents.get('e1b'))!.summary).toBe('Planning')
+    expect(notices).toEqual([])
+  })
+
+  it('carries no notifyGuests unless the person confirmed (a message is never sent on a guess)', async () => {
+    updateCalendarEvent.mockResolvedValue({ event: null, replaces: 'e1' })
+    await sendNow(guestRow, { kind: 'change', change: { onlineMeeting: true } })
+    expect(updateCalendarEvent).toHaveBeenCalledWith('c1', 'e1', { rev: 'r1', onlineMeeting: true })
+  })
+
+  it('carries the scope and the guest changes, and draws the change while it is on its way', async () => {
+    let seen = ''
+    updateCalendarEvent.mockImplementation(async () => { seen = (await db.calendarEvents.get('e1'))!.summary; return { event: null, replaces: 'e1' } })
+    await sendNow({ ...guestRow, series: { id: 'sr' } }, { kind: 'change', change: { summary: 'Planning', guests: { add: [{ email: 'a@b.co' }], remove: ['c@d.co'] } }, scope: 'this', confirmed: true })
+    expect(seen).toBe('Planning')
+    expect(updateCalendarEvent).toHaveBeenCalledWith('c1', 'e1', { rev: 'r1', summary: 'Planning', guests: { add: [{ email: 'a@b.co' }], remove: ['c@d.co'] }, scope: 'this', notifyGuests: true })
+  })
+
+  it('sends nothing offline, says why and keeps the row as it was', async () => {
+    online(false)
+    expect(await sendNow(guestRow, { kind: 'change', change: { summary: 'Planning' } })).toBe(false)
+    expect(updateCalendarEvent).not.toHaveBeenCalled()
+    expect(notices).toMatchObject([{ code: 'offline_guests' }])
+    expect(eventEditNoticeText(notices[0])).toBe("Guests are told when you're online")
+    expect((await db.calendarEvents.get('e1'))!.summary).toBe('Standup')
+    expect(await db.eventOutbox.count()).toBe(0)
+  })
+
+  it('restores the row and tells the reason when the calendar refuses, and never retries', async () => {
+    updateCalendarEvent.mockRejectedValue(refused(409, 'event_changed'))
+    expect(await sendNow(guestRow, { kind: 'change', change: { summary: 'Planning' } })).toBe(false)
+    expect((await db.calendarEvents.get('e1'))!.summary).toBe('Standup')
+    expect(notices).toMatchObject([{ code: 'event_changed', title: 'Standup' }])
+    await flushEventEdits(T0 + 10 * 60_000)
+    expect(updateCalendarEvent).toHaveBeenCalledTimes(1)
+    expect(await db.eventOutbox.count()).toBe(0)
+  })
+
+  it('does not queue a change that could not reach the server: it is restored and never sent later', async () => {
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    expect(await sendNow(guestRow, { kind: 'change', change: { summary: 'Planning' } })).toBe(false)
+    expect(await db.eventOutbox.count()).toBe(0)
+    expect((await db.calendarEvents.get('e1'))!.summary).toBe('Standup')
+    expect(notices[0].code).toBe('offline_guests')
+    await flushEventEdits(T0 + 10 * 60_000)
+    expect(updateCalendarEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses to queue a change of an event that tells its guests', async () => {
+    expect(await editEvent(guestRow, { summary: 'Planning' }, T0)).toBeNull()
+    expect(await editEvent(guestRow, { delete: true }, T0)).toBeNull()
+    expect(await db.eventOutbox.count()).toBe(0)
+    expect(notices[0].code).toBe('notify_required')
+  })
+
+  it('still queues a change of an event that has guests but tells nobody', async () => {
+    const quiet = { ...guestRow, access: { update: true, delete: true } }
+    await db.calendarEvents.put(quiet)
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    expect(await edit(quiet, { summary: 'Planning' }, T0)).toEqual({ summary: 'Standup' })
+    expect(await db.eventOutbox.count()).toBe(1)
+  })
+
+  it('answers an invitation: writes guests.you and the new rev from the calendar and sends one request', async () => {
+    respondToCalendarEvent.mockResolvedValue({ event: { ...invite, rev: 'r8', guests: { ...invite.guests!, you: 'accepted' } }, replaces: 'inv' })
+    expect(await sendNow(invite, { kind: 'reply', response: 'accepted', sendResponse: false })).toBe(true)
+    expect(respondToCalendarEvent).toHaveBeenCalledWith('c1', 'inv', { rev: 'r7', response: 'accepted', sendResponse: false })
+    const row = (await db.calendarEvents.get('inv'))!
+    expect(row.rev).toBe('r8')
+    expect(row.guests?.you).toBe('accepted')
+    expect(await db.eventOutbox.count()).toBe(0)
+  })
+
+  it('draws the answer at once, applies the series version and reads the range again when the server says so', async () => {
+    const occ = { ...invite, id: 'o1', series: { id: 'sr', rev: 'r7' } }
+    const other = { ...invite, id: 'o2', series: { id: 'sr', rev: 'r7' } }
+    await db.calendarEvents.bulkPut([occ, other])
+    let drawn = ''
+    respondToCalendarEvent.mockImplementation(async () => { drawn = (await db.calendarEvents.get('o1'))!.guests!.you!; return { event: null, replaces: 'o1', series: { id: 'sr', rev: 'r9' }, refetch: true } })
+    calendarEvents.mockResolvedValue({ events: [], subscriptions: [] })
+    await setMeta('calendar.events.window', { from: '2026-11-01', to: '2026-11-30', fetchedAt: Date.now() })
+    await sendNow(occ, { kind: 'reply', response: 'tentative', scope: 'all' })
+    expect(drawn).toBe('tentative')
+    expect(respondToCalendarEvent).toHaveBeenCalledWith('c1', 'o1', { rev: 'r7', response: 'tentative', scope: 'all' })
+    expect((await db.calendarEvents.get('o2'))!.series?.rev).toBe('r9')
+    await vi.waitFor(() => expect(calendarEvents).toHaveBeenCalled())
+  })
+
+  it("shows the calendar's real answer and says so when it did not keep the reply", async () => {
+    respondToCalendarEvent.mockRejectedValue(new ApiError(502, 'calendar_unreachable', 'calendar_unreachable: response_not_kept'))
+    calendarEvents.mockResolvedValue({ events: [invite], subscriptions: [] })
+    await setMeta('calendar.events.window', { from: '2026-11-01', to: '2026-11-30', fetchedAt: Date.now() })
+    expect(await sendNow(invite, { kind: 'reply', response: 'accepted' })).toBe(false)
+    expect((await db.calendarEvents.get('inv'))!.guests?.you).toBe('needs-action')
+    expect(calendarEvents).toHaveBeenCalled()
+    expect(notices).toMatchObject([{ code: 'response_not_kept' }])
+    expect(eventEditNoticeText(notices[0])).toBe("The calendar didn't keep your answer")
+    expect(eventEditNoticeText({ ...notices[0], provider: 'google' })).toBe("Google didn't keep your answer")
+  })
+
+  it('never queues a reply offline', async () => {
+    online(false)
+    expect(await sendNow(invite, { kind: 'reply', response: 'declined' })).toBe(false)
+    expect(respondToCalendarEvent).not.toHaveBeenCalled()
+    expect(await db.eventOutbox.count()).toBe(0)
+  })
+
+  it('creates an event with guests at once with notifyGuests, never in the outbox', async () => {
+    const draft = draftOf('g1', { guests: [{ email: 'ben@example.com', role: 'optional' }], onlineMeeting: true })
+    createCalendarEvent.mockResolvedValue({ event: created('g1'), clientId: 'g1' })
+    expect(await sendNow(null, { kind: 'create', draft, confirmed: true })).toBe(true)
+    expect(createCalendarEvent).toHaveBeenCalledWith('c1', { ...createBodyOf(draft), notifyGuests: true })
+    expect(createBodyOf(draft)).toMatchObject({ guests: [{ email: 'ben@example.com', role: 'optional' }], onlineMeeting: true })
+    expect(await db.eventOutbox.count()).toBe(0)
+    expect(await db.calendarEvents.get('real-g1')).toBeTruthy()
+    expect(await db.calendarEvents.get('pending:g1')).toBeUndefined()
+  })
+
+  it('a refused create leaves nothing and offers the draft back', async () => {
+    const draft = draftOf('g2', { guests: [{ email: 'ben@example.com' }] })
+    createCalendarEvent.mockRejectedValue(refused(400, 'invalid_input'))
+    expect(await sendNow(null, { kind: 'create', draft })).toBe(false)
+    expect(await db.calendarEvents.get('pending:g2')).toBeUndefined()
+    expect(notices[0]).toMatchObject({ code: 'invalid_input', draft })
+  })
+
+  it('does not queue a create with guests: createEvent refuses it', async () => {
+    await expect(createEvent(draftOf('g3', { guests: [{ email: 'ben@example.com' }] }))).rejects.toThrow()
+    expect(await db.eventOutbox.count()).toBe(0)
+  })
+
+  describe('a notified delete', () => {
+    it('hides the event, sends nothing before the delay and sends once with notifyGuests after it', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      deleteCalendarEvent.mockResolvedValue(undefined)
+      await startNotifiedDelete(guestRow, 'all')
+      expect(await db.calendarEvents.get('e1')).toBeUndefined()
+      await vi.advanceTimersByTimeAsync(DELETE_DELAY_MS - 1)
+      expect(deleteCalendarEvent).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(2)
+      expect(deleteCalendarEvent).toHaveBeenCalledWith('c1', 'e1', 'r1', 'all', true)
+      expect(await db.eventOutbox.count()).toBe(0)
+    })
+
+    it('Undo inside the window brings the event back and sends nothing', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      const undo = (await startNotifiedDelete(guestRow))!
+      expect(await undo()).toBe(true)
+      expect((await db.calendarEvents.get('e1'))!.summary).toBe('Standup')
+      await vi.advanceTimersByTimeAsync(DELETE_DELAY_MS * 2)
+      expect(deleteCalendarEvent).not.toHaveBeenCalled()
+      expect(await undo()).toBe(false)
+    })
+
+    it('restores the event and says why when the device is offline at send time', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      await startNotifiedDelete(guestRow)
+      online(false)
+      await vi.advanceTimersByTimeAsync(DELETE_DELAY_MS + 1)
+      expect(deleteCalendarEvent).not.toHaveBeenCalled()
+      expect(await db.calendarEvents.get('e1')).toBeTruthy()
+      expect(notices[0].code).toBe('offline_guests')
+    })
+
+    it('restores the event and tells the reason when the calendar refuses', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      deleteCalendarEvent.mockRejectedValue(refused(409, 'event_changed'))
+      await startNotifiedDelete(guestRow)
+      await vi.advanceTimersByTimeAsync(DELETE_DELAY_MS + 1)
+      expect(await db.calendarEvents.get('e1')).toBeTruthy()
+      expect(notices[0].code).toBe('event_changed')
+    })
+  })
+
+  it('says the locked reasons for a guest and for Google', () => {
+    expect(eventAccessText('not_organizer')).toBe("You're a guest. Only the organizer can change this event")
+    expect(eventAccessText('has_guests')).toBe('This event has guests')
+    expect(eventAccessText('has_guests', 'google')).toBe("Google doesn't say whether changing this would tell the guests, so it's read-only here")
+    expect(eventAccessText('cannot_respond')).toBe("You can't answer this invitation from here")
+    expect(eventAccessText('response_not_kept', 'google')).toBe("Google didn't keep your answer")
   })
 })

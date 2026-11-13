@@ -27,6 +27,7 @@ export function draftFromFull(form: EventFull, cal: Pick<CalendarSubscription, '
     summary: form.title.trim(), start: when.start, end: when.end, allDay: when.allDay,
     location: form.location, description: form.description, free: form.free,
     ...(form.repeat ? { repeat: restRepeat(form.repeat) } : {}), ...(form.reminders.length ? { reminders: form.reminders } : {}),
+    ...(form.guestAdds.length ? { guests: form.guestAdds } : {}), ...(form.teams ? { onlineMeeting: true } : {}),
   }
 }
 
@@ -40,6 +41,8 @@ export function draftFromEvent(ev: CalendarEvent, description: string, cal: Pick
  * chose becomes the default for next time. Returns the pending row.
  */
 export async function createEvent(draft: CalendarEventDraft, now = Date.now()): Promise<CalendarEvent> {
+  // A create that invites people is sent at once with the person's confirmation (sendNow), never queued (calendar-event-guests D8).
+  if (draft.guests?.length) throw new Error('a create with guests is sent with sendNow, not queued')
   const row = pendingRowOf(draft)
   await db.transaction('rw', [db.calendarEvents, db.eventOutbox, db.meta], async () => {
     // Creates are sent in the order they were made: each waits at least one tick after the last.

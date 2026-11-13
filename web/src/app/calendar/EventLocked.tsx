@@ -1,11 +1,13 @@
 // Why an event cannot be changed (OpenSpec change calendar-event-edits D7). Static: the editor beside it loads lazily.
 import { eventAccessText } from '../../lib/calendarEventEdits'
+import { providerOf } from '../../lib/eventGuests'
 import { t } from '../../lib/i18n'
+import type { CalendarSubscription } from '../../lib/types'
 import { navigate } from '../router'
 
 /** Why an event cannot be changed, with a way to the connection's settings when the switch is what is missing. */
-export function EventLocked({ reason }: { reason: string | undefined }) {
-  const text = eventAccessText(reason)
+export function EventLocked({ reason, sub }: { reason: string | undefined; sub?: CalendarSubscription }) {
+  const text = eventAccessText(reason, providerOf(sub))
   if (!text) return null
   return (
     <p className="text-meta text-faint" data-event-locked={reason}>

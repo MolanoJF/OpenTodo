@@ -19,6 +19,8 @@ export interface EventDetail {
   description: DescriptionState
   /** The repeat and the reminders as the calendar gave them with the description (calendar-event-series D3); absent until then. */
   extras?: EventExtras
+  /** The guests, the call and the online meeting as the calendar has them now (calendar-event-guests D3); held in memory by the editor, never stored. */
+  info?: Pick<CalendarEventDetail, 'guests' | 'conference' | 'onlineMeeting'>
 }
 
 /** What the detail answer adds to the row. */
@@ -46,7 +48,7 @@ export async function loadEventDetail(eventId: string, put: (d: EventDetail) => 
   try {
     const res = await api.calendarEventDetail(connectionId, row.id)
     if (res.replaces) await adoptEvent(res)
-    put({ event: res.event, description: { status: 'ready', text: res.description, editable: res.descriptionEditable }, extras: extrasOf(res) })
+    put({ event: res.event, description: { status: 'ready', text: res.description, editable: res.descriptionEditable }, extras: extrasOf(res), info: { guests: res.guests, conference: res.conference, onlineMeeting: res.onlineMeeting } })
   } catch (err) {
     if (err instanceof ApiError && err.code === 'event_gone') {
       await db.calendarEvents.delete(row.id)

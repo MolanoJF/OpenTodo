@@ -317,6 +317,9 @@
   "A Photon server; the public Photon by default.": [
     "web/src/app/locations/MapsSettings.tsx"
   ],
+  "A Teams meeting can't be removed from here once it is added.": [
+    "web/src/app/calendar/EventVideoCall.tsx"
+  ],
   "A VS Code colour theme file": [
     "web/src/app/themes/YourThemes.tsx"
   ],
@@ -338,6 +341,9 @@
   ],
   "A card dropped on this column gets these changes.": [
     "web/src/app/RuleEditor.tsx"
+  ],
+  "A change that tells guests is sent after you confirm it": [
+    "web/src/lib/calendarEventEdits.ts"
   ],
   "A choice field needs at least one option.": [
     "web/src/lib/fields.ts"
@@ -834,7 +840,8 @@
   "Accepted": [
     "web/src/app/MembersPanel.tsx",
     "web/src/app/assistant/AssistantDevice.tsx",
-    "web/src/app/assistant/AssistantSettings.tsx"
+    "web/src/app/assistant/AssistantSettings.tsx",
+    "web/src/lib/eventGuests.ts"
   ],
   "Accepting an invitation needs a connection to the server. The page will retry when the network returns.": [
     "web/src/app/InviteScreen.tsx"
@@ -972,6 +979,9 @@
   "Add a": [
     "web/src/app/calendar/AddOnDayDialog.tsx",
     "web/src/app/calendar/EventForm.tsx"
+  ],
+  "Add a Teams meeting": [
+    "web/src/app/calendar/EventVideoCall.tsx"
   ],
   "Add a blocker": [
     "web/src/app/task-detail/TaskFacts.tsx"
@@ -1201,6 +1211,9 @@
   ],
   "Add from file": [
     "web/src/app/BrandingThemes.tsx"
+  ],
+  "Add guest": [
+    "web/src/app/calendar/GuestsField.tsx"
   ],
   "Add here": [
     "web/src/app/calendar/addHere.tsx"
@@ -1831,6 +1844,9 @@
   ],
   "Answer as": [
     "web/src/lib/rules/sentence.ts"
+  ],
+  "Answer for which events": [
+    "web/src/app/calendar/ScopeMenu.tsx"
   ],
   "Answered": [
     "web/src/app/RelaySettings.tsx"
@@ -2737,6 +2753,7 @@
     "web/src/app/CalendarView.tsx",
     "web/src/app/calendar/DayColumn.tsx",
     "web/src/app/calendar/EventForm.tsx",
+    "web/src/app/calendar/JoinButton.tsx",
     "web/src/app/calendar/SidebarSchedule.tsx",
     "web/src/app/calendar/TodayAgenda.tsx",
     "web/src/lib/calendarEventEdits.ts"
@@ -2948,6 +2965,7 @@
     "web/src/app/assistant/ItemEditor.tsx",
     "web/src/app/calendar/ConvertToTask.tsx",
     "web/src/app/calendar/FramesDialog.tsx",
+    "web/src/app/calendar/NotifyGuestsDialog.tsx",
     "web/src/app/calendar/ReplanPreview.tsx",
     "web/src/app/calendar/occurrenceMenu.tsx",
     "web/src/app/filter/ConditionEditor.tsx",
@@ -3441,6 +3459,12 @@
   ],
   "Choose what {title} waits for": [
     "web/src/app/palette/registry.ts"
+  ],
+  "Choose which events of this repeating series to change: this event, this and following events, or all events.": [
+    "web/src/lib/i18n/errors.ts"
+  ],
+  "Choose which events to answer": [
+    "web/src/app/calendar/ScopeMenu.tsx"
   ],
   "Choose which events to change": [
     "web/src/app/calendar/ScopeMenu.tsx"
@@ -4858,7 +4882,8 @@
     "web/src/app/RelayConfirm.tsx"
   ],
   "Declined": [
-    "web/src/app/RelaySettings.tsx"
+    "web/src/app/RelaySettings.tsx",
+    "web/src/lib/eventGuests.ts"
   ],
   "Deep": [
     "web/src/app/routines/words.tsx",
@@ -4933,6 +4958,9 @@
   ],
   "Delete account": [
     "web/src/app/UsersPanel.tsx"
+  ],
+  "Delete and tell guests": [
+    "web/src/lib/eventNotify.ts"
   ],
   "Delete client": [
     "web/src/app/OAuthClients.tsx"
@@ -5103,6 +5131,9 @@
   ],
   "Deletes earlier (superseded) versions of your titles, descriptions and names from the server's history, including any plaintext from before encryption was on. Revision history for those fields is gone afterwards. Backups made before now, and copies of the database, may still contain plaintext: delete them if that matters to you.": [
     "web/src/app/EncryptionPanel.tsx"
+  ],
+  "Deleting it would tell the guests, so the event stays.": [
+    "web/src/app/calendar/ConvertToTask.tsx"
   ],
   "Deleting…": [
     "web/src/app/EncryptionPanel.tsx"
@@ -6163,6 +6194,9 @@
   "Enter an address that starts with https://, http:// or mailto:.": [
     "web/src/app/LinkDialog.tsx"
   ],
+  "Enter an email address": [
+    "web/src/app/calendar/GuestsField.tsx"
+  ],
   "Enter common, organizations, consumers, a tenant ID or a domain name.": [
     "web/src/app/CalendarSyncDialogs.tsx"
   ],
@@ -6274,6 +6308,9 @@
     "web/src/app/calendar/eventAdd.ts"
   ],
   "Event added. Calendars are shown again.": [
+    "web/src/app/calendar/eventAdd.ts"
+  ],
+  "Event added. Guests were told.": [
     "web/src/app/calendar/eventAdd.ts"
   ],
   "Event deleted": [
@@ -7687,6 +7724,12 @@
   "Google did not grant lasting access. Remove OpenTodo at myaccount.google.com/permissions and connect again.": [
     "web/src/app/CalendarSyncPanel.tsx"
   ],
+  "Google didn't keep your answer": [
+    "web/src/lib/calendarEventEdits.ts"
+  ],
+  "Google doesn't say whether changing this would tell the guests, so it's read-only here": [
+    "web/src/lib/calendarEventEdits.ts"
+  ],
   "Google would send you back to another address than the one this page is open at. The server owner must set OPENTODO_BASE_URL to the address people open OpenTodo at.": [
     "web/src/lib/i18n/errors.ts"
   ],
@@ -7806,6 +7849,16 @@
   "Guest (task page)": [
     "web/src/lib/activity.ts"
   ],
+  "Guests": [
+    "web/src/app/calendar/EventGuests.tsx",
+    "web/src/app/calendar/GuestsField.tsx"
+  ],
+  "Guests are told when you're online": [
+    "web/src/app/calendar/EventPanel.tsx",
+    "web/src/app/calendar/EventRespond.tsx",
+    "web/src/app/calendar/GuestsField.tsx",
+    "web/src/lib/calendarEventEdits.ts"
+  ],
   "Guests can": [
     "web/src/app/task-detail/TaskPageDialog.tsx"
   ],
@@ -7820,6 +7873,9 @@
   ],
   "Guests see where the task happens.": [
     "web/src/app/task-detail/TaskPageDialog.tsx"
+  ],
+  "Guests were told": [
+    "web/src/app/calendar/eventActions.ts"
   ],
   "Habit": [
     "web/src/app/filter/conditionText.ts",
@@ -8753,6 +8809,9 @@
     "web/src/app/settingsSections.ts",
     "web/src/lib/settingsCopy.ts"
   ],
+  "Invite and save": [
+    "web/src/lib/eventNotify.ts"
+  ],
   "Invite link": [
     "web/src/app/InviteLinksSection.tsx",
     "web/src/app/WorkspaceInvites.tsx"
@@ -8900,6 +8959,21 @@
   ],
   "Join <span>{projectName}</span>": [
     "web/src/app/ProjectInviteScreen.tsx"
+  ],
+  "Join Google Meet": [
+    "web/src/lib/eventConference.ts"
+  ],
+  "Join Teams": [
+    "web/src/lib/eventConference.ts"
+  ],
+  "Join Webex": [
+    "web/src/lib/eventConference.ts"
+  ],
+  "Join Zoom": [
+    "web/src/lib/eventConference.ts"
+  ],
+  "Join call": [
+    "web/src/lib/eventConference.ts"
   ],
   "Join on Discord": [
     "web/src/app/AboutSection.tsx"
@@ -9680,6 +9754,10 @@
   "Loading the event": [
     "web/src/app/calendar/EventPanel.tsx"
   ],
+  "Loading the guests": [
+    "web/src/app/calendar/EventGuests.tsx",
+    "web/src/app/calendar/GuestsField.tsx"
+  ],
   "Loading the guide": [
     "web/src/app/help/HelpPanel.tsx",
     "web/src/app/help/HelpView.tsx"
@@ -10056,6 +10134,10 @@
   ],
   "Matching settings": [
     "web/src/app/SettingsView.tsx"
+  ],
+  "Maybe": [
+    "web/src/app/calendar/EventRespond.tsx",
+    "web/src/lib/eventGuests.ts"
   ],
   "Maybe one day: parked without a date.": [
     "web/src/lib/method/vocabulary.json"
@@ -11060,7 +11142,9 @@
     "web/src/lib/shortcuts.ts"
   ],
   "No": [
+    "web/src/app/calendar/EventRespond.tsx",
     "web/src/app/task-detail/HistoryTab.tsx",
+    "web/src/lib/eventGuests.ts",
     "web/src/lib/fields.ts"
   ],
   "No API key is configured for this assistant.": [
@@ -11095,6 +11179,12 @@
   ],
   "No activity yet": [
     "web/src/app/task-detail/ActivityTab.tsx"
+  ],
+  "No answer": [
+    "web/src/lib/eventGuests.ts"
+  ],
+  "No answer yet": [
+    "web/src/lib/eventGuests.ts"
   ],
   "No app passwords yet.": [
     "web/src/app/CaldavPanel.tsx"
@@ -12686,9 +12776,6 @@
   "Only the addresses you list below.": [
     "web/src/app/assistant/AssistantDevice.tsx"
   ],
-  "Only the organizer can change this event": [
-    "web/src/lib/calendarEventEdits.ts"
-  ],
   "Only the owner and admins can change the name, colour and icon.": [
     "web/src/app/WorkspaceGeneral.tsx"
   ],
@@ -13036,6 +13123,7 @@
   ],
   "Optional": [
     "web/src/app/assistant/AssistantSettings.tsx",
+    "web/src/app/calendar/GuestsField.tsx",
     "web/src/app/locations/PlacesView.tsx",
     "web/src/app/rules/RuleFields.tsx"
   ],
@@ -13133,6 +13221,10 @@
   "Organize": [
     "web/src/app/LabelsView.tsx"
   ],
+  "Organizer: {name}": [
+    "web/src/app/calendar/EventGuests.tsx",
+    "web/src/app/calendar/GuestsField.tsx"
+  ],
   "Origin": [
     "web/src/app/filter/ConditionEditor.tsx",
     "web/src/app/task-detail/TaskFacts.tsx",
@@ -13227,6 +13319,15 @@
   ],
   "Outline of the headings (3 or more)": [
     "web/src/lib/richtextEditor.ts"
+  ],
+  "Outlook sends them an invitation. You can't turn that off.": [
+    "web/src/lib/eventNotify.ts"
+  ],
+  "Outlook sends them this update. You can't turn that off.": [
+    "web/src/lib/eventNotify.ts"
+  ],
+  "Outlook tells them this event is cancelled. You can't turn that off.": [
+    "web/src/lib/eventNotify.ts"
   ],
   "Outlook was not connected: Microsoft did not complete the sign-in. Try again.": [
     "web/src/app/CalendarSyncPanel.tsx"
@@ -14742,6 +14843,7 @@
     "web/src/app/ShareCapture.tsx",
     "web/src/app/ShareDialog.tsx",
     "web/src/app/WorkspaceMembers.tsx",
+    "web/src/app/calendar/GuestsField.tsx",
     "web/src/app/notes/NoteSearchField.tsx",
     "web/src/app/task-detail/AttachmentsRow.tsx",
     "web/src/app/task-detail/Composer.tsx",
@@ -15565,6 +15667,9 @@
     "web/src/app/themes/ThemePreview.tsx",
     "web/src/ui/patterns/SaveBar.tsx"
   ],
+  "Save and tell guests": [
+    "web/src/lib/eventNotify.ts"
+  ],
   "Save as template": [
     "web/src/app/TemplateDialogs.tsx"
   ],
@@ -15666,7 +15771,8 @@
     "web/src/app/routines/SharedRoutine.tsx"
   ],
   "Saving this change first": [
-    "web/src/lib/calendarEventEdits.ts"
+    "web/src/lib/calendarEventEdits.ts",
+    "web/src/lib/eventSendNow.ts"
   ],
   "Saving…": [
     "web/src/app/BackupsPanel.tsx",
@@ -16561,6 +16667,10 @@
   ],
   "Showing the next {n} occurrences": [
     "web/src/app/calendar/projections.tsx"
+  ],
+  "Showing {shown} of {count} guests.": [
+    "web/src/app/calendar/EventGuests.tsx",
+    "web/src/app/calendar/GuestsField.tsx"
   ],
   "Shown after the link’s secret, to say what the page is about. Lowercase letters, digits and hyphens.": [
     "web/src/app/notes/NotePageDialog.tsx",
@@ -17902,6 +18012,9 @@
   "Tell the assistant your time zone: due dates are evaluated in the time zone it passes (UTC otherwise). Changes made offline on a device appear once it syncs.": [
     "web/src/app/AssistantsPanel.tsx"
   ],
+  "Tell the organizer": [
+    "web/src/app/calendar/EventRespond.tsx"
+  ],
   "Tell us what went wrong. A hello is welcome too.": [
     "web/src/app/FeedbackDialog.tsx"
   ],
@@ -18228,6 +18341,9 @@
   "The calendar app sends reminders; OpenTodo does not.": [
     "web/src/app/calendar/EventRemindersField.tsx"
   ],
+  "The calendar didn't keep your answer": [
+    "web/src/lib/calendarEventEdits.ts"
+  ],
   "The calendar server asked to slow down.": [
     "web/src/app/CalendarSyncPanel.tsx"
   ],
@@ -18405,6 +18521,15 @@
   ],
   "The full Open Loops method arranges the sidebar; these choices apply in the other modes.": [
     "web/src/lib/settingsCopy.ts"
+  ],
+  "The guest list could not be loaded.": [
+    "web/src/app/calendar/EventGuests.tsx"
+  ],
+  "The guest list needs a connection.": [
+    "web/src/app/calendar/EventGuests.tsx"
+  ],
+  "The guests could not be loaded, so they are left as they are.": [
+    "web/src/app/calendar/GuestsField.tsx"
   ],
   "The guide is in English.": [
     "web/src/app/help/EnglishGuideNote.tsx"
@@ -20753,6 +20878,9 @@
     "web/src/app/QuickAdd.tsx",
     "web/src/app/quickadd/FieldRows.tsx"
   ],
+  "Type an email address": [
+    "web/src/app/calendar/GuestsField.tsx"
+  ],
   "Type any interval or pattern, such as {examples}.": [
     "web/src/app/RecurrenceField.tsx"
   ],
@@ -21415,6 +21543,9 @@
   "Versions": [
     "web/src/app/task-detail/HistoryTab.tsx"
   ],
+  "Video call": [
+    "web/src/app/calendar/EventVideoCall.tsx"
+  ],
   "View": [
     "web/src/app/display/DisplayScreen.tsx",
     "web/src/app/routines/words.tsx",
@@ -22062,6 +22193,8 @@
     "web/src/lib/shortcuts.ts"
   ],
   "Yes": [
+    "web/src/app/calendar/EventRespond.tsx",
+    "web/src/lib/eventGuests.ts",
     "web/src/lib/fields.ts"
   ],
   "Yesterday": [
@@ -22119,6 +22252,9 @@
   ],
   "You are offline, so the description is left as it is.": [
     "web/src/app/calendar/EventForm.tsx"
+  ],
+  "You are offline, so the guests are left as they are.": [
+    "web/src/app/calendar/GuestsField.tsx"
   ],
   "You are offline, so the reminders are left as they are.": [
     "web/src/app/calendar/EventRemindersField.tsx"
@@ -22190,6 +22326,9 @@
   "You can view this project but not change dates.": [
     "web/src/app/TimelineView.tsx"
   ],
+  "You can't answer this invitation from here": [
+    "web/src/lib/calendarEventEdits.ts"
+  ],
   "You can't change this task's date": [
     "web/src/lib/slots.ts"
   ],
@@ -22249,6 +22388,9 @@
   "You will no longer be able to sign in with {provider} using this account. Your password and passkeys keep working.": [
     "web/src/app/SsoPanel.tsx"
   ],
+  "You're a guest. Only the organizer can change this event": [
+    "web/src/lib/calendarEventEdits.ts"
+  ],
   "You're offline. The test needs the server.": [
     "web/src/app/NotificationsSettings.tsx"
   ],
@@ -22300,6 +22442,13 @@
   ],
   "Your address": [
     "web/src/lib/settingsCopy.ts"
+  ],
+  "Your answer": [
+    "web/src/app/calendar/EventRespond.tsx"
+  ],
+  "Your answer: {answer}": [
+    "web/src/app/calendar/EventGuests.tsx",
+    "web/src/app/calendar/EventRespond.tsx"
   ],
   "Your answers still count toward the server’s monthly limit.": [
     "web/src/app/assistant/AssistantSettings.tsx"
@@ -23916,8 +24065,14 @@
   "opened {instant}": [
     "web/src/app/PublicLinksSection.tsx"
   ],
+  "opens in a new tab": [
+    "web/src/app/calendar/JoinButton.tsx"
+  ],
   "opentodo": [
     "web/src/app/BackupsPanel.tsx"
+  ],
+  "optional": [
+    "web/src/lib/eventGuests.ts"
   ],
   "or": [
     "web/src/app/AuthScreen.tsx",
@@ -24153,6 +24308,9 @@
   ],
   "resumes {when}": [
     "web/src/app/IssuesPanel.tsx"
+  ],
+  "room": [
+    "web/src/lib/eventGuests.ts"
   ],
   "routine proposal": [
     "web/src/lib/shortcuts.ts"
@@ -24907,6 +25065,9 @@
     "web/src/app/filter/conditionText.ts",
     "web/src/lib/review.ts"
   ],
+  "you": [
+    "web/src/app/calendar/EventGuests.tsx"
+  ],
   "you@example.com": [
     "web/src/app/EmailInboxPanel.tsx"
   ],
@@ -25146,6 +25307,9 @@
   ],
   "{from} to {to}": [
     "web/src/app/routines/words.tsx"
+  ],
+  "{guests}, {n} accepted": [
+    "web/src/lib/eventGuests.ts"
   ],
   "{hostOf} · used {relativeTime}": [
     "web/src/app/SsoPanel.tsx"
@@ -25400,6 +25564,9 @@
   ],
   "{n, plural, one {# graduated habit} other {# graduated habits}}": [
     "web/src/app/habits/HabitsScreen.tsx"
+  ],
+  "{n, plural, one {# guest} other {# guests}}": [
+    "web/src/lib/eventGuests.ts"
   ],
   "{n, plural, one {# hour after} other {# hours after}}": [
     "web/src/lib/nlp/reminders.ts"
@@ -25831,6 +25998,9 @@
   "{n, plural, one {In # day} other {In # days}}": [
     "web/src/app/rules/RuleFields.tsx"
   ],
+  "{n, plural, one {Invite # guest?} other {Invite # guests?}}": [
+    "web/src/lib/eventNotify.ts"
+  ],
   "{n, plural, one {It is deleted for every member. A copy of its # open task goes to your Inbox.} other {It is deleted for every member. Copies of its # open tasks go to your Inbox.}}": [
     "web/src/app/ProjectHeader.tsx"
   ],
@@ -25912,6 +26082,9 @@
   ],
   "{n, plural, one {Start # minute} other {Start # minutes}}": [
     "web/src/app/focus/FocusParts.tsx"
+  ],
+  "{n, plural, one {Tell # guest?} other {Tell # guests?}}": [
+    "web/src/lib/eventNotify.ts"
   ],
   "{n, plural, one {Test finished: would write # item, nothing was written} other {Test finished: would write # items, nothing was written}}": [
     "web/src/app/routines/RoutineEditor.tsx"

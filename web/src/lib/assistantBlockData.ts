@@ -12,7 +12,7 @@ import { DEFAULT_GRID_PREFS, GRID_PREFS_META_KEY, normalizeGridPrefs } from './c
 import { ensureEventsFor } from './calendarFeeds'
 import { db, getMeta } from './db'
 import { addDaysISO, currentDayStart, daysBetweenISO, formatDate, instantToLocalDue, localDueOf, logicalDay, viewerZone } from './dates'
-import { freeTime, type FreeDay } from './freeTime'
+import { freeEventsOf, freeTime, type FreeDay } from './freeTime'
 import { t } from './i18n'
 import { geoOf, locationLabel, placeEncrypted, searchAddress, shownLocation } from './locations'
 import { membershipMap, currentUserId } from './sharing'
@@ -271,7 +271,7 @@ export function useFreeTime(block: Extract<AssistantBlock, { kind: 'free_time' }
     const now = zoneNow(zone, Date.now())
     const days = freeTime({
       from: block.date, to: last, zone, day_start: prefs.startHour * 60, day_end: prefs.endHour * 60, min_minutes: block.min_minutes, today: now.date, now: now.minute,
-      events, frames: frames.filter((f) => !f.deleted_at), slots: slots.filter((s) => !s.deleted_at),
+      events: freeEventsOf(events), frames: frames.filter((f) => !f.deleted_at), slots: slots.filter((s) => !s.deleted_at),
       tasks: tasks.map((tk) => ({ due: tk.due, estimate_minutes: tk.estimate_minutes, done: false })),
     })
     return { days, dayStart: prefs.startHour * 60, dayEnd: prefs.endHour * 60 }

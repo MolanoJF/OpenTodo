@@ -150,3 +150,24 @@ describe('convertEvent on an occurrence (calendar-event-series D11)', () => {
     expect(deletes[0]).toBe('/api/v1/calendar-sync/connections/c1/events/ev3?rev=r1&scope=this')
   })
 })
+
+// calendar-event-guests D9: converting never sends a cancellation, so the switch is off and disabled for any event with guests.
+describe('Convert to task on an event with guests (calendar-event-guests D9)', () => {
+  const meeting: CalendarEvent = { ...review, id: 'ev4', uid: 'u4', access: { update: true, delete: true, notifies: true }, guests: { count: 3, organizer: true, canRespond: false } }
+
+  it('has the delete switch off and disabled even when the event could be deleted, with the reason, and keeps the event', async () => {
+    await db.calendarEvents.put(meeting)
+    localStorage.setItem('opentodo.calendar.convertDelete', '1') // remembered on
+    const onClose = vi.fn()
+    await render(<ConvertToTask ev={meeting} getFields={() => full(meeting)} onClose={onClose} />)
+    const sw = document.querySelector<HTMLButtonElement>('[role="switch"]')!
+    expect(sw.getAttribute('aria-checked')).toBe('false')
+    expect(sw.disabled).toBe(true)
+    expect(document.querySelector('[data-testid="convert-to-task"], [role="dialog"]')!.textContent).toContain('Deleting it would tell the guests, so the event stays.')
+    await click(document.querySelector('[data-convert-create]')!)
+    await waitFor(() => onClose.mock.calls.length > 0, 'the close')
+    expect(await tasks()).toHaveLength(1)
+    expect(await db.calendarEvents.get('ev4')).toBeDefined()
+    expect(await db.eventOutbox.count()).toBe(0)
+  })
+})

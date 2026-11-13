@@ -16,6 +16,7 @@ import { todayEventsShown } from '../../lib/userPrefs'
 import { hueFor, Popover } from '../../ui'
 import { EventDetails } from '../CalendarEvents'
 import { CalendarStatus } from './CalendarStatus'
+import { JoinButton } from './JoinButton'
 import { useNowMinutes } from './useNowMinutes'
 import { resettable } from '../../lib/moduleState'
 
@@ -151,8 +152,10 @@ export function AgendaEvents({ allDay, timed, subMap, zone }: {
             const ev = b.event
             const sub = subMap.get(ev.subscriptionId)
             const past = b.end <= now
+            // A Join link at the row's end, drawn from the cached event while it has not ended (calendar-event-guests D13).
+            const joinable = !past && !!ev.conference
             return (
-              <li key={b.id}>
+              <li key={b.id} className={joinable ? 'flex items-center gap-1.5' : undefined}>
                 <AgendaEvent ev={ev} sub={sub} zone={zone} data={{ 'data-agenda-event': ev.id, 'data-free': ev.free || undefined, 'data-past': past || undefined }}
                   className={`flex w-full items-center gap-2 px-2 py-1 text-meta ${shape(ev.free, past)}`}
                   extra={[sub?.name, ev.free && t('Shown as free'), past && t('Ended')]}>
@@ -161,6 +164,7 @@ export function AgendaEvents({ allDay, timed, subMap, zone }: {
                   <span className="min-w-0 truncate font-medium">{ev.summary || t('Busy')}</span>
                   {ev.location && <span className="min-w-0 flex-1 truncate text-hint">{ev.location}</span>}
                 </AgendaEvent>
+                {joinable && <JoinButton ev={ev} />}
               </li>
             )
           })}
