@@ -65,6 +65,7 @@ export const SETTINGS_INDEX: readonly SettingsEntry[] = translatedList<SettingsE
   { section: 'language', label: msg('First day of the week'), description: msg('Where the Week view and calendars start'), page: 'date-time', anchor: 'date-time-heading', keywords: 'week start monday sunday' },
   { section: 'language', label: msg('My day starts at'), description: msg('Work done before this time counts for the previous day.'), page: 'date-time', anchor: 'date-time-heading', keywords: 'day start night owl midnight end of day' },
   { section: 'language', label: msg('Calendar grid'), description: msg('When the Day and Week grid starts and ends, and your day length'), page: 'calendar', anchor: 'calendar-heading', keywords: 'capacity hours' },
+  { section: 'language', label: msg('Second time zone'), description: msg('Hour labels in another zone, beside your own.'), page: 'calendar', anchor: 'calendar-heading', keywords: 'world clock timezone zone' },
   // Notifications
   { section: 'notifications', label: msg('Push notifications'), description: msg('Reminders delivered to this device, and a test'), page: 'push', anchor: 'notifications-heading', keywords: 'reminders' },
   { section: 'notifications', label: msg('Default reminders'), description: msg('A reminder added when a task gets a date or a time'), page: 'push', anchor: 'default-reminders-heading', keywords: 'reminder default automatic alarm due time all-day before' },

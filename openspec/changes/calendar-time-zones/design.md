@@ -19,7 +19,7 @@
 
 ### D1. The choice is per device, in the grid preferences
 
-`GridPrefs` gains `secondZone: string`, `''` when off (the default), stored with the other grid fields under `calendar.grid`. A stored value that is not a known IANA zone reads as off and is kept as stored.
+`GridPrefs` gains `secondZone: string`, `''` when off (the default), stored with the other grid fields under `calendar.grid`. A stored value that is not a known IANA zone reads as off.
 
 *Why per device, not synced.* (a) It sits next to the grid hours, which the spec already makes device-only, so "Calendar grid" stays one coherent card with one scope. (b) A synced preference needs an op field, which the scope forbids unless proven needed, and it is not: nothing server-side or on another device depends on it. (c) It is situational: a laptop at a desk may want Bogotá beside it while a phone wants nothing, and someone who travels changes it on one device. Rejected: a synced preference beside the date format (an op field and a conflict rule for a cosmetic choice).
 
@@ -46,7 +46,7 @@ A row "Second time zone" in `CalendarSettingsView`, after "Day length": the zone
 
 ### D5. Accessibility and the phone
 
-- **Decorative, with the zone stated once.** The existing gutter is `aria-hidden` because each block states its own time. The second gutter's labels are `aria-hidden` for the same reason; the sticky header cell above them has the code (`aria-hidden`) and one visually hidden sentence, "Times also shown in Bogotá (UTC-5)", read once. The `accessibility-aa` spec needs no change: it requires axe-clean screens and 24 px targets, and these labels are neither interactive nor lower contrast than the first column's (same `text-faint` token).
+- **Decorative, with the zone stated once.** The existing gutter is `aria-hidden` because each block states its own time. The second gutter's labels are `aria-hidden` for the same reason; the sticky header cell above them has the code (`aria-hidden`) and one visually hidden sentence, "Times also shown in Bogota (UTC−5)", read once. The `accessibility-aa` spec needs no change: it requires axe-clean screens and 24 px targets, and these labels are neither interactive nor lower contrast than the first column's (same `text-faint` token).
 - **360 px.** Week is an agenda there, so Day is the only grid. The two gutters are `w-12` each (96 px of 360), leaving 264 px for the day column, and the scroller has no fixed width, so the page does not scroll sideways. Hiding the second column on phones was rejected: the phone is where someone away from their desk checks the other clock. A unit test asserts both gutters are fixed-width and non-shrinking; the 360 px reflow is measured by the existing screen gate in CI.
 - **Tokens only, `t()` strings**: "Second time zone", "Off", "Times also shown in {zone}"; English is copied into the other catalogs.
 
@@ -56,7 +56,7 @@ Swap would make the second zone the zone the grid is drawn in. `useViewerZone()`
 
 ### D7. Size and cost
 
-About 1.5 KB gzip on first load: `zoneGutter.ts` (about 40 lines), the second gutter component and the key in `GridPrefs`, all drawn with the grid. The zone Combobox lives in the Settings page chunk, already lazy. `initialGzipKB` is re-measured after the build and moves only with a dated reason. No dependency, no runtime memory beyond 24 strings per render, computed once per date and zone.
+Measured +0.1 KB gzip on first load (701.7 to 701.8 KB; the budget moves to 702 KB with a dated reason): `zoneGutter.ts` (about 40 lines), the second gutter component and the key in `GridPrefs`, all drawn with the grid. The zone Combobox lives in the Settings page chunk, already lazy. `initialGzipKB` is re-measured after the build and moves only with a dated reason. No dependency, no runtime memory beyond 24 strings per render, computed once per date and zone.
 
 ### D8. Test plan
 

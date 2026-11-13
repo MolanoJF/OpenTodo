@@ -5,6 +5,7 @@ import { useCalendarSubscriptions } from '../lib/liveData'
 import { Select, Switch } from '../ui'
 import { SettingRow, SettingsSection } from '../ui'
 import { useGridPrefs } from './CalendarView'
+import { SecondZoneSetting } from './calendar/SecondZoneSetting'
 import { t } from '../lib/i18n'
 import { cardCopy, rowCopy } from '../lib/settingsCopy'
 
@@ -40,6 +41,7 @@ export function CalendarSettingsView({ prefs, hasCalendars = false, onSave }: { 
           {lengths.map((m) => <option key={m} value={m}>{formatMinutes(m)}</option>)}
         </Select>
       } />
+      <SettingRow {...rowCopy('calendar', 'secondZone')} control={<SecondZoneSetting zone={prefs.secondZone ?? ''} onChange={(secondZone) => onSave({ secondZone })} />} />
       {hasCalendars && (
         <SettingRow {...rowCopy('calendar', 'countEvents')} htmlFor="count-events"
           control={<span data-count-events-switch><Switch id="count-events" checked={prefs.countEvents} onChange={(on) => onSave({ countEvents: on })} label={t('Count meetings in capacity')} hideLabel /></span>} />
