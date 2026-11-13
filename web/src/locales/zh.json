@@ -7612,5 +7612,11 @@
   "{guests}, {n} accepted": "{guests}, {n} accepted",
   "{n, plural, one {# guest} other {# guests}}": "{n, plural, other {# guests}}",
   "{n, plural, one {Invite # guest?} other {Invite # guests?}}": "{n, plural, other {Invite # guests?}}",
-  "{n, plural, one {Tell # guest?} other {Tell # guests?}}": "{n, plural, other {Tell # guests?}}"
+  "{n, plural, one {Tell # guest?} other {Tell # guests?}}": "{n, plural, other {Tell # guests?}}",
+  "Not saved": "Not saved",
+  "Retry or discard the change that was not saved first": "Retry or discard the change that was not saved first",
+  "The server asks you to wait {n, plural, one {# second} other {# seconds}}": "The server asks you to wait {n, plural, other {# seconds}}",
+  "The server did not answer": "The server did not answer",
+  "Waiting to send": "Waiting to send",
+  "{title} was not saved: {reason}": "{title} was not saved: {reason}"
 }

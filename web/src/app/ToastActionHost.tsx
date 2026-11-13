@@ -7,12 +7,12 @@
 // Like the offer, it never covers the focused element (useToastClearance).
 import { useEffect, useRef, useState } from 'react'
 import { Icon, ToastRegion, useToastClearance } from '../ui'
-import { ACTION_TOAST_MS, hideActionToast, showActionToast, showBulkToast, useActionToast, useBulkToast, useToastTimer } from './bulk/toastStore'
+import { ACTION_TOAST_MS, hideActionToast, hideBulkToast, showActionToast, showBulkToast, useActionToast, useBulkToast, useToastTimer } from './bulk/toastStore'
 import { openEventEditor } from './calendar/eventEditorStore'
 import { navigate } from './router'
 import { actionErrorMessage } from './actionError'
 import { onEntryFailure, type EntryFailure } from '../lib/focus/failures'
-import { eventEditNoticeText, onEventEditNotice, startEventOutbox } from '../lib/calendarEventEdits'
+import { discardEventWrite, eventEditNoticeText, onEventEditNotice, retryEventWrite, startEventOutbox } from '../lib/calendarEventEdits'
 import { useResetOnChange } from '../lib/useResetOnChange'
 import { t } from '../lib/i18n'
 
@@ -36,7 +36,9 @@ export function ToastActionHost() {
   // A refused edit of a calendar event is told here, wherever the app is; the outbox sends what waits (calendar-event-edits D6).
   useEffect(() => {
     const off = onEventEditNotice((notice) => {
-      const { draft } = notice
+      const { draft, failure } = notice
+      // A write that failed stays on the device: Retry sends it again, Discard puts the event back (calendar-event-edits D6).
+      if (failure) return showBulkToast(eventEditNoticeText(notice), null, { ttl: 2 * ACTION_TOAST_MS, action: { label: t('Retry'), run: () => void retryEventWrite(failure.key) }, second: { label: t('Discard'), run: () => { void discardEventWrite(failure.key); hideBulkToast() } } })
       if (!draft) return showActionToast(eventEditNoticeText(notice))
       // A refused create hands back what the person typed: the toast offers to reopen the editor on it (calendar-event-editor D9).
       const again = () => { navigate({ view: 'day', date: draft.start.date }); openEventEditor({ mode: 'create', draft }) }

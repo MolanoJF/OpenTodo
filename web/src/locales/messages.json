@@ -5116,8 +5116,10 @@
   ],
   "Discard": [
     "web/src/app/SettingsSaveBar.tsx",
+    "web/src/app/ToastActionHost.tsx",
     "web/src/app/assistant/ChangeSetReview.tsx",
     "web/src/app/calendar/EventPanel.tsx",
+    "web/src/app/calendar/EventWriteState.tsx",
     "web/src/app/routines/RoutineEditor.tsx",
     "web/src/app/themes/ThemeEditor.tsx",
     "web/src/ui/patterns/SaveBar.tsx"
@@ -11364,6 +11366,10 @@
   "Not run: the routine changed": [
     "web/src/app/routines/RoutinesDevice.tsx"
   ],
+  "Not saved": [
+    "web/src/app/CalendarEvents.tsx",
+    "web/src/app/calendar/EventWriteState.tsx"
+  ],
   "Not saved yet: this theme is a draft on this device until you save it.": [
     "web/src/app/themes/ThemeEditor.tsx"
   ],
@@ -14590,7 +14596,9 @@
     "web/src/app/InviteScreen.tsx",
     "web/src/app/ProjectInviteScreen.tsx",
     "web/src/app/ResetScreen.tsx",
-    "web/src/app/WorkspaceInviteScreen.tsx"
+    "web/src/app/ToastActionHost.tsx",
+    "web/src/app/WorkspaceInviteScreen.tsx",
+    "web/src/app/calendar/EventWriteState.tsx"
   ],
   "Retry now": [
     "web/src/app/EmailScreens.tsx",
@@ -14598,6 +14606,9 @@
     "web/src/app/ProjectInviteScreen.tsx",
     "web/src/app/ResetScreen.tsx",
     "web/src/app/WorkspaceInviteScreen.tsx"
+  ],
+  "Retry or discard the change that was not saved first": [
+    "web/src/lib/calendarEventEdits.ts"
   ],
   "Reusable list": [
     "web/src/app/menus/ListModeStep.tsx",
@@ -18100,6 +18111,9 @@
   "The server answered {status}.": [
     "web/src/lib/attachmentOpen.ts"
   ],
+  "The server asks you to wait {n, plural, one {# second} other {# seconds}}": [
+    "web/src/lib/calendarEventEdits.ts"
+  ],
   "The server can push to this device.": [
     "web/src/lib/push.ts"
   ],
@@ -18138,6 +18152,9 @@
   ],
   "The server did not accept this: {detail}": [
     "web/src/lib/i18n/errors.ts"
+  ],
+  "The server did not answer": [
+    "web/src/lib/calendarEventEdits.ts"
   ],
   "The server did not answer like a CalDAV server.": [
     "web/src/app/CalendarSyncPanel.tsx"
@@ -20788,6 +20805,10 @@
   ],
   "Waiting tasks with a time today": [
     "web/src/app/task-list/WaitingSoon.tsx"
+  ],
+  "Waiting to send": [
+    "web/src/app/CalendarEvents.tsx",
+    "web/src/app/calendar/EventWriteState.tsx"
   ],
   "Waiting|method": [
     "web/src/app/PreferencesPanels.tsx",
@@ -25551,6 +25572,9 @@
     "web/src/lib/focusEdit.ts"
   ],
   "{title} was deleted in your calendar.": [
+    "web/src/lib/calendarEventEdits.ts"
+  ],
+  "{title} was not saved: {reason}": [
     "web/src/lib/calendarEventEdits.ts"
   ],
   "{title}, open task": [

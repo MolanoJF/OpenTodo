@@ -2,7 +2,7 @@
 // change that tells guests, an answer or a create with guests is made (eventActions, EventRespond import it lazily), so
 // the first load carries none of it. Split from calendarEventEdits, which keeps the queue.
 import { api, ApiError } from './api'
-import { createBodyOf, currentEventId, DELETE_DELAY_MS, eventKey, notify, reasonOf, swapped, type EventEditNotice } from './calendarEventEdits'
+import { createBodyOf, currentEventId, DELETE_DELAY_MS, eventKey, notify, reasonOf, swapped, writeFailureText, type EventEditNotice } from './calendarEventEdits'
 import { pendingRowOf, refetchEvents, refreshEvents } from './calendarFeeds'
 import { db } from './db'
 import { providerOf } from './eventGuests'
@@ -42,7 +42,7 @@ function refusal(err: unknown, title: string, provider: EventEditNotice['provide
   if (!(err instanceof ApiError)) return { code: 'offline_guests', title, message: '', ...(draft ? { draft } : {}) }
   if (err.status === 502 && /response_not_kept/.test(err.serverMessage)) return { code: 'response_not_kept', title, message: err.message, provider }
   const reason = reasonOf(err)
-  return { code: err.code, title, message: err.message, ...(reason ? { reason } : {}), ...(provider ? { provider } : {}), ...(draft ? { draft } : {}) }
+  return { code: err.code, title, message: writeFailureText({ code: err.code, status: err.status, message: err.message, retryAfter: err.retryAfter }), ...(reason ? { reason } : {}), ...(provider ? { provider } : {}), ...(draft ? { draft } : {}) }
 }
 
 /** Puts `before` back unless a refresh has replaced the drawn row since. */

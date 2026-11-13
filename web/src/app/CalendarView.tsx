@@ -16,7 +16,7 @@ import { addDaysISO, dueFromView, formatDate, formatShort, viewedTask } from '..
 import { formatMinutes } from '../lib/duration'
 import { getTask, readGridPrefs, useCalendarShowCompleted, useGridPrefs, useLiveProjects } from '../lib/liveData'
 import { updateTask } from '../lib/ops'
-import type { CalendarSubscription, Task } from '../lib/types'
+import type { CalendarSubscription, Task, WriteState } from '../lib/types'
 import { useCalendarDrag, type DragState, type DropTarget } from './calendarDrag'
 import { rescheduleWithUndo, setDueWithUndo, spanWithUndo } from './undoable'
 import { useDateTimeFormat } from './DateTimePrefsProvider'
@@ -385,7 +385,7 @@ function CalendarGrid({ mode, days, savingEvents, today, nowMinutes, prefs, show
   /** The stored rows by id: span writes keep the due's time and zone (multi-day-tasks). */
   rawMap: Map<string, Task>
   /** Layout ids of the events with a queued change (calendar-event-edits). */
-  savingEvents: ReadonlySet<string>
+  savingEvents: ReadonlyMap<string, WriteState>
   /** The slot being dragged or resized (calendar-slots D5). */
   dragSlot?: SlotView
   mode: 'day' | 'week'

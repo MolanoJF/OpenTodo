@@ -23,6 +23,11 @@ import { ApiError } from './api'
 import { cachedWindow } from './calendarFeeds'
 import { cancelEventDelete, currentEventId, DELETE_DELAY_MS, EDIT_SETTLE_MS, editEvent, eventAccessText, eventEditNoticeText, flushEventEdits, onEventEditNotice, type EventEditNotice } from './calendarEventEdits'
 import { clearLocalData, db, setMeta, useDatabase } from './db'
+import { platform } from './platform'
+
+let online = true
+const setOnline = (v: boolean) => { online = v }
+vi.spyOn(platform.network, 'online').mockImplementation(() => online)
 
 const at = (time: string, date = '2026-11-12') => ({ date, time, tz: 'Europe/Berlin' })
 const daily: CalendarRepeat = { freq: 'daily', interval: 1, days: [], ends: { type: 'never' } }
@@ -40,7 +45,7 @@ const sub = { id: 's1', name: 'Work', color: '', enabled: true, lastSuccessAt: 2
 let n = 0
 beforeEach(async () => {
   useDatabase(`event-scope-${Date.now()}-${n++}`)
-  updateCalendarEvent.mockReset()
+  updateCalendarEvent.mockReset(); setOnline(true)
   deleteCalendarEvent.mockReset()
   calendarEvents.mockReset()
   await db.calendarSubscriptions.put({ ...sub })
@@ -57,7 +62,7 @@ describe('the scope travels with the command', () => {
   })
 
   it('keeps the scope in the command (and nothing for a single event)', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     await editEvent(day2, moved('09:00', '10:30'), T0, undefined, 'all')
     expect((await db.eventOutbox.get('c1:o2'))!.scope).toBe('all')
     const single = { ...day2, id: 'solo', series: undefined }
@@ -67,11 +72,11 @@ describe('the scope travels with the command', () => {
   })
 
   it('offline then online sends one request with the scope', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     await edit(day2, moved('09:00', '10:30'), T0, undefined, 'all')
     await edit(day2, moved('10:00', '11:30'), T0, undefined, 'all')
     expect(await db.eventOutbox.count()).toBe(1)
-    updateCalendarEvent.mockReset()
+    updateCalendarEvent.mockReset(); setOnline(true)
     updateCalendarEvent.mockResolvedValue({ event: { ...day2, rev: 'r2' }, replaces: 'o2', series: { id: 'ser1', rev: 'r2' } })
     await flushEventEdits(T0 + 10 * 60_000)
     expect(updateCalendarEvent).toHaveBeenCalledTimes(1)
@@ -79,7 +84,7 @@ describe('the scope travels with the command', () => {
   })
 
   it('sends repeat and reminders with the patch and never treats them as "no change"', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     const weekly: CalendarRepeat = { freq: 'weekly', interval: 1, days: ['mo'], ends: { type: 'never' } }
     await editEvent(day2, { repeat: weekly, reminders: [10] }, T0, undefined, 'all')
     expect((await db.eventOutbox.get('c1:o2'))!.patch).toEqual({ repeat: weekly, reminders: [10] })
@@ -90,7 +95,7 @@ describe('the scope travels with the command', () => {
 
 describe('merging and waiting', () => {
   it('merges an edit with the same scope into the command', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     await editEvent(day2, moved('09:00', '10:30'), T0, undefined, 'all')
     await editEvent(day2, { summary: 'Renamed' }, T0, undefined, 'all')
     expect((await db.eventOutbox.get('c1:o2'))!.patch).toEqual({ ...moved('09:00', '10:30'), summary: 'Renamed' })
@@ -98,13 +103,13 @@ describe('merging and waiting', () => {
   })
 
   it('an edit with another scope waits in next, carrying its scope, and is sent after the answer against the new id and rev', async () => {
-    updateCalendarEvent.mockRejectedValueOnce(new TypeError('offline')) // keep the first one queued
+    updateCalendarEvent.mockRejectedValueOnce(new TypeError('offline')); setOnline(false) // keep the first one queued
     await edit(day2, { summary: 'Routine B' }, T0, undefined, 'all')
     await editEvent(day2, moved('09:00', '10:30'), T0, undefined, 'this')
     const cmd = (await db.eventOutbox.get('c1:o2'))!
     expect(cmd).toMatchObject({ scope: 'all', patch: { summary: 'Routine B' }, next: moved('09:00', '10:30'), nextScope: 'this' })
     expect((await db.calendarEvents.get('o2'))!.start.time).toBe('09:00') // drawn at once
-    updateCalendarEvent.mockReset()
+    updateCalendarEvent.mockReset(); setOnline(true)
     updateCalendarEvent.mockResolvedValueOnce({ event: { ...day2, id: 'o2b', rev: 'r2', summary: 'Routine B' }, replaces: 'o2', series: { id: 'ser1', rev: 'r2' }, refetch: true })
     updateCalendarEvent.mockResolvedValueOnce({ event: { ...day2, id: 'o2b', rev: 'r3' }, replaces: 'o2b' })
     calendarEvents.mockRejectedValue(new TypeError('offline'))
@@ -118,7 +123,7 @@ describe('merging and waiting', () => {
   it('a third scope while two wait is blocked with a toast and changes nothing', async () => {
     const notices: EventEditNotice[] = []
     onEventEditNotice((x) => notices.push(x))
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     await editEvent(day2, { summary: 'A' }, T0, undefined, 'all')
     await editEvent(day2, { location: 'Gym' }, T0, undefined, 'this')
     expect(await editEvent(day2, { free: true }, T0, undefined, 'following')).toBeNull()
@@ -131,7 +136,7 @@ describe('merging and waiting', () => {
   })
 
   it('a later edit with the scope of the waiting one merges into it', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     await editEvent(day2, { summary: 'A' }, T0, undefined, 'all')
     await editEvent(day2, { location: 'Gym' }, T0, undefined, 'this')
     await editEvent(day2, { free: true }, T0, undefined, 'this')
@@ -176,7 +181,7 @@ describe('following and all show only the edited block until the answer, then re
 
   it('draws a queued following change on its one occurrence when a refresh runs', async () => {
     await setMeta('calendar.events.window', { from: '2026-11-01', to: '2026-11-30', fetchedAt: 1 })
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     calendarEvents.mockResolvedValue({ events: [occurrence(1), day2, day3], subscriptions: [sub] })
     await edit(day2, moved('09:00', '10:30'), T0, undefined, 'following')
     const { refreshEvents } = await import('./calendarFeeds')
@@ -259,7 +264,7 @@ describe('refusals and sign-out', () => {
   })
 
   it('sign-out deletes the outbox with the scope in it', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     await editEvent(day2, moved('09:00', '10:30'), T0, undefined, 'all')
     await clearLocalData()
     expect(await db.eventOutbox.count()).toBe(0)
@@ -286,7 +291,7 @@ describe('delete with a scope', () => {
   })
 
   it('a delete after a queued edit of another scope waits for it instead of replacing it', async () => {
-    updateCalendarEvent.mockRejectedValue(new TypeError('offline'))
+    updateCalendarEvent.mockRejectedValue(new TypeError('offline')); setOnline(false)
     await editEvent(day2, { summary: 'A' }, T0, undefined, 'all')
     await editEvent(day2, { delete: true }, T0, undefined, 'this')
     const cmd = (await db.eventOutbox.get('c1:o2'))!
