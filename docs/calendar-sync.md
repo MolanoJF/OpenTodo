@@ -56,7 +56,7 @@ With it on, an event in a calendar of that connection can be:
 - **Created**: add an event in a calendar of the connection, below.
 - **Deleted**: select it and press <kbd>Delete</kbd>, or choose **Delete** in its popover.
 
-A change is written to your calendar by the server, so it shows in your calendar app and on your other devices. A toast says what happened and offers **Undo**. For 8 seconds after a delete nothing has been sent and Undo brings the event back; after that a deleted event is gone from your calendar. Guests and everything else the editor does not show stay as your calendar has them, and nobody is invited or notified.
+A change is written to your calendar by the server, so it shows in your calendar app and on your other devices. A toast says what happened and offers **Undo**. For 8 seconds after a delete nothing has been sent and Undo brings the event back; after that a deleted event is gone from your calendar. Guests and everything else the editor does not show stay as your calendar has them, and nobody is notified, except when you change a meeting you organise on Outlook (see [Guests, replies and join links](#guests-replies-and-join-links)).
 
 ### Add events and edit all their details
 
@@ -64,7 +64,7 @@ In Day and Week, adding at a time asks **Task** or **Event** once at least one c
 
 The editor, a side panel from 1024 px wide and a sheet on a phone, holds the title, **All day**, start and end, **Time zone**, **Calendar**, **Location**, **Description** (plain text, up to 10,000 characters) and **Show as** Busy or Free. A description with formatting (Outlook) is shown as plain text and left unchanged. The calendar of an existing event can't be changed; **Duplicate** it into another calendar instead. Duplicate copies the title, times, zone, location, description and Busy or Free as one single event, never guests, reminders or links, and works for read-only events too. **Convert to task…** makes a task in the Inbox from the event's title, description and location, time and length, and by default deletes the event from your calendar; one **Undo** reverses both, as long as the 8 seconds before the delete is sent have not passed.
 
-Offline, an added event shows at once and is created when the device is back online. It is made once even if the connection drops mid-way. If your calendar refuses it, a toast offers **Edit again** with what you typed. The editor also sets the [repeat and reminders](#repeating-events-and-reminders); guests are not created or edited here.
+Offline, an added event shows at once and is created when the device is back online. It is made once even if the connection drops mid-way. If your calendar refuses it, a toast offers **Edit again** with what you typed. The editor also sets the [repeat and reminders](#repeating-events-and-reminders), and on Outlook the [guests and a Teams meeting](#guests-replies-and-join-links).
 
 ### Repeating events and reminders
 
@@ -87,8 +87,8 @@ Google and CalDAV calendars keep the series and its changed occurrences in one o
 An event can't be changed here, and its popover says why, when:
 
 - **Its repeat is too complex to change here.** Your calendar holds extra dates, an exclusion rule, more than one rule, a rule OpenTodo doesn't read (hourly, or by hour or day of the year), a change that applies to "this and all following", an occurrence moved onto a day the repeat doesn't have, a time zone it can't read, or a series with more than 400 events or 256 KiB. Rewriting it could lose something, so it is left as it is.
-- **It has guests**, in the event or in any occurrence of its series. Changing it would send updates to other people.
-- **You are not its organiser** (Outlook and Microsoft 365).
+- **It has guests**, in the event or in any occurrence of its series, on Google and other CalDAV calendars. Changing it could send updates to other people and those calendars don't say; on Outlook, [a meeting you organise can be changed](#guests-replies-and-join-links) after one confirmation.
+- **You are not its organiser** (Outlook and Microsoft 365); you can still answer it.
 - **Its calendar is read-only** in your account (holidays, calendars shared with you to view). The connection card lists them.
 - **The switch is off** for the connection.
 - **Your calendar gave no version for it**, or the server has not yet matched it to the calendar after a recent change (it settles on the next check).
@@ -96,13 +96,25 @@ An event can't be changed here, and its popover says why, when:
 
 Events OpenTodo wrote for your tasks keep the [task behaviour](#what-syncs): change the task or the event as before. Events of a subscribed [calendar feed](calendar-feeds.md) are always read-only.
 
+### Guests, replies and join links
+
+The guide [Guests, replies and join links](calendar-event-guests.md) shows the screens. In short:
+
+- **Who sees what.** A connection's events carry their organiser, guests (name or address, required or optional, answer) and your own answer. The popover reads the list from your server's cache when you open it; your devices keep only the count and your own answer. Subscribed [calendar feeds](calendar-feeds.md) have none of it.
+- **Answering.** **Yes**, **Maybe** and **No** work on Outlook and Microsoft 365, for the event or, on a repeating one, **This event** or **All events**, and tell the organiser unless you switch that off. On Google the answer is built but switched off until it has been checked on a real calendar, so **Google replies are not available yet**. Generic CalDAV calendars are read-only for guests: their invitation behaviour varies and some servers have none.
+- **Changing your own meeting.** Only on Outlook and Microsoft 365, for a meeting you organise, you can move, rename, delete and change its guests. Outlook sends the guests an update, an invitation or a cancellation itself and that cannot be turned off, so OpenTodo asks **Tell 3 guests?** first and offers **Save and tell guests** or **Cancel**, never "don't send". The server refuses such a change without that confirmation, from the app, an assistant or `ot`. A series with guests allows **This event** and **All events** (not when some occurrences were changed individually), never **This and following events**, which would send new invitations.
+- **Google events with guests stay read-only.** Google's CalDAV documentation doesn't say whether a change sent through it emails the guests, so OpenTodo won't risk it. This stays until a test on a real Google calendar shows otherwise.
+- **Never queued.** An answer, a change that tells guests and an event created with guests are sent when you confirm and only when online; their controls are disabled offline. Changes to events without guests are still queued.
+- **Join.** A **Join** button opens the event's call in a new tab, from the popover, the editor and Today's agenda. The link is the one Google or Outlook attached, or the first `https` Zoom, Google Meet, Microsoft Teams or Webex address in the event's link, location or description; any other address, and any scheme but `https`, is not made a button. OpenTodo never requests the address. On Outlook, **Add a Teams meeting** creates one with the event when the calendar offers Teams meetings; a personal Microsoft account may refuse. It can't be removed once made. OpenTodo can't create a Google Meet.
+- **Privacy.** Guest names and addresses are kept in your server's database as a cache of your calendar, so they are in [backups](backups.md) and are not covered by end-to-end encryption. They are never written to logs, and the in-app assistant never receives them; an agent over [MCP](mcp.md#write-tools) sees them only when it asks for them, as untrusted text.
+
 ### Conflicts and offline
 
 Your calendar is the source of truth. If the event changed in your calendar app after OpenTodo last read it, the edit is not applied: the event goes back to what the calendar holds and a toast says it changed. Edits made at the same moment on two devices work the same way: the first to arrive wins. If the event was deleted elsewhere, it disappears and the toast says so.
 
-Offline, the event moves on screen at once and the edit waits on your device. Several edits of the same event become one, and moving it back cancels it. It is sent when the device is back online; if your calendar no longer accepts it by then, it is rolled back with a toast. Event edits are not tasks: they are not in your export or backups, and your calendar keeps the event's history.
+Offline, the event moves on screen at once and the edit waits on your device. Several edits of the same event become one, and moving it back cancels it. It is sent when the device is back online; if your calendar no longer accepts it by then, it is rolled back with a toast. Event edits are not tasks: they are not in your export, and your calendar keeps the event's history. A backup holds the cached guest list, as it holds the cached event titles.
 
-Assistants over [MCP](mcp.md#write-tools) and the [`ot` command](cli.md#calendar-events) can do the same with the connection's switch on: `create_calendar_event`, `update_calendar_event`, `delete_calendar_event`, `ot calendar event add`, `ot calendar event edit` and `ot calendar event delete`. The [API](api.md#editing-events-of-a-connected-calendar) has the routes.
+Assistants over [MCP](mcp.md#write-tools) and the [`ot` command](cli.md#calendar-events) can do the same with the connection's switch on: `create_calendar_event`, `update_calendar_event`, `delete_calendar_event`, `respond_to_calendar_event`, `ot calendar event add`, `ot calendar event edit`, `ot calendar event delete` and `ot calendar event respond`. The [API](api.md#editing-events-of-a-connected-calendar) has the routes.
 
 ## Connect a CalDAV calendar
 
@@ -236,7 +248,7 @@ The server cannot read an encrypted account's titles and notes. With encryption 
 - Up to 3 calendar accounts per person; one calendar to write into and up to 10 shown per account.
 - Up to 200 events written or removed per check; the rest follows about 20 seconds later.
 - Repeating tasks are written as their next occurrence, not as a series. Reminders (alarms), attendees and invitations are not written for tasks.
-- Editing and creating events: at most 600 changes per person an hour; a title is at most 500 characters, a location 500 and a description 10,000; events with guests, events you don't organise and repeats too complex to change are read-only (see [Edit events in OpenTodo](#edit-events-in-opentodo)).
+- Editing and creating events: at most 600 changes per person an hour; a title is at most 500 characters, a location 500 and a description 10,000; events with guests on Google and CalDAV, events you don't organise and repeats too complex to change are read-only (see [Edit events in OpenTodo](#edit-events-in-opentodo)).
 - Moving an event of a task you may only view in a shared project is undone: the next check writes the task's time back (for a multi-day task, its start and due dates).
 - Calendar sync is refused on a public demo instance.
 

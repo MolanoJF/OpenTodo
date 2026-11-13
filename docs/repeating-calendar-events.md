@@ -34,6 +34,6 @@ A repeat the editor can't represent shows **Custom repeat** and stays as it is; 
 
 ## What stays read-only
 
-The popover says why. An event is also read-only with guests, when you are not its organiser, or in a read-only calendar. A repeat is **too complex to change here** when rewriting it could lose something: extra dates, an exclusion rule, several rules, a changed occurrence on a day the repeat doesn't have, or a very large series.
+The popover says why. An event is also read-only with guests (on Outlook you can change a meeting you organise after one confirmation, see [Guests, replies and join links](calendar-event-guests.md)), when you are not its organiser, or in a read-only calendar. A repeat is **too complex to change here** when rewriting it could lose something: extra dates, an exclusion rule, several rules, a changed occurrence on a day the repeat doesn't have, or a very large series.
 
 On Outlook, changing the times or repeat of **All events** drops occurrences you changed individually, **This and following** is refused for a series with attachments or an online meeting, and an existing series can't be set to stop repeating.

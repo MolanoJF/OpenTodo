@@ -26,11 +26,11 @@ The item only appears once you have at least one subscribed calendar, which need
 The agenda sits between the quick add and your first task:
 
 - All-day and multi-day events come first, as chips.
-- Timed events follow in the order they start, each with its time, title, the calendar's colour dot and its location.
+- Timed events follow in the order they start, each with its time, title, the calendar's colour dot and its location, and a **Join** button while the event has a call and has not ended.
 - Events marked as *free* in their calendar are drawn as an outline only, as in Day and Week.
 - Events that have already ended today are dimmed.
 
-Click an event, or Tab to it and press Enter, to see its time, location and calendar. Events are read-only here; to move, resize, rename or delete an event of a [connected calendar](calendar-sync.md#edit-events-in-opentodo), use Day or Week, or its own calendar app.
+Click an event, or Tab to it and press Enter, to see its time, location, calendar, guests and, if you are invited, **Yes**, **Maybe** and **No** ([Guests, replies and join links](calendar-event-guests.md)). Events are otherwise read-only here; to move, resize, rename or delete an event of a [connected calendar](calendar-sync.md#edit-events-in-opentodo), use Day or Week, or its own calendar app.
 
 On a day without events, nothing is shown. Events of a calendar you disabled under **Settings → Integrations → Calendar feeds** never show. The **Calendars** button of Day and Week, which hides events on one device, doesn't change Today.
 

@@ -532,6 +532,14 @@ export const OVERLAYS = {
     await p.locator('[data-event-scope]').first().waitFor({ timeout: 5000 })
     return { overlay: overlayLoc(p), trigger, kind: 'popover' }
   },
+  // "Tell 3 guests?" (calendar-event-guests D8, D13): a key press on a meeting the user organises on Outlook asks before the calendar tells the guests.
+  async 'event-notify-guests'(p) {
+    const trigger = p.locator('[data-event="layout-edit"]')
+    await trigger.focus()
+    await p.keyboard.press('ArrowDown')
+    await p.locator('[data-notify-guests]').waitFor({ timeout: 5000 })
+    return { overlay: overlayLoc(p), trigger, kind: 'dialog' }
+  },
   // The full event editor (calendar-event-editor D11): a double-click on the event opens it, in the side panel from 1024 px and as a sheet below.
   async 'event-panel'(p) {
     const trigger = p.locator('[data-event="layout-edit"]')

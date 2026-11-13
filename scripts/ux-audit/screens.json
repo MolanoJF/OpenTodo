@@ -373,6 +373,17 @@
   "story": "Screens/Calendar"
 },
 {
+  "id": "event-notify-guests",
+  "route": "day",
+  "kind": "overlay",
+  "seed": "layout-check",
+  "frequency": "rare",
+  "core": false,
+  "layoutCheck": "event-notify-guests",
+  "on": "day",
+  "story": "Screens/Calendar"
+},
+{
   "id": "event-panel",
   "route": "day",
   "kind": "overlay",
