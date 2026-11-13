@@ -1,7 +1,9 @@
 // Adding an event from the editor, and Undo of it (OpenSpec change calendar-event-editor D9, D11). Loaded with the
 // editor: the first load holds only the grid's own edits (eventActions).
+import './eventEditToasts' // listens for the refusals and failures of the writes this makes
 import { cachedEvent, cancelEventDelete, currentEventId, DELETE_DELAY_MS, editEvent } from '../../lib/calendarEventEdits'
-import { isPendingId, setShowEvents, showEvents } from '../../lib/calendarFeeds'
+import { isPendingId } from '../../lib/calendarEventPatch'
+import { setShowEvents, showEvents } from '../../lib/calendarFeeds'
 import { sendNow } from '../../lib/eventSendNow'
 import { createEvent } from '../../lib/eventCreate'
 import { t } from '../../lib/i18n'

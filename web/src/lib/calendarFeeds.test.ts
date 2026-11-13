@@ -15,7 +15,8 @@ vi.mock('./api', () => ({
   },
 }))
 
-import { applyEventPatch, cachedWindow, covers, ensureEventsFor, eventPatchBetween, eventsStatus, fetchRange, isNoChange, overlayQueued, pendingRowOf, refreshEvents, requestRanges, setShowEvents, showEvents } from './calendarFeeds'
+import { applyEventPatch, eventPatchBetween, isNoChange, overlayQueued, pendingRowOf } from './calendarEventPatch'
+import { cachedWindow, covers, ensureEventsFor, eventsStatus, fetchRange, refreshEvents, requestRanges, setShowEvents, showEvents } from './calendarFeeds'
 import type { CalendarEvent, EventCommand } from './types'
 import { clearLocalData, db, useDatabase } from './db'
 

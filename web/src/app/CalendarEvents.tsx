@@ -9,6 +9,7 @@ import { formatTime as toHHMM, type EventBlock } from '../lib/calendar'
 import { eventAccessText } from '../lib/calendarEventEdits'
 import { eventEditable } from '../lib/eventDrop'
 import { providerOf } from '../lib/eventGuests'
+import './calendar/eventEditToasts' // the toasts of writes that failed, with the calendar's code
 import { EventLocked } from './calendar/EventLocked'
 import { openEventEditor } from './calendar/eventEditorStore'
 import { onOpenEventRequest } from './calendar/eventOpen'

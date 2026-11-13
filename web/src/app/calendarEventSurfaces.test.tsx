@@ -19,7 +19,7 @@ import { useEventEdits } from './calendar/useEventEdits'
 import { EventChip, EventRow } from './CalendarEvents'
 import { CalendarView } from './CalendarView'
 import { resetPanel } from './panel'
-import { ToastActionHost } from './ToastActionHost'
+import { hostEventEditToasts } from './calendar/eventEditToasts'
 
 const DAY = '2026-10-14'
 const sub: CalendarSubscription = { id: 'sub1', name: 'Personal', color: '#2563eb', enabled: true, lastSuccessAt: Date.now(), managed: true, connectionId: 'c1', calendarUrl: 'https://dav/p/', editEvents: true, caps: { create: true, update: true, delete: true } }
@@ -149,7 +149,7 @@ describe('a pending event', () => {
 
   it('a create the server refuses removes the block and offers to reopen the editor on what was typed', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: { code: 'event_edits_off', message: 'off' } }), { status: 403, headers: { 'Content-Type': 'application/json' } })))
-    await render(<ToastActionHost />)
+    hostEventEditToasts() // the calendar's code hosts the toasts; the reset between tests took the listener
     await createEvent(draft(), Date.now())
     await act(async () => { await flushEventEdits(Date.now() + EDIT_SETTLE_MS + 1000) })
     await waitFor(() => bulkToast()?.action?.label === 'Edit again', 'the toast')

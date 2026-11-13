@@ -3,7 +3,8 @@
 // the first load carries none of it. Split from calendarEventEdits, which keeps the queue.
 import { api, ApiError } from './api'
 import { createBodyOf, currentEventId, DELETE_DELAY_MS, eventKey, notify, reasonOf, swapped, writeFailureText, type EventEditNotice } from './calendarEventEdits'
-import { pendingRowOf, refetchEvents, refreshEvents } from './calendarFeeds'
+import { pendingRowOf } from './calendarEventPatch'
+import { refetchEvents, refreshEvents } from './calendarFeeds'
 import { db } from './db'
 import { providerOf } from './eventGuests'
 import { previewEvent, restoreEvent } from './eventPreview'

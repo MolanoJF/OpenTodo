@@ -3,7 +3,7 @@
 // Today's list when the account turned it on (D1, D5). Read-only: every event opens the
 // calendar's details popover (D6). The per-device "Calendars" toggle of the grid does
 // not apply here; disabled subscriptions never show (D4).
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { allDayEvents, eventBlocks, formatTime as toHHMM, type EventBlock } from '../../lib/calendar'
 import { cachedWindow, covers, eventsStatus, refreshEvents, STALE_MS, type DayRange } from '../../lib/calendarFeeds'
 import { formatTime as formatWallTime } from '../../lib/dates'
@@ -13,12 +13,14 @@ import { useUserPrefsRow } from '../../lib/localData'
 import { useOnline } from '../../lib/online'
 import type { CalendarEvent, CalendarSubscription } from '../../lib/types'
 import { todayEventsShown } from '../../lib/userPrefs'
-import { hueFor, Popover } from '../../ui'
-import { EventDetails } from '../CalendarEvents'
+import { hueFor, Popover, Skeleton } from '../../ui'
 import { CalendarStatus } from './CalendarStatus'
 import { JoinButton } from './JoinButton'
 import { useNowMinutes } from './useNowMinutes'
 import { resettable } from '../../lib/moduleState'
+
+// The event details (with the editor, the guests and the calendar's editing code) load when a popover opens, not with the first load.
+const EventDetails = lazy(() => import('../CalendarEvents').then((m) => ({ default: m.EventDetails })))
 
 /** When Today's last fetch failed on this device (D3): no new attempt from Today for STALE_MS. */
 let lastMiss = 0
@@ -107,7 +109,7 @@ export function AgendaEvent({ ev, sub, zone, className, data, children, extra }:
         {rest && <span className="sr-only">{`, ${rest}`}</span>}
       </button>
       <Popover open={open} onClose={() => setOpen(false)} anchor={ref} label={ev.summary || t('Event')} width="sm:w-72" className="p-3" align="start">
-        <EventDetails ev={ev} sub={sub} zone={zone} />
+        <Suspense fallback={<Skeleton shape="line" count={2} label={t('Loading the event')} />}><EventDetails ev={ev} sub={sub} zone={zone} /></Suspense>
       </Popover>
     </>
   )

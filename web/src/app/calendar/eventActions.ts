@@ -4,7 +4,8 @@
 // guests asks "Tell N guests?" after the scope menu, and is sent at once, never queued (calendar-event-guests D8); the
 // code that sends it loads only then.
 import { cachedEvent, cancelEventDelete, currentEventId, DELETE_DELAY_MS, type EditBefore, editEvent, queuedDraft } from '../../lib/calendarEventEdits'
-import { isPendingId } from '../../lib/calendarFeeds'
+import './eventEditToasts' // listens for the refusals and failures of the writes these make
+import { isPendingId } from '../../lib/calendarEventPatch'
 import { needsScope } from '../../lib/eventScope'
 import { notifyPrompt } from '../../lib/eventNotify'
 import { previewEvent, restoreEvent } from '../../lib/eventPreview'

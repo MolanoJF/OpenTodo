@@ -15,6 +15,7 @@
     "web/src/lib/branding.ts",
     "web/src/lib/bulk.ts",
     "web/src/lib/calendar.ts",
+    "web/src/lib/calendarEventPatch.ts",
     "web/src/lib/calendarFeeds.ts",
     "web/src/lib/clockSkew.ts",
     "web/src/lib/colourMath.ts",

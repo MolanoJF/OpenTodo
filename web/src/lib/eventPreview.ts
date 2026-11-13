@@ -1,7 +1,7 @@
 // A change drawn on an occurrence's cached row while the scope menu asks which events it is for
 // (OpenSpec change calendar-event-series D12): the block shows where the drag or the keys put it, nothing is
 // queued, and Escape puts the row back. Choosing a scope puts it back too, and the real edit patches it again.
-import { applyEventPatch } from './calendarFeeds'
+import { applyEventPatch } from './calendarEventPatch'
 import { currentEventId } from './calendarEventEdits'
 import { db } from './db'
 import { resettable } from './moduleState'

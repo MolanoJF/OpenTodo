@@ -2,7 +2,7 @@
 // cache, so it is read from the calendar when an editor opens; a pending event has its draft's.
 import { ApiError, api } from './api'
 import { adoptEvent, currentEventId, queuedDraft } from './calendarEventEdits'
-import { isPendingId } from './calendarFeeds'
+import { isPendingId } from './calendarEventPatch'
 import { db } from './db'
 import type { EventExtras } from './eventFull'
 import type { CalendarEvent, CalendarEventDetail } from './types'
