@@ -211,7 +211,7 @@ func TestSubscribedFeedEventsHaveNoRevOrAccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	ev := v.events(e)["Subscribed"]
-	if ev == nil || ev["rev"] != nil || ev["access"] != nil {
+	if ev == nil || ev["rev"] != nil || ev["access"] != nil || ev["guests"] != nil || ev["conference"] != nil {
 		t.Fatalf("feed event = %v", ev)
 	}
 	if v.events(e)["Plain"]["access"] == nil {
@@ -221,7 +221,7 @@ func TestSubscribedFeedEventsHaveNoRevOrAccess(t *testing.T) {
 	resp, out = e.do("PUT", "/api/v1/settings/calendar-sync", map[string]any{"enabled": false})
 	e.mustStatus(resp, 200, out)
 	evs := v.events(e)
-	if evs["Plain"] != nil || evs["Subscribed"] == nil || evs["Subscribed"]["access"] != nil || evs["Subscribed"]["series"] != nil {
+	if evs["Plain"] != nil || evs["Subscribed"] == nil || evs["Subscribed"]["access"] != nil || evs["Subscribed"]["series"] != nil || evs["Subscribed"]["guests"] != nil {
 		t.Fatalf("with calendar sync off: %v", evs)
 	}
 }

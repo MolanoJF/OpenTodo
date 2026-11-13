@@ -28,6 +28,10 @@ const (
 const (
 	ReasonFollowingUnsupported = "following_unsupported" // an EventNotEditable reason: the copy would lose data
 	ReasonPartialWrite         = "partial_write"         // an EventUnreachable reason: a split is half written
+
+	// Added by calendar-event-guests.
+	ReasonCannotRespond   = "cannot_respond"    // an EventNotEditable reason: the reply is refused before any request
+	ReasonResponseNotKept = "response_not_kept" // an EventUnreachable reason: the calendar accepted the answer and does not hold it
 )
 
 // ReasonUnauthorizedRemote is the reason of a refused credential.
@@ -73,6 +77,9 @@ type EventResult struct {
 	Series  *SeriesResult
 	Refetch bool
 	Gone    bool
+	// Notified is true when the write told people: an update, a cancellation or an
+	// invitation the provider sent after the caller's confirmation (calendar-event-guests D8).
+	Notified bool
 }
 
 // AccessOf is what the user may do to a connected calendar's event (design
@@ -90,7 +97,8 @@ func AccessOf(c *Connection, calendarURL string, row calfeed.EventRow) calfeed.A
 		lock, known = "", false
 	}
 	a := calfeed.Access{Update: c.EditEvents && caps.Update && lock == "" && known,
-		Delete: c.EditEvents && caps.Delete && lock == "" && known}
+		Delete:   c.EditEvents && caps.Delete && lock == "" && known,
+		Notifies: notifies(c, row.Guests)}
 	switch {
 	case !c.EditEvents:
 		a.Reason = EventEditsOffReason
@@ -117,6 +125,8 @@ type eventTarget struct {
 	conn *Connection
 	sub  calfeed.ManagedCalendar
 	ref  calfeed.EventRef
+	// guests is what the cache says of the event's guests (nil when nothing).
+	guests *calfeed.GuestSummary
 }
 
 // find resolves an event of one of the user's connections through its managed
@@ -138,7 +148,11 @@ func (w *Worker) find(ctx context.Context, userID, connID, eventID string) (*eve
 		if err != nil {
 			return nil, err
 		}
-		return &eventTarget{conn: conn, sub: m, ref: ref}, nil
+		t := &eventTarget{conn: conn, sub: m, ref: ref}
+		if row, err := w.Feeds.EventRowOf(ctx, m.SubscriptionID, ref.UID, ref.Instance); err == nil {
+			t.guests = row.Guests
+		}
+		return t, nil
 	}
 	return nil, &EventError{Code: EventNotFound, Err: calfeed.ErrNotFound}
 }
@@ -174,11 +188,34 @@ func (w *Worker) check(t *eventTarget, rev string, need func(Caps) bool, edit Ev
 	case t.ref.Locked != "":
 		return &EventError{Code: EventNotEditable, Reason: t.ref.Locked}
 	}
+	if err := t.guestRules(edit); err != nil {
+		return err
+	}
 	if err := t.scopeRules(edit); err != nil {
 		return err
 	}
 	if calfeed.Rev(t.ref.ETag) != rev {
 		return &EventError{Code: EventChanged}
+	}
+	return nil
+}
+
+// guestRules are the rules of calendar-event-guests D3 and D8 that need only the cache,
+// before any remote call: guests and an online meeting only where the provider and
+// the calendar can, and a change that tells people only with the caller's confirmation.
+func (t *eventTarget) guestRules(edit EventEdit) error {
+	caps := t.conn.GuestCaps()
+	switch {
+	case edit.Guests != nil && !caps.Edit:
+		return &EventError{Code: EventInvalid, Reason: "guests"}
+	case edit.OnlineMeeting:
+		if cal := t.conn.Calendar(t.sub.CalendarURL); cal == nil || !cal.EffectiveCaps().OnlineMeeting {
+			return &EventError{Code: EventInvalid, Reason: "onlineMeeting"}
+		}
+	}
+	invites := edit.Guests != nil && len(edit.Guests.Add) > 0
+	if (notifies(t.conn, t.guests) || invites) && !edit.NotifyGuests {
+		return &EventError{Code: EventInvalid, Reason: "notifyGuests"}
 	}
 	return nil
 }
@@ -223,6 +260,10 @@ func (w *Worker) remoteError(ctx context.Context, t *eventTarget, err error) err
 		return &EventError{Code: EventNotEditable, Reason: lockReason(err), Err: err}
 	case errors.Is(err, ErrEventInvalid):
 		return &EventError{Code: EventInvalid, Reason: invalidField(err), Err: err}
+	case errors.Is(err, ErrCannotRespond):
+		return &EventError{Code: EventNotEditable, Reason: ReasonCannotRespond, Err: err}
+	case errors.Is(err, ErrResponseNotKept):
+		return &EventError{Code: EventUnreachable, Reason: ReasonResponseNotKept, Err: err}
 	case errors.Is(err, ErrFollowingUnsupported):
 		return &EventError{Code: EventNotEditable, Reason: ReasonFollowingUnsupported, Err: err}
 	case errors.Is(err, ErrPartialWrite):
@@ -297,11 +338,16 @@ func (w *Worker) EditEvent(ctx context.Context, userID, connID, eventID, rev str
 	if err != nil {
 		return nil, w.remoteError(ctx, t, err)
 	}
+	told := tellsPeople(t, edit)
 	if len(st.Wrote.Written) > 0 || st.Wrote.UID != "" {
-		return w.cacheWrite(ctx, t, edit.Scope, st.Wrote)
+		res, err := w.cacheWrite(ctx, t, edit.Scope, st.Wrote)
+		if res != nil {
+			res.Notified = told
+		}
+		return res, err
 	}
 	occ := calfeed.OccurrenceOf(st.Event)
-	remote := calfeed.EventRemote{Href: firstOf(st.Ref.Href, t.ref.Href), ETag: st.Ref.ETag, Locked: st.Locked}
+	remote := remoteOf(t.ref.Href, st)
 	if _, err := w.Feeds.ReplaceEvent(ctx, t.sub.SubscriptionID, t.ref, &occ, remote); err != nil {
 		return nil, err
 	}
@@ -309,14 +355,17 @@ func (w *Worker) EditEvent(ctx context.Context, userID, connID, eventID, rev str
 	if err != nil {
 		return nil, err
 	}
+	res.Notified = told
 	w.notify(userID)
 	return res, nil
 }
 
 // DeleteEvent removes one event from a connection's calendar (rev is the
 // version the caller saw) and from the cache; scope says how much of a series an
-// occurrence's delete reaches. The errors are *EventError.
-func (w *Worker) DeleteEvent(ctx context.Context, userID, connID, eventID, rev string, scope calfeed.Scope) (*EventResult, error) {
+// occurrence's delete reaches. notify is the caller's confirmation that the provider tells
+// the guests: deleting the organiser's meeting cancels it for them, and without it
+// nothing is sent. The errors are *EventError.
+func (w *Worker) DeleteEvent(ctx context.Context, userID, connID, eventID, rev string, scope calfeed.Scope, notify bool) (*EventResult, error) {
 	l := w.lock(connID)
 	l.Lock()
 	defer l.Unlock()
@@ -324,7 +373,7 @@ func (w *Worker) DeleteEvent(ctx context.Context, userID, connID, eventID, rev s
 	if err != nil {
 		return nil, err
 	}
-	if err := w.check(t, rev, func(c Caps) bool { return c.Delete }, EventEdit{Scope: scope}); err != nil {
+	if err := w.check(t, rev, func(c Caps) bool { return c.Delete }, EventEdit{Scope: scope, NotifyGuests: notify}); err != nil {
 		return nil, err
 	}
 	writer, err := w.EventWriter(ctx, t.conn)
@@ -336,7 +385,11 @@ func (w *Worker) DeleteEvent(ctx context.Context, userID, connID, eventID, rev s
 		if err != nil {
 			return nil, w.remoteError(ctx, t, err)
 		}
-		return w.cacheWrite(ctx, t, scope, wr)
+		res, err := w.cacheWrite(ctx, t, scope, wr)
+		if res != nil {
+			res.Notified = notifies(t.conn, t.guests)
+		}
+		return res, err
 	}
 	if err := writer.Delete(ctx, t.remoteRef()); err != nil {
 		return nil, w.remoteError(ctx, t, err)
@@ -345,7 +398,7 @@ func (w *Worker) DeleteEvent(ctx context.Context, userID, connID, eventID, rev s
 		return nil, err
 	}
 	w.notify(userID)
-	return &EventResult{Replaces: t.ref.EventID, ConnectionID: connID, Calendar: t.sub.CalendarURL, Provider: t.conn.Provider}, nil
+	return &EventResult{Replaces: t.ref.EventID, ConnectionID: connID, Calendar: t.sub.CalendarURL, Provider: t.conn.Provider, Notified: notifies(t.conn, t.guests)}, nil
 }
 
 // Added by calendar-event-editor to the phase-1 sets.
@@ -369,4 +422,11 @@ type EventDetail struct {
 	Reminders      []int
 	RemindersMax   int
 	RemindersOther int
+	// Guests, Conference and OnlineMeeting are what the calendar says now (calendar-event-guests
+	// D3); CanRespond and CanEdit say what the user may do with them.
+	Guests        calfeed.GuestInfo
+	Conference    *calfeed.Conference
+	OnlineMeeting OnlineMeeting
+	CanRespond    bool
+	CanEdit       bool
 }

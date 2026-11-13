@@ -122,7 +122,7 @@ func (e calendarEventEditor) Delete(ctx context.Context, uid string, d agenttool
 	if d.Scope != "" && !scope.Valid() {
 		return &agenttools.ArgError{Msg: "scope: " + scopeValues}
 	}
-	res, err := e.s.calsync.DeleteEvent(ctx, uid, d.ConnectionID, d.EventID, d.Rev, scope)
+	res, err := e.s.calsync.DeleteEvent(ctx, uid, d.ConnectionID, d.EventID, d.Rev, scope, false)
 	if err != nil {
 		return e.toolError(err)
 	}

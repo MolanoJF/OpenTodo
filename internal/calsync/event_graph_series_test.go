@@ -574,7 +574,7 @@ func TestGraphSeriesWorkerCacheMatchesACycle(t *testing.T) {
 			e.h.sameAsACycle(e.c)
 			// And delete.
 			row = e.rowOn(t, "2026-11-23")
-			if _, err := e.h.w.DeleteEvent(e.h.ctx, "alice", e.c.ID, row.ID, row.Rev, tc.scope); err != nil {
+			if _, err := e.h.w.DeleteEvent(e.h.ctx, "alice", e.c.ID, row.ID, row.Rev, tc.scope, false); err != nil {
 				t.Fatal(err)
 			}
 			e.h.sameAsACycle(e.c)

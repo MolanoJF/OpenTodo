@@ -158,7 +158,7 @@ func TestGraphLockedEventsAreRefused(t *testing.T) {
 		f      func(e *graphtest.Event)
 		reason string
 	}{
-		"guests":    {func(e *graphtest.Event) { e.Attendees = []string{"a@example.org"} }, LockGuests},
+		"guests":    {func(e *graphtest.Event) { e.Attendees, e.NotOrganizer = []string{"a@example.org"}, true }, LockNotOrganizer}, // calendar-event-guests D9: a guest is told so
 		"organizer": {func(e *graphtest.Event) { e.NotOrganizer = true }, LockNotOrganizer},
 		"series":    {func(e *graphtest.Event) { e.Type = "occurrence" }, LockSeriesUnsupported},
 	} {

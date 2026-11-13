@@ -55,6 +55,8 @@ func (s *Server) registerCalendarSyncRoutes(mux *routes) {
 	// Creating an event and reading one with its description (calendar-event-editor, design D4).
 	mux.handle("POST /api/v1/calendar-sync/connections/{id}/events", signedIn.DemoDenied(), gate(s.handleCreateCalendarEvent))
 	mux.handle("GET /api/v1/calendar-sync/connections/{id}/events/{eventId}", signedIn.DemoDenied(), gate(s.handleGetCalendarEvent))
+	// Answering an invitation (calendar-event-guests, design D3).
+	mux.handle("POST /api/v1/calendar-sync/connections/{id}/events/{eventId}/response", signedIn.DemoDenied(), gate(s.handleRespondCalendarEvent))
 	mux.handle("POST /api/v1/calendar-sync/google/start", signedIn.Recent().DemoDenied(), gate(s.handleGoogleStart))
 	mux.handle("GET "+calsyncCallback, signedIn.SessionOnly().DemoDenied(), gate(s.handleGoogleCallback))
 	// Microsoft (outlook-calendar-sync, design D11).

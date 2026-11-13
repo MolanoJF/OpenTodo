@@ -23,17 +23,19 @@ type graphEvent struct {
 	Removed *struct {
 		Reason string `json:"reason"`
 	} `json:"@removed"`
-	Subject     string         `json:"subject"`
-	Start       *graphDateTime `json:"start"`
-	End         *graphDateTime `json:"end"`
-	IsAllDay    bool           `json:"isAllDay"`
-	IsCancelled bool           `json:"isCancelled"`
-	Type        string         `json:"type"`
-	IsOrganizer *bool          `json:"isOrganizer"`
-	Attendees   []struct {
-		Type string `json:"type"`
-	} `json:"attendees"`
-	Body *struct {
+	Subject     string          `json:"subject"`
+	Start       *graphDateTime  `json:"start"`
+	End         *graphDateTime  `json:"end"`
+	IsAllDay    bool            `json:"isAllDay"`
+	IsCancelled bool            `json:"isCancelled"`
+	Type        string          `json:"type"`
+	IsOrganizer *bool           `json:"isOrganizer"`
+	Attendees   []graphAttendee `json:"attendees"`
+	// What guests, replies and join links read (calendar-event-guests D7).
+	Organizer      *graphPerson     `json:"organizer"`
+	ResponseStatus *graphResponse   `json:"responseStatus"`
+	OnlineMeeting  *graphOnlineMeet `json:"onlineMeeting"`
+	Body           *struct {
 		ContentType string `json:"contentType"`
 		Content     string `json:"content"`
 	} `json:"body"`
@@ -59,6 +61,7 @@ type graphEvent struct {
 	Exceptions      []struct {
 		ID string `json:"id"`
 	} `json:"exceptionOccurrences"`
+	CancelledOccurrences []string `json:"cancelledOccurrences"`
 }
 
 // taskID is the task OpenTodo's property names, "" for another event.
@@ -144,10 +147,10 @@ func (e *graphEvent) locked() string {
 	switch {
 	case !e.supported():
 		return LockSeriesUnsupported
-	case len(e.Attendees) > 0:
-		return LockGuests
 	case e.IsOrganizer != nil && !*e.IsOrganizer:
-		return LockNotOrganizer
+		return LockNotOrganizer // before has_guests: a guest is told so, not "has guests" (calendar-event-guests D9)
+	case len(e.Attendees) > 0 && e.IsOrganizer == nil:
+		return LockGuests // whose meeting it is is not known
 	case e.ETag == "":
 		return LockNoETag
 	}
@@ -155,7 +158,7 @@ func (e *graphEvent) locked() string {
 }
 
 // remote is the event as the cycle reads it.
-func (e *graphEvent) remote() (remote, bool) {
+func (e *graphEvent) remote(me string) (remote, bool) {
 	ev, ok := e.event()
 	if !ok {
 		return remote{}, false
@@ -166,6 +169,7 @@ func (e *graphEvent) remote() (remote, bool) {
 	}
 	r := remote{Href: e.ID, ETag: e.ETag, Events: []calfeed.Event{ev}, TaskID: e.taskID(), Locked: e.locked(),
 		Version: e.ETag + "\x00" + hash16(e.Subject+"\x00"+when)}
+	r.Guests, r.Conference = guestPtr(e.guests(me)), e.conference()
 	if e.inSeries() && e.SeriesMasterID != "" {
 		r.Series = &calfeed.SeriesInfo{Key: e.SeriesMasterID}
 	}

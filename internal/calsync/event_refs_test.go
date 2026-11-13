@@ -80,11 +80,12 @@ func TestGraphLocks(t *testing.T) {
 	}
 	plain := add("Plain", "2026-10-21", func(*graphtest.Event) {})
 	series := add("Series", "2026-10-22", func(e *graphtest.Event) { e.Type = "occurrence" })
-	guests := add("Guests", "2026-10-23", func(e *graphtest.Event) { e.Attendees = []string{"a@example.org"} })
+	guests := add("Guests", "2026-10-23", func(e *graphtest.Event) { e.Attendees, e.NotOrganizer = []string{"a@example.org"}, true })
+	mine := add("Mine", "2026-10-25", func(e *graphtest.Event) { e.Attendees = []string{"a@example.org"} })
 	invited := add("Invited", "2026-10-24", func(e *graphtest.Event) { e.NotOrganizer = true })
 	h.cycle(c)
 	refs := h.refsOf(c, "cal-work")
-	want := map[string]string{plain: "", series: LockSeriesUnsupported, guests: LockGuests, invited: LockNotOrganizer}
+	want := map[string]string{plain: "", series: LockSeriesUnsupported, guests: LockNotOrganizer, invited: LockNotOrganizer, mine: ""}
 	for id, reason := range want {
 		r, ok := refs[id]
 		if !ok || r.Locked != reason || r.ETag == "" || r.Href != id {
@@ -120,7 +121,7 @@ func TestCapsFromPrivileges(t *testing.T) {
 		}
 		got[cal.Name] = *cal.Caps
 	}
-	yes, no := Caps{true, true, true}, Caps{}
+	yes, no := Caps{Create: true, Update: true, Delete: true}, Caps{}
 	want := map[string]Caps{"all": yes, "write": yes, "bind": {Create: true}, "update": {Update: true}, "mixed": {Update: true, Delete: true},
 		"none": no, "silent": yes, "ro": no, "Work": yes}
 	for name, w := range want {
@@ -138,7 +139,7 @@ func TestGraphCaps(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, cal := range h.conn(c.ID).Calendars {
-		want := Caps{true, true, true}
+		want := Caps{Create: true, Update: true, Delete: true}
 		if cal.ReadOnly {
 			want = Caps{}
 		}
@@ -150,7 +151,7 @@ func TestGraphCaps(t *testing.T) {
 
 func TestEffectiveCapsAndSetCaps(t *testing.T) {
 	// A calendar saved before the change has none: derived from ReadOnly.
-	if got := (Calendar{}).EffectiveCaps(); got != (Caps{true, true, true}) {
+	if got := (Calendar{}).EffectiveCaps(); got != (Caps{Create: true, Update: true, Delete: true}) {
 		t.Fatalf("writable without caps = %+v", got)
 	}
 	if got := (Calendar{ReadOnly: true}).EffectiveCaps(); got != (Caps{}) {
@@ -169,7 +170,7 @@ func TestEffectiveCapsAndSetCaps(t *testing.T) {
 	if err := h.w.Rediscover(h.ctx, h.conn(c.ID)); err != nil {
 		t.Fatal(err)
 	}
-	if got := h.conn(c.ID).Calendar(url).EffectiveCaps(); got != (Caps{true, true, true}) {
+	if got := h.conn(c.ID).Calendar(url).EffectiveCaps(); got != (Caps{Create: true, Update: true, Delete: true}) {
 		t.Fatalf("after rediscovery = %+v", got)
 	}
 }

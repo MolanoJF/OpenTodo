@@ -79,6 +79,8 @@ func allConstructors() []Event {
 		CalendarConnectionDeleted("u", "c1", "caldav"),
 		CalendarEventChanged("u", "c1", "caldav", "updated", "following"),
 		CalendarEventChanged("u", "c1", "caldav", "created", ""),
+		CalendarEventResponded("u", "c1", "microsoft", "tentative", "all", false),
+		CalendarEventChangedNotified("u", "c1", "microsoft", "updated", "this", true),
 		NotificationChannelCreated("u", "n1", "ntfy"),
 		NotificationChannelUpdated("u", "n1", "gotify", "token"),
 		NotificationChannelDeleted("u", "n1", "webhook"),
@@ -392,5 +394,32 @@ func TestWebAuditEventNamesMatchTheCatalogue(t *testing.T) {
 	}
 	for n := range web {
 		t.Errorf("AUDIT_EVENT_NAMES lists %q, which the catalogue does not have", n)
+	}
+}
+
+// TestCalendarEventGuestEventsCarryOnlyFixedKeys: a reply or a notified change names
+// the connection, provider, action, answer, scope and whether people were told, and
+// nothing a person typed (calendar-event-guests D12).
+func TestCalendarEventGuestEventsCarryOnlyFixedKeys(t *testing.T) {
+	allowed := map[string]bool{"connection_id": true, "provider": true, "event_action": true, "event_response": true, "event_scope": true, "event_notified": true}
+	for _, e := range []Event{
+		CalendarEventResponded("u", "c1", "microsoft", "accepted", "this", true),
+		CalendarEventResponded("u", "c1", "google", "declined", "", false),
+		CalendarEventChangedNotified("u", "c1", "microsoft", "deleted", "", true),
+	} {
+		if e.Name != CalendarEventChangedName {
+			t.Errorf("name = %q", e.Name)
+		}
+		for k, v := range e.details {
+			if !allowed[k] || !allowedDetailKeys[k] {
+				t.Errorf("unexpected detail %q=%q", k, v)
+			}
+			if strings.ContainsAny(v, "@:/ ") {
+				t.Errorf("detail %q looks like free text: %q", k, v)
+			}
+		}
+	}
+	if d := CalendarEventResponded("u", "c1", "google", "declined", "", false).details; d["event_notified"] != "false" || d["event_response"] != "declined" || d["event_action"] != "responded" {
+		t.Errorf("details = %v", d)
 	}
 }

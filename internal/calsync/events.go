@@ -3,6 +3,7 @@ package calsync
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/OpenTodoApp/opentodo/internal/calfeed"
 )
@@ -32,6 +33,25 @@ type EventEdit struct {
 	Scope       calfeed.Scope
 	Repeat      *RepeatEdit // nil: unchanged
 	Reminders   *[]int      // nil: unchanged; empty: remove the ones the form shows
+	// Guests adds and removes guests (nil: unchanged); NotifyGuests says the caller
+	// confirmed that the provider tells the guests; OnlineMeeting makes the event an
+	// online meeting (Microsoft) and never turns one off (calendar-event-guests D5).
+	Guests        *GuestsEdit
+	NotifyGuests  bool
+	OnlineMeeting bool
+}
+
+// GuestsEdit adds and removes guests (addresses already normalised).
+type GuestsEdit struct {
+	Add    []GuestAdd
+	Remove []string
+}
+
+// GuestAdd is a guest to add or whose role to set.
+type GuestAdd struct {
+	Email    string
+	Name     string
+	Optional bool
 }
 
 // RepeatEdit sets the repeat; a nil Rule stops repeating.
@@ -47,6 +67,11 @@ type EventNew struct {
 	Free        bool
 	Repeat      *calfeed.Repeat // nil: a single event
 	Reminders   []int
+	// Guests are invited when the event is made; NotifyGuests and OnlineMeeting as in
+	// EventEdit.
+	Guests        []GuestAdd
+	NotifyGuests  bool
+	OnlineMeeting bool
 }
 
 // EventWhen is a start and end as the event keeps them: a zoned point keeps its
@@ -64,6 +89,9 @@ type WrittenObject struct {
 	Events []calfeed.Event
 	Locked string
 	Series *calfeed.SeriesInfo
+	// Guests and Conference are what the written object says of them (D2).
+	Guests     *calfeed.GuestInfo
+	Conference *calfeed.Conference
 }
 
 // SeriesWrite lists what a scoped write changed on the account.
@@ -101,6 +129,38 @@ type EventState struct {
 	Reminders      []int
 	RemindersMax   int
 	RemindersOther int
+	// Guests and Conference are what the event says of its guests and its join link;
+	// OnlineMeeting is set by Detail only (calendar-event-guests D5).
+	Guests        calfeed.GuestInfo
+	Conference    *calfeed.Conference
+	OnlineMeeting OnlineMeeting
+}
+
+// OnlineMeeting is whether the calendar can make an online meeting and whether the
+// event has one.
+type OnlineMeeting struct{ Available, On bool }
+
+// Answer is the user's answer to an invitation (design D5 calls it Response; DAV
+// already has a type of that name).
+type Answer string
+
+// The three answers.
+const (
+	ResponseAccepted  Answer = "accepted"
+	ResponseTentative Answer = "tentative"
+	ResponseDeclined  Answer = "declined"
+)
+
+// Valid reports whether r is one of the three answers.
+func (r Answer) Valid() bool {
+	return r == ResponseAccepted || r == ResponseTentative || r == ResponseDeclined
+}
+
+// ReplyEdit is one answer.
+type ReplyEdit struct {
+	Response     Answer
+	Scope        calfeed.Scope // this or all for an occurrence, "" for a single event
+	SendResponse bool          // false only where GuestCaps.Silent
 }
 
 // EventWriter changes events of one connection's calendars. Every write is
@@ -122,6 +182,11 @@ type EventWriter interface {
 	Delete(ctx context.Context, ref EventRef) error
 	// DeleteScoped removes an occurrence for a scope (ref names an occurrence).
 	DeleteScoped(ctx context.Context, ref EventRef, scope calfeed.Scope) (SeriesWrite, error)
+	// Reply answers an invitation while the event still has ref.ETag, changing only
+	// the user's own answer, and returns the event as the calendar holds it after (read
+	// back). ErrResponseNotKept when the calendar's copy does not hold it;
+	// ErrCannotRespond when the provider, the address or the event does not allow it.
+	Reply(ctx context.Context, ref EventRef, reply ReplyEdit) (EventState, error)
 }
 
 // Errors of an EventWriter; Worker.EditEvent maps them onto EventError.
@@ -139,6 +204,10 @@ var (
 	ErrFollowingUnsupported = errors.New("following change would lose data")
 	// ErrPartialWrite is a following change half written: the rollback failed too.
 	ErrPartialWrite = errors.New("series change half written")
+	// ErrResponseNotKept is an answer the calendar accepted and does not hold (502 response_not_kept).
+	ErrResponseNotKept = errors.New("calendar did not keep the answer")
+	// ErrCannotRespond is a reply that is refused before any request (422 cannot_respond).
+	ErrCannotRespond = errors.New("cannot respond")
 )
 
 // lockedError is ErrEventLocked with the reason of design D2.
@@ -184,13 +253,13 @@ func (w *Worker) EventWriter(ctx context.Context, c *Connection) (EventWriter, e
 		if err != nil {
 			return nil, err
 		}
-		return graphEvents{g: g, zone: c.mailboxZone(), now: w.clock}, nil
+		return graphEvents{g: g, me: strings.ToLower(strings.TrimSpace(c.Username)), zone: c.mailboxZone(), now: w.clock, caps: c.GuestCaps()}, nil
 	}
 	dav, err := w.Client(ctx, c)
 	if err != nil {
 		return nil, err
 	}
-	return davEvents{d: dav, now: w.clock}, nil
+	return davEvents{d: dav, now: w.clock, owner: func(cal string) string { return ownerAddress(c, cal) }, caps: c.GuestCaps()}, nil
 }
 
 // refusal maps the status of a refused event request onto the writer errors;

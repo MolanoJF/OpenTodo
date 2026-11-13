@@ -147,6 +147,10 @@ type EventRemote struct {
 	// Series is the series the event is an occurrence of (calendar-event-series
 	// D2), nil for a single event.
 	Series *SeriesInfo
+	// Guests and Conference are what the occurrence says about its guests and its
+	// join link (calendar-event-guests D2); nil when it says nothing.
+	Guests     *GuestInfo
+	Conference *Conference
 }
 
 // SeriesInfo is a row of calendar_event_series: what an occurrence says about
@@ -180,7 +184,7 @@ func (s *Store) StoreManagedRefs(ctx context.Context, subscriptionID, version st
 // storeRefs replaces a subscription's refs inside the transaction that
 // replaced its events. Feeds have none (Refs nil), and the delete is harmless.
 func storeRefs(ctx context.Context, tx *sql.Tx, id string, r *Result) error {
-	for _, q := range []string{`DELETE FROM calendar_event_remote WHERE subscription_id = ?`, `DELETE FROM calendar_event_series WHERE subscription_id = ?`} {
+	for _, q := range []string{`DELETE FROM calendar_event_remote WHERE subscription_id = ?`, `DELETE FROM calendar_event_series WHERE subscription_id = ?`, `DELETE FROM calendar_event_guests WHERE subscription_id = ?`} {
 		if _, err := tx.ExecContext(ctx, q, id); err != nil {
 			return err
 		}
@@ -202,6 +206,9 @@ func storeRefs(ctx context.Context, tx *sql.Tx, id string, r *Result) error {
 			return err
 		}
 		if err := storeSeries(ctx, tx, id, o.UID, ref.Series); err != nil {
+			return err
+		}
+		if err := storeGuests(ctx, tx, id, o.UID, o.Instance, ref); err != nil {
 			return err
 		}
 	}
@@ -302,7 +309,8 @@ func (s *Store) ReplaceSeries(ctx context.Context, subscriptionID string, drop [
 	defer tx.Rollback()
 	for _, uid := range drop {
 		for _, q := range []string{`DELETE FROM calendar_events WHERE subscription_id = ? AND uid = ?`, `DELETE FROM calendar_event_remote WHERE subscription_id = ? AND uid = ?`,
-			`DELETE FROM calendar_event_series WHERE subscription_id = ? AND uid = ?`} {
+			`DELETE FROM calendar_event_series WHERE subscription_id = ? AND uid = ?`,
+			`DELETE FROM calendar_event_guests WHERE subscription_id = ? AND uid = ?`} {
 			if _, err := tx.ExecContext(ctx, q, subscriptionID, uid); err != nil {
 				return nil, err
 			}
@@ -359,7 +367,8 @@ func (s *Store) ReplaceEvent(ctx context.Context, subscriptionID string, old Eve
 	}
 	defer tx.Rollback()
 	for _, q := range []string{`DELETE FROM calendar_events WHERE subscription_id = ? AND uid = ? AND instance = ?`,
-		`DELETE FROM calendar_event_remote WHERE subscription_id = ? AND uid = ? AND instance = ?`} {
+		`DELETE FROM calendar_event_remote WHERE subscription_id = ? AND uid = ? AND instance = ?`,
+		`DELETE FROM calendar_event_guests WHERE subscription_id = ? AND uid = ? AND instance = ?`} {
 		if _, err := tx.ExecContext(ctx, q, subscriptionID, old.UID, old.Instance); err != nil {
 			return EventRef{}, err
 		}
@@ -396,6 +405,9 @@ func insertEvent(ctx context.Context, tx *sql.Tx, subscriptionID string, occ Occ
 		return EventRef{}, err
 	}
 	if err := storeSeries(ctx, tx, subscriptionID, occ.UID, remote.Series); err != nil {
+		return EventRef{}, err
+	}
+	if err := storeGuests(ctx, tx, subscriptionID, occ.UID, occ.Instance, remote); err != nil {
 		return EventRef{}, err
 	}
 	return ref, nil

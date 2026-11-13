@@ -374,6 +374,9 @@ type Access struct {
 	Update bool   `json:"update"`
 	Delete bool   `json:"delete"`
 	Reason string `json:"reason,omitempty"`
+	// Notifies says that changing or deleting the event tells its guests (the user
+	// organises it, it has other guests and the provider tells them itself).
+	Notifies bool `json:"notifies,omitempty"`
 }
 
 // EventID is the id the events route serves for an occurrence: the first 12
@@ -416,6 +419,12 @@ type EventRow struct {
 	// Series says the occurrence repeats (calendar-event-series D1); set for events of a
 	// connected calendar that belong to a series.
 	Series *SeriesView `json:"series,omitempty"`
+	// Guests and Conference are set for an event of a connected calendar that has
+	// other guests, an answer of the user's or a join link (calendar-event-guests D3):
+	// counts and the user's own answer only, never an address. CanRespond is filled
+	// from the connection with Access.
+	Guests     *GuestSummary `json:"guests,omitempty"`
+	Conference *Conference   `json:"conference,omitempty"`
 }
 
 // SeriesView is what an occurrence says about its series: the id all its
@@ -488,11 +497,13 @@ func (s *Store) EventsOf(ctx context.Context, userID, from, to string, feeds, ma
 const eventSelect = `SELECT e.subscription_id, e.uid, e.instance, e.summary, e.location, e.start_date, e.start_time, e.start_tz,
 	e.end_date, e.end_time, e.end_tz, e.all_day, e.free, e.start_ms, e.end_ms,
 	m.subscription_id IS NOT NULL, r.subscription_id IS NOT NULL, COALESCE(r.etag,''), COALESCE(r.locked,''),
-	COALESCE(cs.series_id,''), COALESCE(cs.rrule,''), COALESCE(cs.repeat,''), COALESCE(cs.first_instance,'')
+	COALESCE(cs.series_id,''), COALESCE(cs.rrule,''), COALESCE(cs.repeat,''), COALESCE(cs.first_instance,''),
+	g.subscription_id IS NOT NULL, COALESCE(g.is_organizer,0), COALESCE(g.you,''), COALESCE(g.guest_count,0), COALESCE(g.conference_url,''), COALESCE(g.conference_kind,'')
 	FROM calendar_events e JOIN calendar_subscriptions s ON s.id = e.subscription_id
 	LEFT JOIN calsync_calendars m ON m.subscription_id = e.subscription_id
 	LEFT JOIN calendar_event_remote r ON r.subscription_id = e.subscription_id AND r.uid = e.uid AND r.instance = e.instance
-	LEFT JOIN calendar_event_series cs ON cs.subscription_id = e.subscription_id AND cs.uid = e.uid`
+	LEFT JOIN calendar_event_series cs ON cs.subscription_id = e.subscription_id AND cs.uid = e.uid
+	LEFT JOIN calendar_event_guests g ON g.subscription_id = e.subscription_id AND g.uid = e.uid AND g.instance = e.instance`
 
 // scanEventRow reads one row of eventSelect.
 func scanEventRow(row interface{ Scan(...any) error }) (EventRow, error) {
@@ -501,8 +512,12 @@ func scanEventRow(row interface{ Scan(...any) error }) (EventRow, error) {
 	var st, sz, et, ez sql.NullString
 	var allDay, free int
 	var startMs, endMs int64
+	var hasGuests, isOrg bool
+	var you, curl, kind string
+	var guestCount int
 	if err := row.Scan(&r.SubscriptionID, &r.UID, &instance, &r.Summary, &r.Location, &r.Start.Date, &st, &sz, &r.End.Date, &et, &ez, &allDay, &free, &startMs, &endMs,
-		&r.Managed, &r.Known, &etag, &r.Locked, &sid, &rrule, &repeat, &first); err != nil {
+		&r.Managed, &r.Known, &etag, &r.Locked, &sid, &rrule, &repeat, &first,
+		&hasGuests, &isOrg, &you, &guestCount, &curl, &kind); err != nil {
 		return r, err
 	}
 	if r.Managed {
@@ -514,6 +529,14 @@ func scanEventRow(row interface{ Scan(...any) error }) (EventRow, error) {
 	r.ID = EventID(r.SubscriptionID, r.UID, instance)
 	if r.Managed && sid != "" {
 		r.Series = seriesView(sid, rrule, repeat, first == instance, r.Rev)
+	}
+	if r.Managed && hasGuests {
+		if guestCount > 0 || you != "" {
+			r.Guests = &GuestSummary{Count: guestCount, You: you, Organizer: isOrg}
+		}
+		if curl != "" {
+			r.Conference = &Conference{URL: curl, Provider: kind}
+		}
 	}
 	return r, nil
 }

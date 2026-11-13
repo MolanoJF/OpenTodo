@@ -31,6 +31,10 @@ type eventCreate struct {
 	// the minutes before the start (calendar-event-series D3). No scope: nothing is a series yet.
 	Repeat    repeatField `json:"repeat"`
 	Reminders []int       `json:"reminders"`
+	// Guests are invited when the event is made, which tells them: NotifyGuests confirms it.
+	Guests        []guestInput `json:"guests"`
+	NotifyGuests  *bool        `json:"notifyGuests"`
+	OnlineMeeting *bool        `json:"onlineMeeting"`
 }
 
 // eventOf validates a create body and returns the event to make; field and
@@ -72,6 +76,9 @@ func (in eventCreate) eventOf() (calsync.EventNew, string, string) {
 	if msg := checkReminders(in.Reminders); msg != "" {
 		return ev, "reminders", msg
 	}
+	if field, msg := in.guestParts(&made); field != "" {
+		return ev, field, msg
+	}
 	return made, "", ""
 }
 
@@ -100,7 +107,7 @@ func (s *Server) handleCreateCalendarEvent(w http.ResponseWriter, r *http.Reques
 	status := http.StatusOK // a replay
 	if res.Created {
 		status = http.StatusCreated
-		s.audit.Record(ctx, audit.CalendarEventChanged(uid, connID, res.Provider, "created", ""))
+		s.audit.Record(ctx, audit.CalendarEventChangedNotified(uid, connID, res.Provider, "created", "", res.Notified))
 	}
 	writeJSON(w, status, map[string]any{"event": res.Event, "clientId": in.ClientID})
 }
@@ -119,6 +126,12 @@ func (s *Server) handleGetCalendarEvent(w http.ResponseWriter, r *http.Request) 
 	if sd := d.SeriesDetail; sd != nil {
 		out["series"] = map[string]any{"rrule": sd.RRule, "repeat": sd.Repeat, "custom": sd.Custom, "exceptions": sd.Exceptions}
 	}
+	out["guests"] = detailGuests(d)
+	if d.Conference != nil {
+		out["conference"] = d.Conference
+	}
+	out["onlineMeeting"] = map[string]bool{"available": d.OnlineMeeting.Available, "on": d.OnlineMeeting.On}
+	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, out)
 }
 

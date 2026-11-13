@@ -32,8 +32,7 @@ func (w *Worker) resultOf(ctx context.Context, conn *Connection, sub calfeed.Man
 	if err != nil {
 		return nil, err
 	}
-	a := AccessOf(conn, sub.CalendarURL, row)
-	row.Access = &a
+	Decorate(conn, sub.CalendarURL, &row)
 	return &EventResult{Event: row, Replaces: replaces, ConnectionID: conn.ID, Calendar: sub.CalendarURL, Provider: conn.Provider}, nil
 }
 
@@ -94,6 +93,9 @@ func (w *Worker) CreateEvent(ctx context.Context, userID, connID, calendarURL st
 	} else if ok {
 		return w.replay(ctx, conn, managed, subID, uid)
 	}
+	if err := createGuestRules(conn, calendarURL, ev); err != nil {
+		return nil, err
+	}
 	writer, err := w.EventWriter(ctx, conn)
 	if err != nil {
 		return nil, w.remoteError(ctx, &eventTarget{conn: conn, sub: sub}, err)
@@ -115,7 +117,7 @@ func (w *Worker) CreateEvent(ctx context.Context, userID, connID, calendarURL st
 			return nil, err
 		}
 	} else {
-		remote := calfeed.EventRemote{Href: st.Ref.Href, ETag: st.Ref.ETag, Locked: st.Locked}
+		remote := remoteOf("", st)
 		if _, err := w.Feeds.AddEvent(ctx, sub.SubscriptionID, occ, remote, connID, ev.UID); err != nil {
 			return nil, err
 		}
@@ -125,6 +127,7 @@ func (w *Worker) CreateEvent(ctx context.Context, userID, connID, calendarURL st
 		return nil, err
 	}
 	res.Created = created
+	res.Notified = created && len(ev.Guests) > 0
 	w.notify(userID)
 	return res, nil
 }
@@ -162,7 +165,8 @@ func (w *Worker) EventDetail(ctx context.Context, userID, connID, eventID string
 		}
 	default:
 		occ := calfeed.OccurrenceOf(st.Event)
-		remote := calfeed.EventRemote{Href: firstOf(st.Ref.Href, t.ref.Href), ETag: st.Ref.ETag, Locked: st.Locked, Series: t.ref.Series}
+		remote := remoteOf(t.ref.Href, st)
+		remote.Series = t.ref.Series
 		if _, err = w.Feeds.ReplaceEvent(ctx, t.sub.SubscriptionID, t.ref, &occ, remote); err == nil {
 			w.notify(userID)
 			res, err = w.resultOf(ctx, t.conn, t.sub, occ.UID, occ.Instance, t.ref.EventID)
@@ -171,6 +175,9 @@ func (w *Worker) EventDetail(ctx context.Context, userID, connID, eventID string
 	if err != nil {
 		return nil, err
 	}
-	return &EventDetail{EventResult: *res, Description: st.Description, DescriptionEditable: !st.DescriptionLocked,
-		SeriesDetail: st.Series, Reminders: st.Reminders, RemindersMax: st.RemindersMax, RemindersOther: st.RemindersOther}, nil
+	d := &EventDetail{EventResult: *res, Description: st.Description, DescriptionEditable: !st.DescriptionLocked,
+		SeriesDetail: st.Series, Reminders: st.Reminders, RemindersMax: st.RemindersMax, RemindersOther: st.RemindersOther,
+		Guests: st.Guests, Conference: st.Conference, OnlineMeeting: st.OnlineMeeting}
+	d.fillGuests(t.conn, t.sub.CalendarURL)
+	return d, nil
 }

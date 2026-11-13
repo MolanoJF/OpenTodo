@@ -150,7 +150,7 @@ func (e davEvents) writeSeries(ctx context.Context, ref EventRef, res calfeed.Se
 			}
 			return SeriesWrite{}, err
 		}
-		obj, err := writtenOf(EventRef{Calendar: ref.Calendar, Href: ref.Href, ETag: etag}, body)
+		obj, err := e.writtenOf(EventRef{Calendar: ref.Calendar, Href: ref.Href, ETag: etag}, body)
 		if err != nil {
 			return SeriesWrite{}, err
 		}
@@ -197,7 +197,7 @@ func (e davEvents) createSplit(ctx context.Context, ref EventRef, ob calfeed.Ser
 			}
 		}
 	}
-	return writtenOf(EventRef{Calendar: ref.Calendar, Href: href, ETag: etag}, body)
+	return e.writtenOf(EventRef{Calendar: ref.Calendar, Href: href, ETag: etag}, body)
 }
 
 // putOrigin writes the old object of a split (or the only object of a this or
@@ -291,7 +291,7 @@ func (e davEvents) Detail(ctx context.Context, ref EventRef) (EventState, error)
 	st.Series = &SeriesDetail{RRule: v.RRule, Repeat: v.Repeat, Custom: v.Custom, Exceptions: v.Exceptions}
 	// The object as read, for a cache that is behind it.
 	body := root.Encode()
-	if obj, err := writtenOf(st.Ref, body); err == nil {
+	if obj, err := e.writtenOf(st.Ref, body); err == nil {
 		st.Wrote = SeriesWrite{Written: []WrittenObject{obj}, UID: v.UID, Instance: ref.Instance}
 	}
 	return st, nil

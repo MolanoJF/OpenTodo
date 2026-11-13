@@ -51,6 +51,15 @@ type Event struct {
 	Type         string
 	NotOrganizer bool
 	Attendees    []string
+	// Guests are attendees with a name, a type (required, optional, resource) and an
+	// answer (accepted, tentativelyAccepted, declined, notResponded); Organizer is who
+	// organises an event the user does not (NotOrganizer), ResponseStatus is the user's
+	// own answer, JoinURL the online meeting's address and Provider its service.
+	Guests         []Attendee
+	Organizer      Person
+	ResponseStatus string
+	JoinURL        string
+	Provider       string
 	// Series: SeriesMasterID names the master of an occurrence or exception, Recurrence is
 	// a master's pattern (Type "seriesMaster"), Original the date of the occurrence an
 	// exception replaces, Cancelled hides it.
@@ -66,10 +75,18 @@ type Event struct {
 	Categories              []string
 }
 
-// Calendar is one calendar of the account.
+// Attendee is one guest of an event.
+type Attendee struct{ Address, Name, Type, Response string }
+
+// Person is a name and an address.
+type Person struct{ Name, Address string }
+
+// Calendar is one calendar of the account; OnlineProviders is what it lists as
+// allowedOnlineMeetingProviders.
 type Calendar struct {
 	ID, Name, Color string
 	CanEdit         bool
+	OnlineProviders []string
 }
 
 type change struct {
@@ -118,6 +135,7 @@ type Server struct {
 	requests      []string
 	prefers       []string
 	refreshes     int
+	messages      []Message
 }
 
 // New starts a fake with one writable calendar "cal-work" named "Calendar".
@@ -140,6 +158,9 @@ func New() *Server {
 	mux.HandleFunc("GET /v1.0/me/events/{id}/instances", s.guard(s.instances))
 	mux.HandleFunc("PATCH /v1.0/me/events/{id}", s.guard(s.patch))
 	mux.HandleFunc("DELETE /v1.0/me/events/{id}", s.guard(s.remove))
+	for _, action := range []string{"accept", "tentativelyAccept", "decline"} {
+		mux.HandleFunc("POST /v1.0/me/events/{id}/"+action, s.guard(s.respond(action)))
+	}
 	s.Server = httptest.NewServer(mux)
 	return s
 }
@@ -456,7 +477,8 @@ func (s *Server) calendars(w http.ResponseWriter, _ *http.Request) {
 	list := []map[string]any{}
 	for _, id := range s.order {
 		if c := s.cals[id]; c != nil {
-			list = append(list, map[string]any{"id": c.ID, "name": c.Name, "hexColor": c.Color, "canEdit": c.CanEdit})
+			list = append(list, map[string]any{"id": c.ID, "name": c.Name, "hexColor": c.Color, "canEdit": c.CanEdit,
+				"allowedOnlineMeetingProviders": append([]string{}, c.OnlineProviders...)})
 		}
 	}
 	writeJSON(w, 200, map[string]any{"value": list})
@@ -499,11 +521,8 @@ func (s *Server) render(e *Event, r *http.Request, expand bool) map[string]any {
 	out["showAs"] = firstNonEmpty(e.ShowAs, "busy")
 	out["type"] = firstNonEmpty(e.Type, "singleInstance")
 	out["isOrganizer"] = !e.NotOrganizer
-	guests := []map[string]any{}
-	for _, a := range e.Attendees {
-		guests = append(guests, map[string]any{"type": "required", "emailAddress": map[string]string{"address": a}})
-	}
-	out["attendees"] = guests
+	out["attendees"] = s.renderGuests(e)
+	s.renderMeeting(e, out)
 	out["hasAttachments"], out["isOnlineMeeting"] = e.HasAttachments, e.IsOnlineMeeting
 	out["isReminderOn"], out["reminderMinutesBeforeStart"] = e.ReminderOn, e.ReminderMinutes
 	out["importance"], out["sensitivity"] = firstNonEmpty(e.Importance, "normal"), firstNonEmpty(e.Sensitivity, "normal")
@@ -659,16 +678,19 @@ type input struct {
 		ContentType string `json:"contentType"`
 		Content     string `json:"content"`
 	} `json:"body"`
-	Start         *DT         `json:"start"`
-	End           *DT         `json:"end"`
-	IsAllDay      *bool       `json:"isAllDay"`
-	Recurrence    *Recurrence `json:"recurrence"`
-	ReminderMin   *int        `json:"reminderMinutesBeforeStart"`
-	ReminderOn    *bool       `json:"isReminderOn"`
-	Importance    *string     `json:"importance"`
-	Sensitivity   *string     `json:"sensitivity"`
-	Categories    []string    `json:"categories"`
-	TransactionID string      `json:"transactionId"`
+	Start         *DT           `json:"start"`
+	End           *DT           `json:"end"`
+	IsAllDay      *bool         `json:"isAllDay"`
+	Recurrence    *Recurrence   `json:"recurrence"`
+	ReminderMin   *int          `json:"reminderMinutesBeforeStart"`
+	ReminderOn    *bool         `json:"isReminderOn"`
+	Importance    *string       `json:"importance"`
+	Sensitivity   *string       `json:"sensitivity"`
+	Categories    []string      `json:"categories"`
+	Attendees     *[]inAttendee `json:"attendees"`
+	OnlineMeeting *bool         `json:"isOnlineMeeting"`
+	Provider      *string       `json:"onlineMeetingProvider"`
+	TransactionID string        `json:"transactionId"`
 	Props         []struct {
 		ID    string `json:"id"`
 		Value string `json:"value"`
@@ -744,6 +766,10 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 		graphError(w, 400, "ErrorInvalidRequest")
 		return
 	}
+	if !meetingAllowed(in, cal) {
+		graphError(w, 400, "ErrorInvalidRequest")
+		return
+	}
 	if in.TransactionID != "" {
 		for _, e := range s.events {
 			if e.TransactionID == in.TransactionID && e.Calendar == cal.ID {
@@ -754,6 +780,11 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 	}
 	e := &Event{Calendar: cal.ID, TransactionID: in.TransactionID}
 	in.apply(e)
+	applyGuests(e, in)
+	s.applyMeeting(e, in)
+	if !e.NotOrganizer {
+		s.send("update", addresses(guestList(e))...)
+	}
 	for _, p := range in.Props {
 		if strings.EqualFold(p.ID, s.Property) {
 			e.TaskID = p.Value
@@ -815,6 +846,10 @@ func (s *Server) patch(w http.ResponseWriter, r *http.Request) {
 	if !s.precondition(w, r, e) {
 		return
 	}
+	if cal := s.cals[e.Calendar]; cal != nil && !meetingAllowed(in, cal) {
+		graphError(w, 400, "ErrorInvalidRequest")
+		return
+	}
 	if e.Type == "occurrence" { // a generated occurrence becomes an exception of its master
 		e.Type = "exception"
 	}
@@ -826,6 +861,9 @@ func (s *Server) patch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	in.apply(e)
+	changed, removed := applyGuests(e, in)
+	s.applyMeeting(e, in)
+	s.noteEdit(e, in, changed, removed)
 	e.Modified = s.now()
 	s.store(e)
 	writeJSON(w, 200, s.render(e, r, false))
@@ -844,6 +882,9 @@ func (s *Server) remove(w http.ResponseWriter, r *http.Request) {
 		return
 	case !s.precondition(w, r, e):
 		return
+	}
+	if !e.NotOrganizer {
+		s.send("cancel", addresses(guestList(e))...)
 	}
 	switch e.Type {
 	case "seriesMaster":

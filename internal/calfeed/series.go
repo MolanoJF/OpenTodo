@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/OpenTodoApp/opentodo/internal/caldav"
@@ -94,6 +95,7 @@ const (
 const (
 	LockSeriesUnsupported = "series_unsupported"
 	LockGuests            = "has_guests"
+	LockNotOrganizer      = "not_organizer"
 	LockNoETag            = "no_etag"
 )
 
@@ -314,13 +316,18 @@ func ReadSeries(root *caldav.Component) (SeriesRead, error) {
 }
 
 // SeriesLocked is why an object can not be edited as a series, "" when it can:
-// series_unsupported (design D10), then has_guests, then no_etag. A single event
-// has no series reason.
-func SeriesLocked(root *caldav.Component, etag string) string {
+// series_unsupported (design D10), then not_organizer or has_guests, then no_etag. A
+// single event has no series reason. owner is the user's address ("" when unknown):
+// only with it can an object the user is merely invited to be told apart from one
+// the user organises (calendar-event-guests D9).
+func SeriesLocked(root *caldav.Component, etag, owner string) string {
 	switch why := unsupportedWhy(root); {
 	case why != "":
 		return LockSeriesUnsupported
 	case hasGuests(root):
+		if guestOf(root, owner) {
+			return LockNotOrganizer
+		}
 		return LockGuests
 	case etag == "":
 		return LockNoETag
@@ -485,4 +492,24 @@ func OccurrenceVEvent(root *caldav.Component, instance string) *caldav.Component
 		return x.c
 	}
 	return o.m
+}
+
+// guestOf reports that the user is invited to the object and does not organise it:
+// the master names an organiser other than the owner and lists the owner as an
+// attendee. Without an address, an organiser or an ATTENDEE line for it, it is not
+// known, and the stricter has_guests stands.
+func guestOf(root *caldav.Component, owner string) bool {
+	owner = strings.ToLower(strings.TrimSpace(owner))
+	if owner == "" {
+		return false
+	}
+	o, err := loadSeries(root, "")
+	if err != nil {
+		return false
+	}
+	org := o.m.Prop("ORGANIZER")
+	if org == nil || addressOf(org.Value) == "" || addressOf(org.Value) == owner {
+		return false
+	}
+	return ownerAttendee(o.m, owner) != nil
 }

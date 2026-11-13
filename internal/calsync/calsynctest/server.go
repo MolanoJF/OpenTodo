@@ -69,6 +69,13 @@ type Server struct {
 	NoETagOnGet bool
 	// Prefix is where the account lives ("/dav" by default).
 	Prefix string
+	// Scheduling, Owner, KeepsPartstat and RejectsAttendeeEdits simulate what a server
+	// does about invitations (schedule.go); the default is SchedulingNone. Owner is the
+	// address of the account the calendars belong to.
+	Scheduling           Scheduling
+	Owner                string
+	KeepsPartstat        bool
+	RejectsAttendeeEdits bool
 
 	mu            sync.Mutex
 	cals          map[string]*Calendar
@@ -80,6 +87,7 @@ type Server struct {
 	ifNoneMatch   []string
 	writes        []string
 	fails         []*failure
+	messages      []Message
 }
 
 // failure makes the next n PUT or DELETE requests whose object name contains match
@@ -605,7 +613,14 @@ func (s *Server) object(w http.ResponseWriter, r *http.Request, c *Calendar, id,
 		if !precondition(w, r, o) {
 			return
 		}
-		n := &Object{Data: string(body), ETag: s.nextETag(string(body))}
+		data, status, denied := s.schedule(o, string(body))
+		if status != 0 {
+			w.Header().Set("Content-Type", "application/xml")
+			w.WriteHeader(status)
+			_, _ = io.WriteString(w, denied)
+			return
+		}
+		n := &Object{Data: data, ETag: s.nextETag(data)}
 		c.objects[member] = n
 		s.record(c, member, false)
 		if f != nil {
@@ -641,6 +656,7 @@ func (s *Server) object(w http.ResponseWriter, r *http.Request, c *Calendar, id,
 		if !precondition(w, r, o) {
 			return
 		}
+		s.scheduleDelete(o)
 		delete(c.objects, member)
 		s.record(c, member, true)
 		if f != nil {
