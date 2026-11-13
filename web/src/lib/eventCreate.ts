@@ -7,6 +7,7 @@ import { DAY_MINUTES } from './calendar'
 import { addDaysISO, localDueOf, logicalToday, todayISO, viewerZone } from './dates'
 import { db } from './db'
 import { eventFullOf, pointsOf, type EventFull } from './eventFull'
+import { restRepeat } from './eventRepeat'
 import { uuid } from './ids'
 import { setEventCalendar } from './writableCalendars'
 import type { CalendarEvent, CalendarEventDraft, CalendarSubscription } from './types'
@@ -25,12 +26,13 @@ export function draftFromFull(form: EventFull, cal: Pick<CalendarSubscription, '
     clientId, connectionId: cal.connectionId!, calendarUrl: cal.calendarUrl!, subscriptionId: cal.id,
     summary: form.title.trim(), start: when.start, end: when.end, allDay: when.allDay,
     location: form.location, description: form.description, free: form.free,
+    ...(form.repeat ? { repeat: restRepeat(form.repeat) } : {}), ...(form.reminders.length ? { reminders: form.reminders } : {}),
   }
 }
 
 /** Duplicate (D11): the event's own fields as a draft for `cal`, with a new client id. */
 export function draftFromEvent(ev: CalendarEvent, description: string, cal: Pick<CalendarSubscription, 'id' | 'connectionId' | 'calendarUrl'>, viewerZone: string, clientId = newClientId()): CalendarEventDraft | null {
-  return draftFromFull(eventFullOf(ev, viewerZone, description), cal, clientId)
+  return draftFromFull({ ...eventFullOf(ev, viewerZone, description), repeat: null }, cal, clientId) // one occurrence copies as a single event
 }
 
 /**

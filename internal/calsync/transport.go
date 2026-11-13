@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 
+	"github.com/OpenTodoApp/opentodo/internal/caldav"
 	"github.com/OpenTodoApp/opentodo/internal/calfeed"
 )
 
@@ -52,8 +53,11 @@ type remote struct {
 	// Version identifies this state of the event for op ids.
 	Version string
 	// Locked is why the event can not be edited from OpenTodo ("" when it can):
-	// recurring, has_guests, not_organizer or no_etag (calendar-event-edits D2).
+	// series_unsupported, has_guests, not_organizer or no_etag (calendar-event-edits D2,
+	// calendar-event-series D10).
 	Locked string
+	// Series says the event is part of a series (nil for a single event).
+	Series *calfeed.SeriesInfo
 }
 
 // master returns the event that is not an override.
@@ -98,11 +102,25 @@ func (t davTransport) changes(ctx context.Context, cal string, ver version, toke
 
 func davRemote(o object) remote {
 	r := remote{Href: o.Href, ETag: o.ETag, Version: o.ETag + "\x00" + hash16(string(o.Data))}
-	if cal, err := calfeed.ParseCalendar(o.Data); err == nil {
-		r.Events, r.Warnings = cal.Events, cal.Warnings
+	cal, root, err := calfeed.ParseCalendarRoot(o.Data)
+	if err != nil {
+		r.Locked = noETag(o.ETag)
+		return r
 	}
-	r.Locked = davLocked(r.Events, o.ETag)
+	r.Events, r.Warnings = cal.Events, cal.Warnings
+	r.Locked = calfeed.SeriesLocked(root, o.ETag)
+	if v, err := calfeed.ReadSeries(root); err == nil {
+		r.Series = v.Info()
+	}
 	return r
+}
+
+// noETag is the lock of an object a server gave no version for.
+func noETag(etag string) string {
+	if etag == "" {
+		return LockNoETag
+	}
+	return ""
 }
 
 func (t davTransport) fetch(ctx context.Context, cal string, hrefs []string) (map[string]remote, error) {
@@ -151,29 +169,18 @@ func (t davTransport) remove(ctx context.Context, href, etag string) (int, error
 
 func (davTransport) commit(context.Context) error { return nil }
 
-// Reasons an event can not be edited (calendar-event-edits D2).
+// Reasons an event can not be edited (calendar-event-edits D2, calendar-event-series D10).
 const (
-	LockRecurring    = "recurring"
-	LockGuests       = "has_guests"
-	LockNotOrganizer = "not_organizer"
-	LockNoETag       = "no_etag"
+	LockGuests            = calfeed.LockGuests
+	LockNotOrganizer      = "not_organizer"
+	LockNoETag            = calfeed.LockNoETag
+	LockSeriesUnsupported = calfeed.LockSeriesUnsupported // a series OpenTodo cannot write back without loss
+
+	// lockRecurringLegacy is the reason a cache row written before
+	// calendar-event-series carries; it is served as refresh_pending until the
+	// calendar is read again.
+	lockRecurringLegacy = "recurring"
 )
 
-// davLocked is the reason a CalDAV object can not be edited, "" when it can:
-// a repeating master or an override, an attendee, a server without ETags.
-func davLocked(events []calfeed.Event, etag string) string {
-	for _, ev := range events {
-		if ev.RRule != "" || len(ev.RDates) > 0 || len(ev.ExDates) > 0 || ev.RecurrenceID != "" {
-			return LockRecurring
-		}
-	}
-	for _, ev := range events {
-		if ev.Guests {
-			return LockGuests
-		}
-	}
-	if etag == "" {
-		return LockNoETag
-	}
-	return ""
-}
+// lockedOf is the reason a CalDAV object can not be edited, "" when it can.
+func lockedOf(root *caldav.Component, etag string) string { return calfeed.SeriesLocked(root, etag) }

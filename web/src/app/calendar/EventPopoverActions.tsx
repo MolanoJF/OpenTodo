@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { draftFromEvent } from '../../lib/eventCreate'
 import { eventFullOf } from '../../lib/eventFull'
+import { repeatSummary } from '../../lib/eventRepeat'
 import { t } from '../../lib/i18n'
 import type { CalendarEvent, CalendarSubscription } from '../../lib/types'
 import { Button, Icon, Menu, MenuItem } from '../../ui'
@@ -23,18 +24,22 @@ export function EventPopoverActions({ ev, sub, onClose }: { ev: CalendarEvent; s
     onClose?.()
     if (draft) openEventEditor({ mode: 'create', draft })
   }
+  const repeat = ev.series?.custom ? t('Custom repeat') : ev.series?.repeat ? repeatSummary(ev.series.repeat, ev.start.date) : ''
   return (
-    <div className="flex items-center justify-between gap-2 pt-1" data-event-actions>
-      {ev.access?.update
-        ? <Button size="sm" variant="secondary" data-event-open-editor onClick={() => { onClose?.(); openEventEditor({ mode: 'edit', eventId: ev.id }) }}>{t('All details')}</Button>
-        : <span />}
-      <Menu label={t('More actions')} kind="menu" trigger={<Icon name="ellipsis" />} triggerClassName="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" align="end">
-        {target && <MenuItem label={t('Duplicate')} icon="copy" data-event-duplicate onSelect={() => void duplicate()} />}
-        <MenuItem label={t('Convert to task…')} icon="list-checks" data-event-convert onSelect={() => setConverting(true)} />
-      </Menu>
-      {converting && (
-        <ConvertToTask ev={ev} calendar={sub?.name} getFields={async () => eventFullOf(ev, zone, await eventDescription(ev))} onClose={() => { setConverting(false); onClose?.() }} />
-      )}
-    </div>
+    <>
+      {repeat && <p className="flex items-center gap-1.5 text-meta text-muted" data-event-repeat><Icon name="repeat" size="xs" />{repeat}</p>}
+      <div className="flex items-center justify-between gap-2 pt-1" data-event-actions>
+        {ev.access?.update
+          ? <Button size="sm" variant="secondary" data-event-open-editor onClick={() => { onClose?.(); openEventEditor({ mode: 'edit', eventId: ev.id }) }}>{t('All details')}</Button>
+          : <span />}
+        <Menu label={t('More actions')} kind="menu" trigger={<Icon name="ellipsis" />} triggerClassName="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" align="end">
+          {target && <MenuItem label={t('Duplicate')} icon="copy" data-event-duplicate onSelect={() => void duplicate()} />}
+          <MenuItem label={t('Convert to task…')} icon="list-checks" data-event-convert onSelect={() => setConverting(true)} />
+        </Menu>
+        {converting && (
+          <ConvertToTask ev={ev} calendar={sub?.name} getFields={async () => eventFullOf(ev, zone, await eventDescription(ev))} onClose={() => { setConverting(false); onClose?.() }} />
+        )}
+      </div>
+    </>
   )
 }

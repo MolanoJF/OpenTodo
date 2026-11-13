@@ -40,7 +40,9 @@ type Event struct {
 	End          *Point         // nil: Duration from Start
 	Duration     *time.Duration // nil: End, or the default
 	DurationDays int            // a DURATION in whole days for all-day events
-	RRule        string
+	RRule        string         // the last RRULE of the VEVENT
+	RRules       int            // how many RRULE properties it has (several are a series that is not edited)
+	Exrule       bool           // it has an EXRULE (deprecated, not edited)
 	RDates       []Point
 	ExDates      []Point
 	Cancelled    bool
@@ -66,10 +68,22 @@ type Calendar struct {
 // ParseCalendar reads a published calendar. Events with a start that does not
 // parse are left out with a warning; a body that is not iCalendar is ErrInvalid.
 func ParseCalendar(data []byte) (*Calendar, error) {
+	cal, _, err := ParseCalendarRoot(data)
+	return cal, err
+}
+
+// ParseCalendarRoot is ParseCalendar that also returns the parsed tree, for a
+// caller that reads or edits the object (OpenSpec change calendar-event-series).
+func ParseCalendarRoot(data []byte) (*Calendar, *caldav.Component, error) {
 	root, err := caldav.ParseWithLimits(data, caldav.Limits{Bytes: MaxFeedBytes, Props: MaxFeedProps})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	cal, err := parseRoot(root)
+	return cal, root, err
+}
+
+func parseRoot(root *caldav.Component) (*Calendar, error) {
 	if root.Name != "VCALENDAR" {
 		return nil, fmt.Errorf("%w: not a VCALENDAR", ErrInvalid)
 	}
@@ -132,6 +146,9 @@ func parseEvent(c *caldav.Component, defaultLoc *time.Location, w warnings) (Eve
 			}
 		case "RRULE":
 			ev.RRule = strings.TrimSpace(p.Value)
+			ev.RRules++
+		case "EXRULE":
+			ev.Exrule = true
 		case "RDATE":
 			ev.RDates = append(ev.RDates, parseList(p, defaultLoc, w)...)
 		case "EXDATE":

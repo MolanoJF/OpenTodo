@@ -133,6 +133,7 @@
   "routine_changed",
   "run_closed",
   "scope_change",
+  "scope_required",
   "self_action",
   "session_only",
   "session_required",

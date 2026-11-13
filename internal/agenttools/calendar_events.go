@@ -37,9 +37,37 @@ type CalendarEvent struct {
 	AllDay       bool         `json:"all_day"`
 	Free         bool         `json:"free"`
 	Access       *EventAccess `json:"access,omitempty"`
+	// Series is set for an occurrence of a repeating event: a change of it needs a scope.
+	Series *EventSeries `json:"series,omitempty"`
 	// Title and Location are text from the remote calendar.
 	Title    string `json:"-"`
 	Location string `json:"-"`
+}
+
+// EventSeries says an event is an occurrence of a repeating series (calendar-event-series D13).
+// Repeat is the rule in the editor's form, nil when it is a custom one (Custom true).
+type EventSeries struct {
+	ID      string       `json:"id"`
+	Repeats bool         `json:"repeats"`
+	First   bool         `json:"first"`
+	Custom  bool         `json:"custom"`
+	Repeat  *EventRepeat `json:"repeat,omitempty"`
+}
+
+// EventRepeat is a repeat rule as REST and the tools write it (the calfeed.Repeat form).
+type EventRepeat struct {
+	Freq     string         `json:"freq"`
+	Interval int            `json:"interval,omitempty"`
+	Days     []string       `json:"days,omitempty"`
+	By       string         `json:"by,omitempty"`
+	Ends     EventRepeatEnd `json:"ends"`
+}
+
+// EventRepeatEnd is never, on a date or after a count.
+type EventRepeatEnd struct {
+	Type  string `json:"type"`
+	Date  string `json:"date,omitempty"`
+	Count int    `json:"count,omitempty"`
 }
 
 // EventUpdate is the change update_calendar_event asks for.
@@ -53,6 +81,18 @@ type EventUpdate struct {
 	// Location and Description: "" clears; Description replaces the whole text.
 	Location, Description *string
 	Free                  *bool
+	// Scope is this, following or all: which events of a series the change is for ("" for a
+	// single event). RepeatSet says repeat was sent; Repeat nil with it set stops the repeat.
+	// Reminders are minutes before the start; an empty list removes them.
+	Scope     string
+	RepeatSet bool
+	Repeat    *EventRepeat
+	Reminders *[]int
+}
+
+// EventDelete is the removal delete_calendar_event asks for; Rev is the version the caller saw.
+type EventDelete struct {
+	ConnectionID, EventID, Rev, Scope string
 }
 
 // EventCreate is the change create_calendar_event asks for (calendar-event-editor
@@ -65,6 +105,9 @@ type EventCreate struct {
 	AllDay                    *bool
 	Location, Description     string
 	Free                      bool
+	// Repeat makes a repeating event and Reminders are minutes before the start; no scope.
+	Repeat    *EventRepeat
+	Reminders []int
 }
 
 // EventCalendar is a calendar an event can be created in.
@@ -101,8 +144,8 @@ type EventEditor interface {
 	ValidateCreate(c EventCreate) error
 	// Create makes one event (c.ClientID makes a retry safe).
 	Create(ctx context.Context, userID string, c EventCreate) (EventOutcome, error)
-	// Delete removes one event (rev is the version the caller saw).
-	Delete(ctx context.Context, userID, connectionID, eventID, rev string) error
+	// Delete removes one event, or the events of a series the scope names.
+	Delete(ctx context.Context, userID string, d EventDelete) error
 }
 
 func calendarEventsOff() *ToolError {

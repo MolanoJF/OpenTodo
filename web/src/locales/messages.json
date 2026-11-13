@@ -1209,7 +1209,8 @@
     "web/src/app/task-detail/ReactionBar.tsx"
   ],
   "Add reminder": [
-    "web/src/app/RemindersField.tsx"
+    "web/src/app/RemindersField.tsx",
+    "web/src/app/calendar/EventRemindersField.tsx"
   ],
   "Add row above": [
     "web/src/app/editorCommands.ts"
@@ -1403,7 +1404,8 @@
     "web/src/app/themes/TokenList.tsx"
   ],
   "After": [
-    "web/src/app/assistant/blocks/BeforeAfter.tsx"
+    "web/src/app/assistant/blocks/BeforeAfter.tsx",
+    "web/src/app/calendar/EventRepeatField.tsx"
   ],
   "After its deadline": [
     "web/src/app/calendar/ReplanPreview.tsx"
@@ -1449,7 +1451,8 @@
     "web/src/app/Briefing.tsx"
   ],
   "All events": [
-    "web/src/app/AuditPanel.tsx"
+    "web/src/app/AuditPanel.tsx",
+    "web/src/app/calendar/ScopeMenu.tsx"
   ],
   "All except these": [
     "web/src/app/SyncScopeField.tsx"
@@ -2232,6 +2235,9 @@
   "At the due time": [
     "web/src/app/DefaultRemindersSettings.tsx"
   ],
+  "At the start": [
+    "web/src/lib/eventReminders.ts"
+  ],
   "At the top of the list": [
     "web/src/app/QuickAddSettings.tsx"
   ],
@@ -2943,6 +2949,9 @@
   "Change the project {name}": [
     "web/src/lib/rules/proposal.ts"
   ],
+  "Change which events": [
+    "web/src/app/calendar/ScopeMenu.tsx"
+  ],
   "Change who recognises speech?": [
     "web/src/app/VoiceSettings.tsx"
   ],
@@ -3009,6 +3018,10 @@
   ],
   "Changing it signs out your other sessions; this one stays signed in.": [
     "web/src/lib/settingsCopy.ts"
+  ],
+  "Changing the repeat resets events you changed individually": [
+    "web/src/app/calendar/EventRepeatField.tsx",
+    "web/src/app/calendar/ScopeMenu.tsx"
   ],
   "Changing this needs a connection.": [
     "web/src/app/AgentAccessRow.tsx"
@@ -3267,6 +3280,12 @@
   ],
   "Choose what {title} waits for": [
     "web/src/app/palette/registry.ts"
+  ],
+  "Choose which events to change": [
+    "web/src/app/calendar/ScopeMenu.tsx"
+  ],
+  "Choose which events to change.": [
+    "web/src/lib/calendarEventEdits.ts"
   ],
   "Chosen:": [
     "web/src/app/filter/ConditionEditor.tsx"
@@ -4343,6 +4362,10 @@
   "Custom range": [
     "web/src/app/AuditPanel.tsx"
   ],
+  "Custom repeat": [
+    "web/src/app/calendar/EventPopoverActions.tsx",
+    "web/src/app/calendar/EventRepeatField.tsx"
+  ],
   "Customise": [
     "web/src/app/ThemeRow.tsx"
   ],
@@ -4350,6 +4373,7 @@
     "web/src/app/AuditPanel.tsx",
     "web/src/app/DefaultRemindersSettings.tsx",
     "web/src/app/RemindersField.tsx",
+    "web/src/app/calendar/EventRepeatField.tsx",
     "web/src/app/task-detail/WhenControl.tsx"
   ],
   "Cut at the limit": [
@@ -4478,6 +4502,7 @@
     "web/src/app/BackupsPanel.tsx",
     "web/src/app/CalendarRange.tsx",
     "web/src/app/DigestCard.tsx",
+    "web/src/app/calendar/EventRepeatField.tsx",
     "web/src/app/calendar/occurrenceMenu.tsx",
     "web/src/app/review/StatsView.tsx",
     "web/src/app/task-detail/TimeTab.tsx",
@@ -4501,6 +4526,9 @@
   "Day length": [
     "web/src/app/CalendarSettings.tsx",
     "web/src/lib/settingsCopy.ts"
+  ],
+  "Day of the month": [
+    "web/src/app/calendar/EventRepeatField.tsx"
   ],
   "Day of the week": [
     "web/src/app/filter/ConditionEditor.tsx"
@@ -4795,6 +4823,9 @@
   ],
   "Delete webhook": [
     "web/src/app/WebhooksPanel.tsx"
+  ],
+  "Delete which events": [
+    "web/src/app/calendar/ScopeMenu.tsx"
   ],
   "Delete workspace": [
     "web/src/lib/settingsCopy.ts"
@@ -5126,6 +5157,9 @@
   "Documentation": [
     "web/src/app/settingsIndex.ts",
     "web/src/lib/settingsCopy.ts"
+  ],
+  "Does not repeat": [
+    "web/src/app/calendar/EventRepeatField.tsx"
   ],
   "Does not repeat (e.g. {example})": [
     "web/src/app/RecurrenceField.tsx"
@@ -5791,6 +5825,7 @@
     "web/src/lib/settingsCopy.ts"
   ],
   "Ends": [
+    "web/src/app/calendar/EventRepeatField.tsx",
     "web/src/app/calendar/FramesDialog.tsx"
   ],
   "Energy": [
@@ -6019,6 +6054,12 @@
   "Events of these calendars appear next to your tasks, read-only.": [
     "web/src/app/CalendarSyncDialogs.tsx"
   ],
+  "Events you changed individually go back to the series' times": [
+    "web/src/app/calendar/ScopeMenu.tsx"
+  ],
+  "Every": [
+    "web/src/app/calendar/EventRepeatField.tsx"
+  ],
   "Every 2 weeks": [
     "web/src/lib/reviewCadence.ts"
   ],
@@ -6042,6 +6083,7 @@
   ],
   "Every day": [
     "web/src/app/task-detail/WhenControl.tsx",
+    "web/src/lib/eventRepeat.ts",
     "web/src/lib/frames.ts"
   ],
   "Every day at {time}": [
@@ -6077,7 +6119,23 @@
     "web/src/lib/reviewCadence.ts"
   ],
   "Every month on day {day}": [
-    "web/src/app/task-detail/WhenControl.tsx"
+    "web/src/app/task-detail/WhenControl.tsx",
+    "web/src/lib/eventRepeat.ts"
+  ],
+  "Every month on the first {weekday}": [
+    "web/src/lib/eventRepeat.ts"
+  ],
+  "Every month on the fourth {weekday}": [
+    "web/src/lib/eventRepeat.ts"
+  ],
+  "Every month on the last {weekday}": [
+    "web/src/lib/eventRepeat.ts"
+  ],
+  "Every month on the second {weekday}": [
+    "web/src/lib/eventRepeat.ts"
+  ],
+  "Every month on the third {weekday}": [
+    "web/src/lib/eventRepeat.ts"
   ],
   "Every other colour follows from these, unless you set it under Advanced.": [
     "web/src/app/themes/EditorSections.tsx"
@@ -6129,23 +6187,40 @@
   "Every week at {time}": [
     "web/src/lib/backups.ts"
   ],
+  "Every week on {days}": [
+    "web/src/lib/eventRepeat.ts"
+  ],
   "Every week on {weekday}": [
     "web/src/app/task-detail/WhenControl.tsx"
   ],
   "Every weekday": [
-    "web/src/app/task-detail/WhenControl.tsx"
+    "web/src/app/task-detail/WhenControl.tsx",
+    "web/src/lib/eventRepeat.ts"
   ],
   "Every workspace": [
     "web/src/app/routines/StepCard.tsx"
   ],
   "Every year on {date}": [
-    "web/src/app/task-detail/WhenControl.tsx"
+    "web/src/app/task-detail/WhenControl.tsx",
+    "web/src/lib/eventRepeat.ts"
   ],
   "Every {h} hours": [
     "web/src/app/IssueEditor.tsx"
   ],
   "Every {m} minutes": [
     "web/src/app/IssueEditor.tsx"
+  ],
+  "Every {n} days": [
+    "web/src/lib/eventRepeat.ts"
+  ],
+  "Every {n} months": [
+    "web/src/lib/eventRepeat.ts"
+  ],
+  "Every {n} weeks on {days}": [
+    "web/src/lib/eventRepeat.ts"
+  ],
+  "Every {n} years": [
+    "web/src/lib/eventRepeat.ts"
   ],
   "Every {weekday} at {time}": [
     "web/src/lib/backups.ts"
@@ -9201,6 +9276,12 @@
   "Loading the proposal": [
     "web/src/app/routines/ProposalReview.tsx"
   ],
+  "Loading the reminders": [
+    "web/src/app/calendar/EventRemindersField.tsx"
+  ],
+  "Loading the repeat": [
+    "web/src/app/calendar/EventRepeatField.tsx"
+  ],
   "Loading the review…": [
     "web/src/app/Shell.tsx"
   ],
@@ -9750,6 +9831,7 @@
   ],
   "Month": [
     "web/src/app/CalendarRange.tsx",
+    "web/src/app/calendar/EventRepeatField.tsx",
     "web/src/app/review/StatsView.tsx",
     "web/src/app/task-detail/SectorChoice.tsx",
     "web/src/lib/shortcuts.ts"
@@ -10207,6 +10289,7 @@
   "Never": [
     "web/src/app/BackupsPanel.tsx",
     "web/src/app/PublicLinksSection.tsx",
+    "web/src/app/calendar/EventRepeatField.tsx",
     "web/src/app/task-detail/TaskPageDialog.tsx"
   ],
   "Never reviewed": [
@@ -11786,6 +11869,7 @@
     "web/src/lib/shortcuts.ts"
   ],
   "On a date": [
+    "web/src/app/calendar/EventRepeatField.tsx",
     "web/src/app/routines/words.tsx"
   ],
   "On a phone": [
@@ -11841,6 +11925,9 @@
   ],
   "On the day at 09:00": [
     "web/src/app/DefaultRemindersSettings.tsx"
+  ],
+  "On the day at {time}": [
+    "web/src/lib/eventReminders.ts"
   ],
   "On the deadline": [
     "web/src/lib/relativeDoOn.ts",
@@ -13876,6 +13963,7 @@
   "Reminders": [
     "web/src/app/NotificationChannelEditor.tsx",
     "web/src/app/RemindersField.tsx",
+    "web/src/app/calendar/EventRemindersField.tsx",
     "web/src/app/task-detail/WhenControl.tsx"
   ],
   "Reminders are scheduled on this phone and shown without a push service.": [
@@ -13948,6 +14036,9 @@
   ],
   "Remove picture": [
     "web/src/app/profile/PictureDialog.tsx"
+  ],
+  "Remove reminder": [
+    "web/src/app/calendar/EventRemindersField.tsx"
   ],
   "Remove sample tasks": [
     "web/src/app/FirstDay.tsx",
@@ -14115,6 +14206,7 @@
   ],
   "Repeat": [
     "web/src/app/assistant/blocks/BeforeAfter.tsx",
+    "web/src/app/calendar/EventRepeatField.tsx",
     "web/src/app/task-detail/Facets.tsx",
     "web/src/app/task-detail/TaskFacts.tsx",
     "web/src/app/task-detail/WhenControl.tsx",
@@ -14126,6 +14218,9 @@
   "Repeat and remind (6 languages)": [
     "web/src/lib/shortcuts.ts"
   ],
+  "Repeat by": [
+    "web/src/app/calendar/EventRepeatField.tsx"
+  ],
   "Repeat for each": [
     "web/src/lib/rules/sentence.ts"
   ],
@@ -14136,13 +14231,17 @@
     "web/src/app/EncryptionPanel.tsx"
   ],
   "Repeat on": [
+    "web/src/app/calendar/EventRepeatField.tsx",
     "web/src/app/calendar/FramesDialog.tsx"
   ],
   "Repeat rule": [
     "web/src/app/RecurrenceField.tsx"
   ],
-  "Repeating events are read-only for now": [
-    "web/src/lib/calendarEventEdits.ts"
+  "Repeat unit": [
+    "web/src/app/calendar/EventRepeatField.tsx"
+  ],
+  "Repeat until": [
+    "web/src/app/calendar/EventRepeatField.tsx"
   ],
   "Repeating occurrences": [
     "web/src/app/task-list/ProjectedGroupRows.tsx"
@@ -14879,6 +14978,9 @@
   ],
   "Saving pauses this routine: it runs as {name}. Turn it on again afterwards to run it as you.": [
     "web/src/app/routines/SharedRoutine.tsx"
+  ],
+  "Saving this change first": [
+    "web/src/lib/calendarEventEdits.ts"
   ],
   "Saving…": [
     "web/src/app/BackupsPanel.tsx",
@@ -16297,6 +16399,9 @@
   "Split {text} into lines": [
     "web/src/lib/rules/sentence.ts"
   ],
+  "Splitting this series would lose its attachments or online meeting": [
+    "web/src/lib/calendarEventEdits.ts"
+  ],
   "Square": [
     "web/src/app/themes/EditorSections.tsx"
   ],
@@ -17353,6 +17458,9 @@
   "The browser has not been asked yet.": [
     "web/src/lib/push.ts"
   ],
+  "The calendar app sends reminders; OpenTodo does not.": [
+    "web/src/app/calendar/EventRemindersField.tsx"
+  ],
   "The calendar server asked to slow down.": [
     "web/src/app/CalendarSyncPanel.tsx"
   ],
@@ -17785,6 +17893,12 @@
   ],
   "The reminder offset must be whole minutes.": [
     "web/src/app/actionError.ts"
+  ],
+  "The reminders could not be loaded, so they are left as they are.": [
+    "web/src/app/calendar/EventRemindersField.tsx"
+  ],
+  "The repeat could not be loaded, so it is left as it is.": [
+    "web/src/app/calendar/EventRepeatField.tsx"
   ],
   "The request was rejected because it came from another site.": [
     "web/src/lib/i18n/errors.ts"
@@ -18341,6 +18455,9 @@
   "This and following": [
     "web/src/app/task-detail/OccurrenceScope.tsx"
   ],
+  "This and following events": [
+    "web/src/app/calendar/ScopeMenu.tsx"
+  ],
   "This app is older than this server expects. Update OpenTodo from your app store to keep everything working.": [
     "web/src/app/AboutSection.tsx"
   ],
@@ -18406,6 +18523,9 @@
   ],
   "This calendar is read-only": [
     "web/src/lib/calendarEventEdits.ts"
+  ],
+  "This calendar takes one reminder.": [
+    "web/src/app/calendar/EventRemindersField.tsx"
   ],
   "This change could not be saved.": [
     "web/src/app/PublicListScreen.tsx"
@@ -18530,6 +18650,9 @@
     "web/src/app/TaskRow.tsx",
     "web/src/app/filter/conditionText.ts",
     "web/src/lib/assistant.ts"
+  ],
+  "This event": [
+    "web/src/app/calendar/ScopeMenu.tsx"
   ],
   "This event cannot be deleted from here.": [
     "web/src/app/calendar/ConvertToTask.tsx"
@@ -18829,6 +18952,12 @@
   ],
   "This query uses more nesting than the builder shows. Edit it as text below.": [
     "web/src/app/filter/FilterBuilder.tsx"
+  ],
+  "This repeat can't move to another day for all events": [
+    "web/src/app/calendar/ScopeMenu.tsx"
+  ],
+  "This repeat is too complex to change here": [
+    "web/src/lib/calendarEventEdits.ts"
   ],
   "This request is not allowed here.": [
     "web/src/lib/i18n/errors.ts"
@@ -19199,6 +19328,7 @@
     "web/src/app/UrgencyChip.tsx"
   ],
   "Times": [
+    "web/src/app/calendar/EventRepeatField.tsx",
     "web/src/app/datetime/TimeField.tsx"
   ],
   "Times in UTC: set your Outlook time zone": [
@@ -20586,6 +20716,7 @@
   ],
   "Week": [
     "web/src/app/CalendarRange.tsx",
+    "web/src/app/calendar/EventRepeatField.tsx",
     "web/src/app/task-detail/SectorChoice.tsx",
     "web/src/app/themes/ThemePreview.tsx",
     "web/src/lib/shortcuts.ts"
@@ -20605,6 +20736,9 @@
   ],
   "Week {n}, {year}": [
     "web/src/lib/sectorNames.ts"
+  ],
+  "Weekday of the month": [
+    "web/src/app/calendar/EventRepeatField.tsx"
   ],
   "Weekly": [
     "web/src/app/BackupsPanel.tsx"
@@ -21015,6 +21149,7 @@
   ],
   "Year": [
     "web/src/app/CalendarRange.tsx",
+    "web/src/app/calendar/EventRepeatField.tsx",
     "web/src/lib/shortcuts.ts"
   ],
   "Yes": [
@@ -21075,6 +21210,9 @@
   ],
   "You are offline, so the description is left as it is.": [
     "web/src/app/calendar/EventForm.tsx"
+  ],
+  "You are offline, so the reminders are left as they are.": [
+    "web/src/app/calendar/EventRemindersField.tsx"
   ],
   "You are offline. Changing your password needs a connection to your server.": [
     "web/src/lib/settingsCopy.ts"
@@ -21632,6 +21770,9 @@
     "web/src/app/CalendarView.tsx",
     "web/src/app/calendar/WeekAgenda.tsx",
     "web/src/app/calendar/projections.tsx"
+  ],
+  "all events": [
+    "web/src/app/auditFormat.ts"
   ],
   "and {n} more": [
     "web/src/app/review/CloseDay.tsx",
@@ -23368,11 +23509,17 @@
   "then|keys": [
     "web/src/app/shortcuts/Kbd.tsx"
   ],
+  "this and following events": [
+    "web/src/app/auditFormat.ts"
+  ],
   "this device": [
     "web/src/lib/history.ts"
   ],
   "this evening": [
     "web/src/lib/rules/summary.ts"
+  ],
+  "this event": [
+    "web/src/app/auditFormat.ts"
   ],
   "this is not a valid recovery key; check for typos": [
     "web/src/lib/crypto.ts"
@@ -23411,6 +23558,9 @@
   ],
   "timer, track, time, stop": [
     "web/src/lib/rules/sentence.ts"
+  ],
+  "times": [
+    "web/src/app/calendar/EventRepeatField.tsx"
   ],
   "title": [
     "web/src/app/routines/words.tsx"
@@ -23531,7 +23681,8 @@
     "web/src/lib/testdata/recurrence-1.0.ts"
   ],
   "until {date}": [
-    "web/src/app/TaskRow.tsx"
+    "web/src/app/TaskRow.tsx",
+    "web/src/lib/eventRepeat.ts"
   ],
   "until {time}": [
     "web/src/app/calendar/SpanBand.tsx",
@@ -24096,7 +24247,11 @@
   "{n, plural, one {# day ago} other {# days ago}}": [
     "web/src/app/filter/conditionText.ts"
   ],
+  "{n, plural, one {# day before at {time}} other {# days before at {time}}}": [
+    "web/src/lib/eventReminders.ts"
+  ],
   "{n, plural, one {# day before} other {# days before}}": [
+    "web/src/lib/eventReminders.ts",
     "web/src/lib/nlp/reminders.ts"
   ],
   "{n, plural, one {# day from now} other {# days from now}}": [
@@ -24142,6 +24297,7 @@
     "web/src/lib/nlp/reminders.ts"
   ],
   "{n, plural, one {# hour before} other {# hours before}}": [
+    "web/src/lib/eventReminders.ts",
     "web/src/lib/nlp/reminders.ts"
   ],
   "{n, plural, one {# hour} other {# hours}}": [
@@ -24180,6 +24336,9 @@
   ],
   "{n, plural, one {# member} other {# members}} · {role}": [
     "web/src/app/WorkspacesSettings.tsx"
+  ],
+  "{n, plural, one {# minute before} other {# minutes before}}": [
+    "web/src/lib/eventReminders.ts"
   ],
   "{n, plural, one {# minute left} other {# minutes left}}": [
     "web/src/lib/focus/timer.ts"
@@ -24256,6 +24415,9 @@
   ],
   "{n, plural, one {# open} other {# open}}": [
     "web/src/app/assistant/blocks/ProjectBlock.tsx"
+  ],
+  "{n, plural, one {# other reminder is kept} other {# other reminders are kept}}": [
+    "web/src/app/calendar/EventRemindersField.tsx"
   ],
   "{n, plural, one {# pair below AA} other {# pairs below AA}}": [
     "web/src/app/themes/ContrastPanel.tsx"
@@ -24679,6 +24841,9 @@
   ],
   "{n, plural, one {oldest in Inbox # day} other {oldest in Inbox # days}}": [
     "web/src/app/method/LoopHome.tsx"
+  ],
+  "{n, plural, one {once} other {# times}}": [
+    "web/src/lib/eventRepeat.ts"
   ],
   "{n, plural, one {pasted text, # line} other {pasted text, # lines}}": [
     "web/src/app/assistant/AssistantPanelBody.tsx"

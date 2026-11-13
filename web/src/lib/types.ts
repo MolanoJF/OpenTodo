@@ -1321,10 +1321,41 @@ export interface CalendarEvent {
   rev?: string
   /** What may be done to a connected calendar's event; absent on ICS feed events. */
   access?: CalendarEventAccess
+  /** An occurrence of a repeating event (calendar-event-series D1): what groups it with the others; absent for a single event. */
+  series?: CalendarEventSeries
+}
+
+/** Which events of a repeating series a change is for (calendar-event-series D1). */
+export type EventScope = 'this' | 'following' | 'all'
+
+/** A repeat rule as the editor edits it, and as the REST routes carry it (calendar-event-series D3). */
+export interface CalendarRepeat {
+  freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
+  /** 1 to 99. */
+  interval: number
+  /** Weekly: `mo` to `su`; empty means the start's weekday. */
+  days?: string[]
+  /** Monthly: the start's day of the month, or its weekday of the month; omitted means the day of the month. */
+  by?: 'monthday' | 'weekday'
+  ends: { type: 'never' } | { type: 'on'; date: string } | { type: 'after'; count: number }
+}
+
+/** What the events route says of an occurrence's series (calendar-event-series D3). */
+export interface CalendarEventSeries {
+  id: string
+  /** The calendar's own rule text, read-only. */
+  rrule?: string
+  /** The rule in the editor's form; null when it is custom, absent when it is loaded on demand (Microsoft). */
+  repeat?: CalendarRepeat | null
+  custom?: boolean
+  /** The series' first occurrence: `following` is not offered on it. */
+  first?: boolean
+  /** The version of the series' calendar object (CalDAV and Google): shared by every occurrence. */
+  rev?: string
 }
 
 /** Why a connected calendar's event cannot be changed (calendar-event-edits D3); the first unmet condition. */
-export type CalendarEventReason = 'edits_off' | 'calendar_read_only' | 'recurring' | 'has_guests' | 'not_organizer' | 'no_etag' | 'refresh_pending'
+export type CalendarEventReason = 'edits_off' | 'calendar_read_only' | 'series_unsupported' | 'has_guests' | 'not_organizer' | 'no_etag' | 'refresh_pending'
 
 export interface CalendarEventAccess {
   update: boolean
@@ -1358,6 +1389,8 @@ export interface CalendarSubscription {
   calendarUrl?: string
   caps?: CalendarCaps
   editEvents?: boolean
+  /** Managed calendars: how many reminders an event takes (5; 1 for Microsoft), calendar-event-series D3. */
+  maxReminders?: number
 }
 
 /** One calendar of a calendar sync account, as discovery found it. */
@@ -2594,6 +2627,10 @@ export interface CalendarEventChange {
   /** Not part of the cached row: carried by the command only (calendar-event-editor D2). */
   description?: string
   free?: boolean
+  /** Not part of the cached row: carried by the command only (calendar-event-series D3). Omitted: unchanged; null: stop repeating (this and following only). */
+  repeat?: CalendarRepeat | null
+  /** Minutes before the start; [] removes the ones the form shows. Not on the row either. */
+  reminders?: number[]
 }
 
 /** An event made on this device, not yet in the calendar (calendar-event-editor D9). */
@@ -2609,6 +2646,8 @@ export interface CalendarEventDraft {
   location: string
   description: string
   free: boolean
+  repeat?: CalendarRepeat
+  reminders?: number[]
 }
 
 /** The body of `POST .../connections/{id}/events` (calendar-event-editor D4): a draft without the device's own ids. */
@@ -2621,6 +2660,21 @@ export interface CalendarEventDetail {
   replaces?: string
   description: string
   descriptionEditable: boolean
+  /** An occurrence's series as the editor shows it; absent for a single event (calendar-event-series D3). */
+  series?: { rrule: string; repeat: CalendarRepeat | null; custom: boolean; exceptions: number }
+  reminders?: number[]
+  remindersMax?: number
+  /** Reminders the form cannot show and keeps. */
+  remindersOther?: number
+}
+
+/** What `PATCH` answers (calendar-event-series D3): `event` is null when the edited occurrence left the cached window. */
+export interface CalendarEventUpdate {
+  event: CalendarEvent | null
+  replaces: string
+  series?: { id: string; rev?: string }
+  /** Other occurrences changed: read the shown range again. */
+  refetch?: boolean
 }
 
 /** One queued edit of a connected calendar's event (calendar-event-edits D6): a device-local command, never an op. */
@@ -2631,11 +2685,15 @@ export interface EventCommand {
   eventId: string
   /** The rev the user saw, kept from the first edit. */
   rev: string
+  /** Which events of a series the command is for; set from the first edit (calendar-event-series D11). */
+  scope?: EventScope
   /** The row before the first queued edit (rollback, Undo). */
   base: CalendarEvent
   patch: CalendarEventChange | { delete: true } | { create: CalendarEventDraft }
   /** An edit made while this one is in flight. */
   next?: CalendarEventChange | { delete: true }
+  /** The scope of `next`: an edit with another scope waits for the answer instead of merging. */
+  nextScope?: EventScope
   /** A delete waits so the toast's Undo can cancel it. */
   notBefore: number
   sending?: boolean

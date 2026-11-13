@@ -178,6 +178,9 @@ export function eventSummary(ev: AuditEvent): string {
   else if (d.from || d.to) parts.push(`${d.from ?? '?'} → ${d.to ?? '?'}`)
   if (d.provider) parts.push(d.provider)
   if (d.event_action) parts.push(d.event_action === 'created' ? t('created') : d.event_action === 'deleted' || d.event_action === 'delete' ? t('deleted') : t('changed'))
+  if (d.event_scope === 'this') parts.push(t('this event'))
+  else if (d.event_scope === 'following') parts.push(t('this and following events'))
+  else if (d.event_scope === 'all') parts.push(t('all events'))
   if (d.channel_kind) parts.push(d.channel_kind)
   if (d.count) {
     const n = Number(d.count)

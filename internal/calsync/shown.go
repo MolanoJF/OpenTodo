@@ -79,7 +79,7 @@ func (r *cycle) readCalendars(ctx context.Context) error {
 			for _, ev := range o.Events {
 				if _, ours := r.links[ev.UID]; !ours || u != r.c.TargetURL {
 					events = append(events, ev)
-					refs[ev.UID] = calfeed.EventRemote{Href: o.Href, ETag: o.ETag, Locked: o.Locked}
+					refs[ev.UID] = calfeed.EventRemote{Href: o.Href, ETag: o.ETag, Locked: o.Locked, Series: o.Series}
 				}
 			}
 			warns = append(warns, o.Warnings...)

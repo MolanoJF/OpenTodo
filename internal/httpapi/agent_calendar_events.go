@@ -35,9 +35,23 @@ func eventPointOf(p *agenttools.EventTime) *eventPoint {
 	return &eventPoint{Date: p.Date, Time: p.Time, TZ: p.TZ}
 }
 
+// calRepeatOf is a tool's repeat rule as the REST form.
+func calRepeatOf(r *agenttools.EventRepeat) *calfeed.Repeat {
+	if r == nil {
+		return nil
+	}
+	return &calfeed.Repeat{Freq: r.Freq, Interval: r.Interval, Days: r.Days, By: r.By,
+		Ends: calfeed.RepeatEnd{Type: r.Ends.Type, Date: r.Ends.Date, Count: r.Ends.Count}}
+}
+
 func eventPatchOf(u agenttools.EventUpdate) eventPatch {
-	return eventPatch{Rev: u.Rev, Summary: u.Summary, Start: eventPointOf(u.Start), End: eventPointOf(u.End), AllDay: u.AllDay,
-		Location: u.Location, Description: u.Description, Free: u.Free}
+	p := eventPatch{Rev: u.Rev, Summary: u.Summary, Start: eventPointOf(u.Start), End: eventPointOf(u.End), AllDay: u.AllDay,
+		Location: u.Location, Description: u.Description, Free: u.Free, Reminders: u.Reminders}
+	if u.Scope != "" {
+		p.Scope = &u.Scope
+	}
+	p.Repeat = repeatField{Set: u.RepeatSet, Rule: calRepeatOf(u.Repeat)}
+	return p
 }
 
 // Validate applies the PATCH route's body rules.
@@ -55,6 +69,10 @@ func (calendarEventEditor) toolError(err error) error {
 		return err
 	}
 	switch ee.Code {
+	case calsync.EventScopeRequired:
+		return toolCode("scope_required", "this event repeats (it has a series in list_calendar_events): say which events the change is for with scope: this (only that occurrence), following (it and every later one) or all (every occurrence)")
+	case calsync.EventInvalid:
+		return toolCode("invalid_input", ee.Reason+": "+invalidReason(ee.Reason))
 	case calsync.EventNotFound:
 		return toolCode("not_found", "calendar event not found")
 	case calsync.EventEditsOff:
@@ -88,23 +106,27 @@ func (e calendarEventEditor) Update(ctx context.Context, uid string, u agenttool
 	if err != nil {
 		return agenttools.EventOutcome{}, e.toolError(err)
 	}
-	e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, u.ConnectionID, res.Provider, "updated"))
+	e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, u.ConnectionID, res.Provider, "updated", string(edit.Scope)))
 	out := eventOfRow(res.Event, res.ConnectionID)
 	return agenttools.EventOutcome{Event: out, Replaces: res.Replaces}, nil
 }
 
-func (e calendarEventEditor) Delete(ctx context.Context, uid, connID, eventID, rev string) error {
+func (e calendarEventEditor) Delete(ctx context.Context, uid string, d agenttools.EventDelete) error {
 	if err := e.on(ctx); err != nil {
 		return err
 	}
 	if !e.s.calsyncEventLimiter.allow(uid) {
 		return toolCode("rate_limited", "too many calendar event changes; try again later")
 	}
-	res, err := e.s.calsync.DeleteEvent(ctx, uid, connID, eventID, rev)
+	scope := calfeed.Scope(d.Scope)
+	if d.Scope != "" && !scope.Valid() {
+		return &agenttools.ArgError{Msg: "scope: " + scopeValues}
+	}
+	res, err := e.s.calsync.DeleteEvent(ctx, uid, d.ConnectionID, d.EventID, d.Rev, scope)
 	if err != nil {
 		return e.toolError(err)
 	}
-	e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, connID, res.Provider, "deleted"))
+	e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, d.ConnectionID, res.Provider, "deleted", d.Scope))
 	return nil
 }
 
@@ -147,6 +169,14 @@ func timeOf(w calfeed.When) agenttools.EventTime {
 func eventOfRow(row calfeed.EventRow, connID string) agenttools.CalendarEvent {
 	e := agenttools.CalendarEvent{ID: row.ID, ConnectionID: connID, Rev: row.Rev, Start: timeOf(row.Start), End: timeOf(row.End),
 		AllDay: row.AllDay, Free: row.Free, Title: row.Summary, Location: row.Location}
+	if sv := row.Series; sv != nil {
+		s := &agenttools.EventSeries{ID: sv.ID, Repeats: true, First: sv.First, Custom: sv.Custom}
+		if sv.Repeat != nil {
+			s.Repeat = &agenttools.EventRepeat{Freq: sv.Repeat.Freq, Interval: sv.Repeat.Interval, Days: sv.Repeat.Days, By: sv.Repeat.By,
+				Ends: agenttools.EventRepeatEnd{Type: sv.Repeat.Ends.Type, Date: sv.Repeat.Ends.Date, Count: sv.Repeat.Ends.Count}}
+		}
+		e.Series = s
+	}
 	if row.Access != nil {
 		e.Access = &agenttools.EventAccess{Update: row.Access.Update, Delete: row.Access.Delete, Reason: row.Access.Reason}
 	}
@@ -155,7 +185,8 @@ func eventOfRow(row calfeed.EventRow, connID string) agenttools.CalendarEvent {
 
 func eventCreateOf(c agenttools.EventCreate) eventCreate {
 	return eventCreate{ClientID: c.ClientID, CalendarURL: c.CalendarURL, Summary: c.Summary,
-		Start: eventPointOf(&c.Start), End: eventPointOf(&c.End), AllDay: c.AllDay, Location: c.Location, Description: c.Description, Free: c.Free}
+		Start: eventPointOf(&c.Start), End: eventPointOf(&c.End), AllDay: c.AllDay, Location: c.Location, Description: c.Description, Free: c.Free,
+		Repeat: repeatField{Set: c.Repeat != nil, Rule: calRepeatOf(c.Repeat)}, Reminders: c.Reminders}
 }
 
 // ValidateCreate applies the POST route's body rules.
@@ -188,7 +219,7 @@ func (e calendarEventEditor) Create(ctx context.Context, uid string, c agenttool
 		return agenttools.EventOutcome{}, e.toolError(err)
 	}
 	if res.Created {
-		e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, c.ConnectionID, res.Provider, "created"))
+		e.s.audit.Record(ctx, audit.CalendarEventChanged(uid, c.ConnectionID, res.Provider, "created", ""))
 	}
 	return agenttools.EventOutcome{Event: eventOfRow(res.Event, res.ConnectionID), Replayed: !res.Created}, nil
 }

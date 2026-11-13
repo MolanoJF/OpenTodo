@@ -16,7 +16,7 @@ import { convertEvent, taskInputOf } from './eventConvert'
 const BERLIN = 'Europe/Berlin'
 const sub: CalendarSubscription = { id: 's1', name: 'Work', color: '', enabled: true, lastSuccessAt: 1, managed: true, connectionId: 'c1', editEvents: true }
 const review: CalendarEvent = { id: 'ev1', subscriptionId: 's1', uid: 'u1', summary: 'Review draft', location: 'Room 4', start: { date: '2026-11-13', time: '14:00', tz: BERLIN }, end: { date: '2026-11-13', time: '15:30', tz: BERLIN }, allDay: false, free: false, rev: 'r1', access: { update: true, delete: true } }
-const locked: CalendarEvent = { ...review, id: 'ev2', uid: 'u2', access: { update: false, delete: false, reason: 'recurring' } }
+const locked: CalendarEvent = { ...review, id: 'ev2', uid: 'u2', access: { update: false, delete: false, reason: 'has_guests' } }
 
 let deletes: string[]
 beforeEach(async () => {
@@ -134,5 +134,19 @@ describe('ConvertToTask', () => {
     await waitFor(() => onClose.mock.calls.length > 0, 'the close')
     expect(await tasks()).toHaveLength(1)
     expect(await db.calendarEvents.get('ev2')).toBeDefined()
+  })
+})
+
+describe('convertEvent on an occurrence (calendar-event-series D11)', () => {
+  const occurrence: CalendarEvent = { ...review, id: 'ev3', uid: 'u3', series: { id: 'ser1', rev: 'r1', first: false } }
+
+  it('deletes that occurrence only: the queued delete carries scope this and never asks', async () => {
+    await db.calendarEvents.put(occurrence)
+    expect(await convertEvent(occurrence, full(occurrence), true)).toBe(true)
+    const cmd = await db.eventOutbox.get('c1:ev3')
+    expect(cmd).toMatchObject({ scope: 'this', patch: { delete: true } })
+    await flushEventEdits(Date.now() + DELETE_DELAY_MS + 100)
+    await waitFor(() => deletes.length === 1, 'the delete')
+    expect(deletes[0]).toBe('/api/v1/calendar-sync/connections/c1/events/ev3?rev=r1&scope=this')
   })
 })

@@ -191,6 +191,8 @@ func calendarEventAdd(a *App, ctx context.Context, g *globalFlags, args []string
 	loc := fs.String("location", "", "where it is")
 	desc := fs.String("description", "", "its description, plain text")
 	free := fs.Bool("free", false, "show you as free during it")
+	var sf seriesFlags
+	sf.bind(fs, false, true, false)
 	clientID := fs.String("client-id", "", "idempotency key for scripts that retry: 8 to 64 letters, digits, - or _")
 	pos, err := a.parse(g, fs, "calendar event add", args)
 	if err != nil {
@@ -198,7 +200,15 @@ func calendarEventAdd(a *App, ctx context.Context, g *globalFlags, args []string
 	}
 	title := strings.TrimSpace(strings.Join(pos, " "))
 	if title == "" {
-		return usageErr("usage: ot calendar event add <title> --start DATE[Thh:mm] [--end DATE[Thh:mm] | --for 45m] [--all-day] [--calendar <name or url>] [--location T] [--description T] [--free]")
+		return usageErr("usage: ot calendar event add <title> --start DATE[Thh:mm] [--end DATE[Thh:mm] | --for 45m] [--all-day] [--calendar <name or url>] [--location T] [--description T] [--free] [--repeat daily|weekdays|weekly|monthly|yearly [--every N] [--days mo,we] [--by monthday|weekday] [--until DATE | --count N]] [--remind 10m]...")
+	}
+	rule, err := a.repeatBody(&sf)
+	if err != nil {
+		return err
+	}
+	reminders, err := remindersBody(&sf)
+	if err != nil {
+		return err
 	}
 	s, e, kind, err := a.newEventTimes(*start, *end, *dur, *allDay)
 	if err != nil {
@@ -226,6 +236,12 @@ func calendarEventAdd(a *App, ctx context.Context, g *globalFlags, args []string
 	}
 	if *desc != "" {
 		body["description"] = *desc
+	}
+	if rule != nil {
+		body["repeat"] = rule
+	}
+	if reminders != nil {
+		body["reminders"] = reminders
 	}
 	a.target(title, "", title, "created in "+target.label())
 	var res struct {

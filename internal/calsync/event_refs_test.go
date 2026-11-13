@@ -50,7 +50,7 @@ func TestReadCalendarsStoresRefsAndLocks(t *testing.T) {
 	if r := refs["plain"]; r.Locked != "" || r.ETag == "" || !strings.HasSuffix(r.Href, "/plain.ics") {
 		t.Fatalf("plain = %+v", r)
 	}
-	if refs["guests"].Locked != LockGuests || refs["weekly"].Locked != LockRecurring {
+	if refs["guests"].Locked != LockGuests || refs["weekly"].Locked != "" || refs["weekly"].Series == nil {
 		t.Fatalf("locks = %q %q", refs["guests"].Locked, refs["weekly"].Locked)
 	}
 	// One ref per occurrence: the weekly series has three.
@@ -84,7 +84,7 @@ func TestGraphLocks(t *testing.T) {
 	invited := add("Invited", "2026-10-24", func(e *graphtest.Event) { e.NotOrganizer = true })
 	h.cycle(c)
 	refs := h.refsOf(c, "cal-work")
-	want := map[string]string{plain: "", series: LockRecurring, guests: LockGuests, invited: LockNotOrganizer}
+	want := map[string]string{plain: "", series: LockSeriesUnsupported, guests: LockGuests, invited: LockNotOrganizer}
 	for id, reason := range want {
 		r, ok := refs[id]
 		if !ok || r.Locked != reason || r.ETag == "" || r.Href != id {

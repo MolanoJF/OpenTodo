@@ -34,7 +34,8 @@ func init() {
 	register(tool{def: func(Caller) Definition {
 		return writeDef("update_calendar_event", "Change a calendar event",
 			"Change one event of a connected calendar (see list_calendar_events for its connection_id, id and rev): summary, start and end together (and all_day), location, description (replaces the whole text; an empty string clears it) or free (true: shown as free). Send any of them. "+
-				"It works only when the user turned on editing events for that connection and the event's access.update is true; recurring events, events with guests and events the user does not organise stay read-only. No invitation or update is ever sent to guests. "+
+				"It works only when the user turned on editing events for that connection and the event's access.update is true; events with guests and events the user does not organise stay read-only, and so does a repeating event that repeats in a way the repeat argument cannot express. No invitation or update is ever sent to guests. "+
+				"For an event with a series in list_calendar_events pass scope (this, following or all), and use repeat to change how it repeats and reminders to set its reminders. "+
 				"The answer holds the event as the calendar now holds it: a move changes its id, and replaces names the old one.",
 			object([]string{"connection_id", "event_id", "rev"}, map[string]any{
 				"connection_id": connectionIDProp, "event_id": eventIDProp, "rev": eventRevProp,
@@ -44,13 +45,14 @@ func init() {
 				"location":    map[string]any{"type": "string", "maxLength": 500, "description": "The new location; an empty string clears it."},
 				"description": map[string]any{"type": "string", "maxLength": 10000, "description": "The new description as plain text. It replaces the whole text; an empty string clears it. An event whose description is rich text in the calendar can not take one."},
 				"free":        map[string]any{"type": "boolean", "description": "true: the event shows the user as free; false: busy."},
+				"scope":       scopeProp, "repeat": repeatProp(true), "reminders": remindersProp,
 			}), false, true, nil, false)
 	}, plan: (*Registry).planUpdateCalendarEvent})
 	register(tool{def: func(Caller) Definition {
 		return writeDef("delete_calendar_event", "Delete a calendar event",
-			"Delete one event from a connected calendar (see list_calendar_events for its connection_id, id and rev). It is removed from the user's calendar and can not be restored from here. It works only when the user turned on editing events for that connection and the event's access.delete is true.",
+			"Delete one event from a connected calendar (see list_calendar_events for its connection_id, id and rev). It is removed from the user's calendar and can not be restored from here. It works only when the user turned on editing events for that connection and the event's access.delete is true. For an event with a series in list_calendar_events pass scope: this deletes that occurrence, following it and every later one, all the whole series.",
 			object([]string{"connection_id", "event_id", "rev"}, map[string]any{
-				"connection_id": connectionIDProp, "event_id": eventIDProp, "rev": eventRevProp,
+				"connection_id": connectionIDProp, "event_id": eventIDProp, "rev": eventRevProp, "scope": scopeProp,
 			}), true, true, nil, false)
 	}, plan: (*Registry).planDeleteCalendarEvent})
 }
@@ -84,7 +86,7 @@ func (a args) eventTime(name string) (*EventTime, error) {
 
 // eventUpdate reads update_calendar_event's arguments.
 func (a args) eventUpdate() (EventUpdate, error) {
-	if err := a.only("", "connection_id", "event_id", "rev", "summary", "start", "end", "all_day", "location", "description", "free"); err != nil {
+	if err := a.only("", "connection_id", "event_id", "rev", "summary", "start", "end", "all_day", "location", "description", "free", "scope", "repeat", "reminders"); err != nil {
 		return EventUpdate{}, err
 	}
 	conn, id, rev, err := a.eventTarget()
@@ -110,7 +112,10 @@ func (a args) eventUpdate() (EventUpdate, error) {
 		}
 		u.AllDay = &v
 	}
-	return u.withText(a)
+	if u, err = u.withText(a); err != nil {
+		return u, err
+	}
+	return u.withSeries(a)
 }
 
 // withText reads the location, description and free members of an update.
@@ -163,10 +168,14 @@ func (r *Registry) planDeleteCalendarEvent(_ context.Context, c Caller, a args, 
 	if r.eventEditor == nil {
 		return Plan{}, calendarEventsOff()
 	}
-	if err := a.only("", "connection_id", "event_id", "rev"); err != nil {
+	if err := a.only("", "connection_id", "event_id", "rev", "scope"); err != nil {
 		return Plan{}, err
 	}
 	conn, id, rev, err := a.eventTarget()
+	if err != nil {
+		return Plan{}, err
+	}
+	scope, err := a.scope()
 	if err != nil {
 		return Plan{}, err
 	}
@@ -174,7 +183,7 @@ func (r *Registry) planDeleteCalendarEvent(_ context.Context, c Caller, a args, 
 		if maxWrites < 1 {
 			return nil, 0, rateLimited(0, "no changed items left today for this token")
 		}
-		if err := r.eventEditor.Delete(ctx, c.UserID, conn, id, rev); err != nil {
+		if err := r.eventEditor.Delete(ctx, c.UserID, EventDelete{ConnectionID: conn, EventID: id, Rev: rev, Scope: scope}); err != nil {
 			return nil, 0, eventToolError(err)
 		}
 		return map[string]any{"deleted": id}, 1, nil

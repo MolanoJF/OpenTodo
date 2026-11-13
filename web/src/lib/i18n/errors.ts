@@ -75,6 +75,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   event_edits_off: msg('Editing events is turned off for this calendar connection.'),
   event_gone: msg('This event is no longer in your calendar.'),
   event_not_editable: msg('This event can’t be changed from OpenTodo.'),
+  scope_required: msg('Choose which events of this repeating series to change: this event, this and following events, or all events.'),
   calendar_unreachable: msg('The calendar server could not be used: {detail}'),
   google_not_configured: msg('The server owner has not set up a Google client for calendar sync.'),
   base_url_mismatch: msg('Google would send you back to another address than the one this page is open at. The server owner must set OPENTODO_BASE_URL to the address people open OpenTodo at.'),

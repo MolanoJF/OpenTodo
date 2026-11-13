@@ -75,6 +75,62 @@ type Server struct {
 	etagCount     int
 	unconditional int
 	ifNoneMatch   []string
+	writes        []string
+	fails         []*failure
+}
+
+// failure makes the next n PUT or DELETE requests whose object name contains match
+// answer status: without applying them, or, when apply is set, after applying them
+// (a server whose answer was lost).
+type failure struct {
+	method, match string
+	status, n     int
+	apply         bool
+}
+
+// FailNext makes the next n requests of method (PUT or DELETE) to an object whose
+// name contains match answer status without being applied.
+func (s *Server) FailNext(method, match string, status, n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fails = append(s.fails, &failure{method: method, match: match, status: status, n: n})
+}
+
+// FailNextAfterApply is FailNext for requests that are applied and then answered
+// with status, as a server whose answer was lost or that failed after writing.
+func (s *Server) FailNextAfterApply(method, match string, status, n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fails = append(s.fails, &failure{method: method, match: match, status: status, n: n, apply: true})
+}
+
+// Writes lists the PUT and DELETE requests served, in order, as "METHOD object
+// precondition" with the precondition If-Match, If-None-Match or none.
+func (s *Server) Writes() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.writes...)
+}
+
+// failing returns the failure that applies to a request, counting it down.
+func (s *Server) failing(method, member string) *failure {
+	for _, f := range s.fails {
+		if f.n > 0 && f.method == method && strings.Contains(member, f.match) {
+			f.n--
+			return f
+		}
+	}
+	return nil
+}
+
+func precondOf(r *http.Request) string {
+	switch {
+	case r.Header.Get("If-None-Match") != "":
+		return "If-None-Match"
+	case r.Header.Get("If-Match") != "":
+		return "If-Match"
+	}
+	return "none"
 }
 
 // New starts a server with one calendar "work" holding events.
@@ -457,11 +513,17 @@ func (s *Server) object(w http.ResponseWriter, r *http.Request, c *Calendar, id,
 		_, _ = io.WriteString(w, o.Data)
 	case http.MethodPut:
 		s.ifNoneMatch = append(s.ifNoneMatch, r.Header.Get("If-None-Match"))
+		s.writes = append(s.writes, "PUT "+member+" "+precondOf(r))
 		if r.Header.Get("If-Match") == "" && r.Header.Get("If-None-Match") == "" {
 			s.unconditional++
 		}
 		if c.ReadOnly {
 			http.Error(w, "read-only", http.StatusForbidden)
+			return
+		}
+		f := s.failing(http.MethodPut, member)
+		if f != nil && !f.apply {
+			http.Error(w, "failed", f.status)
 			return
 		}
 		if !precondition(w, r, o) {
@@ -470,6 +532,10 @@ func (s *Server) object(w http.ResponseWriter, r *http.Request, c *Calendar, id,
 		n := &Object{Data: string(body), ETag: s.nextETag(string(body))}
 		c.objects[member] = n
 		s.record(c, member, false)
+		if f != nil {
+			http.Error(w, "failed after writing", f.status)
+			return
+		}
 		if !s.NoETagOnPut {
 			w.Header().Set("ETag", n.ETag)
 		}
@@ -479,11 +545,17 @@ func (s *Server) object(w http.ResponseWriter, r *http.Request, c *Calendar, id,
 			w.WriteHeader(http.StatusNoContent)
 		}
 	case http.MethodDelete:
+		s.writes = append(s.writes, "DELETE "+member+" "+precondOf(r))
 		if r.Header.Get("If-Match") == "" {
 			s.unconditional++
 		}
 		if c.ReadOnly {
 			http.Error(w, "read-only", http.StatusForbidden)
+			return
+		}
+		f := s.failing(http.MethodDelete, member)
+		if f != nil && !f.apply {
+			http.Error(w, "failed", f.status)
 			return
 		}
 		if o == nil {
@@ -495,6 +567,10 @@ func (s *Server) object(w http.ResponseWriter, r *http.Request, c *Calendar, id,
 		}
 		delete(c.objects, member)
 		s.record(c, member, true)
+		if f != nil {
+			http.Error(w, "failed after deleting", f.status)
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 	default:
 		http.Error(w, "no", http.StatusMethodNotAllowed)

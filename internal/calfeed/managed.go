@@ -144,6 +144,21 @@ type EventRemote struct {
 	Href   string
 	ETag   string
 	Locked string
+	// Series is the series the event is an occurrence of (calendar-event-series
+	// D2), nil for a single event.
+	Series *SeriesInfo
+}
+
+// SeriesInfo is a row of calendar_event_series: what an occurrence says about
+// the series it belongs to.
+type SeriesInfo struct {
+	ID     string // what the client groups occurrences by; "" stands for SeriesID(subscription, uid)
+	RRule  string // the master's RRULE as read, "" for Microsoft
+	Repeat string // JSON of the structured repeat, "" when the rule is custom or unknown
+	First  string // instance key of the series' DTSTART, "" unknown
+	// Key is what ID derives from when it is not the uid (Microsoft: the seriesMasterId);
+	// it is not stored.
+	Key string
 }
 
 // EventRef is a cached occurrence with its remote address.
@@ -165,8 +180,10 @@ func (s *Store) StoreManagedRefs(ctx context.Context, subscriptionID, version st
 // storeRefs replaces a subscription's refs inside the transaction that
 // replaced its events. Feeds have none (Refs nil), and the delete is harmless.
 func storeRefs(ctx context.Context, tx *sql.Tx, id string, r *Result) error {
-	if _, err := tx.ExecContext(ctx, `DELETE FROM calendar_event_remote WHERE subscription_id = ?`, id); err != nil {
-		return err
+	for _, q := range []string{`DELETE FROM calendar_event_remote WHERE subscription_id = ?`, `DELETE FROM calendar_event_series WHERE subscription_id = ?`} {
+		if _, err := tx.ExecContext(ctx, q, id); err != nil {
+			return err
+		}
 	}
 	if len(r.Refs) == 0 {
 		return nil
@@ -184,13 +201,37 @@ func storeRefs(ctx context.Context, tx *sql.Tx, id string, r *Result) error {
 		if _, err := stmt.ExecContext(ctx, id, o.UID, o.Instance, EventID(id, o.UID, o.Instance), ref.Href, ref.ETag, ref.Locked); err != nil {
 			return err
 		}
+		if err := storeSeries(ctx, tx, id, o.UID, ref.Series); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
+// storeSeries writes the series row of a cached uid (nil: a single event has none).
+func storeSeries(ctx context.Context, tx *sql.Tx, subscriptionID, uid string, s *SeriesInfo) error {
+	if s == nil {
+		return nil
+	}
+	sid := s.ID
+	if sid == "" {
+		key := s.Key
+		if key == "" {
+			key = uid
+		}
+		sid = SeriesID(subscriptionID, key)
+	}
+	_, err := tx.ExecContext(ctx, `INSERT OR REPLACE INTO calendar_event_series(subscription_id,uid,series_id,rrule,repeat,first_instance) VALUES(?,?,?,?,?,?)`,
+		subscriptionID, uid, sid, s.RRule, s.Repeat, s.First)
+	return err
+}
+
 // Refs lists a subscription's refs.
 func (s *Store) Refs(ctx context.Context, subscriptionID string) ([]EventRef, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT subscription_id,uid,instance,event_id,href,etag,locked FROM calendar_event_remote WHERE subscription_id = ? ORDER BY uid, instance`, subscriptionID)
+	rows, err := s.db.QueryContext(ctx, `SELECT r.subscription_id,r.uid,r.instance,r.event_id,r.href,r.etag,r.locked,
+		COALESCE(s.series_id,''),COALESCE(s.rrule,''),COALESCE(s.repeat,''),COALESCE(s.first_instance,'')
+		FROM calendar_event_remote r LEFT JOIN calendar_event_series s ON s.subscription_id = r.subscription_id AND s.uid = r.uid
+		WHERE r.subscription_id = ? ORDER BY r.uid, r.instance`, subscriptionID)
 	if err != nil {
 		return nil, err
 	}
@@ -198,8 +239,12 @@ func (s *Store) Refs(ctx context.Context, subscriptionID string) ([]EventRef, er
 	var out []EventRef
 	for rows.Next() {
 		var r EventRef
-		if err := rows.Scan(&r.SubscriptionID, &r.UID, &r.Instance, &r.EventID, &r.Href, &r.ETag, &r.Locked); err != nil {
+		var sid, rrule, repeat, first string
+		if err := rows.Scan(&r.SubscriptionID, &r.UID, &r.Instance, &r.EventID, &r.Href, &r.ETag, &r.Locked, &sid, &rrule, &repeat, &first); err != nil {
 			return nil, err
+		}
+		if sid != "" {
+			r.Series = &SeriesInfo{ID: sid, RRule: rrule, Repeat: repeat, First: first}
 		}
 		out = append(out, r)
 	}
@@ -207,15 +252,81 @@ func (s *Store) Refs(ctx context.Context, subscriptionID string) ([]EventRef, er
 }
 
 // RefByEvent returns the ref of one event of a subscription by the id the
-// events route serves; ErrNotFound when it is not cached.
+// events route serves, with the series it belongs to when it has one;
+// ErrNotFound when it is not cached.
 func (s *Store) RefByEvent(ctx context.Context, subscriptionID, eventID string) (EventRef, error) {
 	var r EventRef
-	err := s.db.QueryRowContext(ctx, `SELECT subscription_id,uid,instance,event_id,href,etag,locked FROM calendar_event_remote WHERE subscription_id = ? AND event_id = ?`,
-		subscriptionID, eventID).Scan(&r.SubscriptionID, &r.UID, &r.Instance, &r.EventID, &r.Href, &r.ETag, &r.Locked)
+	var sid, rrule, repeat, first string
+	err := s.db.QueryRowContext(ctx, `SELECT r.subscription_id,r.uid,r.instance,r.event_id,r.href,r.etag,r.locked,
+		COALESCE(s.series_id,''),COALESCE(s.rrule,''),COALESCE(s.repeat,''),COALESCE(s.first_instance,'')
+		FROM calendar_event_remote r LEFT JOIN calendar_event_series s ON s.subscription_id = r.subscription_id AND s.uid = r.uid
+		WHERE r.subscription_id = ? AND r.event_id = ?`,
+		subscriptionID, eventID).Scan(&r.SubscriptionID, &r.UID, &r.Instance, &r.EventID, &r.Href, &r.ETag, &r.Locked, &sid, &rrule, &repeat, &first)
 	if errors.Is(err, sql.ErrNoRows) {
 		return r, ErrNotFound
 	}
+	if sid != "" {
+		r.Series = &SeriesInfo{ID: sid, RRule: rrule, Repeat: repeat, First: first}
+	}
 	return r, err
+}
+
+// SeriesUIDs lists the cached uids of a series (Microsoft: one per occurrence).
+func (s *Store) SeriesUIDs(ctx context.Context, subscriptionID, seriesID string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT uid FROM calendar_event_series WHERE subscription_id = ? AND series_id = ? ORDER BY uid`, subscriptionID, seriesID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var uid string
+		if err := rows.Scan(&uid); err != nil {
+			return nil, err
+		}
+		out = append(out, uid)
+	}
+	return out, rows.Err()
+}
+
+// ReplaceSeries records a scoped write in one transaction: the cached rows of
+// every uid in drop are deleted (events, refs, series rows) and occ are stored
+// with their refs and series rows; the subscription's version is cleared so the
+// next cycle reads the calendar again. It returns the refs of the stored
+// occurrences.
+func (s *Store) ReplaceSeries(ctx context.Context, subscriptionID string, drop []string, occ []Occurrence, refs map[string]EventRemote) ([]EventRef, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	for _, uid := range drop {
+		for _, q := range []string{`DELETE FROM calendar_events WHERE subscription_id = ? AND uid = ?`, `DELETE FROM calendar_event_remote WHERE subscription_id = ? AND uid = ?`,
+			`DELETE FROM calendar_event_series WHERE subscription_id = ? AND uid = ?`} {
+			if _, err := tx.ExecContext(ctx, q, subscriptionID, uid); err != nil {
+				return nil, err
+			}
+		}
+	}
+	var out []EventRef
+	for _, o := range occ {
+		ref, err := insertEvent(ctx, tx, subscriptionID, o, refs[o.UID])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ref)
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE calendar_subscriptions SET etag = '', updated_at = ?, event_count = (SELECT COUNT(*) FROM calendar_events WHERE subscription_id = ?) WHERE id = ?`,
+		s.now().UnixMilli(), subscriptionID, subscriptionID); err != nil {
+		return nil, err
+	}
+	return out, tx.Commit()
+}
+
+// DropSeries is ReplaceSeries that stores nothing: the uids leave the cache.
+func (s *Store) DropSeries(ctx context.Context, subscriptionID string, uids []string) error {
+	_, err := s.ReplaceSeries(ctx, subscriptionID, uids, nil, nil)
+	return err
 }
 
 // OccurrenceOf is the occurrence of a single (not repeating) event, as the
@@ -253,6 +364,11 @@ func (s *Store) ReplaceEvent(ctx context.Context, subscriptionID string, old Eve
 			return EventRef{}, err
 		}
 	}
+	// A series row goes with the last occurrence cached under its uid.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM calendar_event_series WHERE subscription_id = ? AND uid = ?
+		AND NOT EXISTS (SELECT 1 FROM calendar_events WHERE subscription_id = ? AND uid = ?)`, subscriptionID, old.UID, subscriptionID, old.UID); err != nil {
+		return EventRef{}, err
+	}
 	var ref EventRef
 	if occ != nil {
 		if ref, err = insertEvent(ctx, tx, subscriptionID, *occ, remote); err != nil {
@@ -277,6 +393,9 @@ func insertEvent(ctx context.Context, tx *sql.Tx, subscriptionID string, occ Occ
 	ref := EventRef{SubscriptionID: subscriptionID, UID: occ.UID, Instance: occ.Instance, EventID: EventID(subscriptionID, occ.UID, occ.Instance), EventRemote: remote}
 	if _, err := tx.ExecContext(ctx, `INSERT OR REPLACE INTO calendar_event_remote(subscription_id,uid,instance,event_id,href,etag,locked) VALUES(?,?,?,?,?,?,?)`,
 		subscriptionID, ref.UID, ref.Instance, ref.EventID, remote.Href, remote.ETag, remote.Locked); err != nil {
+		return EventRef{}, err
+	}
+	if err := storeSeries(ctx, tx, subscriptionID, occ.UID, remote.Series); err != nil {
 		return EventRef{}, err
 	}
 	return ref, nil
