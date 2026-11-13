@@ -29,7 +29,8 @@ import { useToday, useViewerZone } from './useViews'
 import { NO_TASKS, useLiveTasks } from '../lib/liveTasks'
 import { t } from '../lib/i18n'
 import { act } from './actionError'
-import { DayColumn, DayHeader, HourGutter } from './calendar/DayColumn'
+import { DayColumn, DayHeader } from './calendar/DayColumn'
+import { GutterCells, HourGutters, useSecondZone } from './calendar/SecondZone'
 import { formatTime, PX_PER_MIN, type Placement, type Preview } from './calendar/grid'
 import { usePlanActions, usePlanPanel, type PlanActions } from './calendar/PlanPanel'
 import { useCalendarKeys } from './calendar/useCalendarKeys'
@@ -468,11 +469,8 @@ function CalendarGrid({ mode, days, savingEvents, today, nowMinutes, prefs, show
       deadlines={deadlines.get(d.date)} hidden={hidden.get(d.date) ?? 0} gestures={gestures}
       spanRows={spanRowsOn(d.date)} spanHidden={hiddenOn.get(d.date) ?? 0} onExtend={extend} compact={compact} />
   )
-  const gutter = (label: boolean) => (
-    <div className="w-12 shrink-0 pt-1 text-right text-hint text-faint" aria-hidden>
-      {label && <span className="pr-1">{t('all day')}</span>}
-    </div>
-  )
+  const second = useSecondZone(prefs.secondZone, dates[0] ?? today, zone)
+  const gutter = (label: boolean) => <GutterCells label={label} second={second} />
   return (
     <div className="min-w-full" style={{ width: mode === 'week' ? 'max(100%, 56rem)' : undefined }}>
       {/* Sticky header: day name, capacity, the span band, the all-day strip and the unscheduled lane of each column. */}
@@ -501,7 +499,7 @@ function CalendarGrid({ mode, days, savingEvents, today, nowMinutes, prefs, show
 
       {/* Its own stacking layer, below the sticky header: the now line and ghosts never paint over the lanes (GitHub issue 775). */}
       <div className="isolate flex" data-calendar-grid>
-        <HourGutter />
+        <HourGutters second={second} />
         {days.map((d) => (
           <DayColumn key={d.date} day={d} prefs={prefs} isToday={d.date === today} isPast={d.date < today} nowMinutes={nowMinutes} taskMap={taskMap} hueOf={hueOf} projectionHue={projectionHue} gestures={gestures}
             subMap={subMap} zone={zone} selectedId={selectedId} draggingId={drag?.taskId ?? null} savingEvents={savingEvents} slotDrop={drag?.target?.type === 'into-slot' ? drag.target.slotId : null} expanded={expanded} setExpanded={setExpanded}

@@ -5,7 +5,7 @@ import css from '../../index.css?raw'
 // every primitive that prints a time, a count or a duration uses tabular figures, so
 // columns of numbers line up. Screens print numbers through these primitives.
 const sources = import.meta.glob<string>(
-  ['../Chips.tsx', '../patterns/ListGroupHeader.tsx', '../patterns/Sidebar.tsx', '../../app/review/charts.tsx', '../../app/calendar/DayColumn.tsx', '../../app/CalendarEvents.tsx', '../../app/TaskRow.tsx'],
+  ['../Chips.tsx', '../patterns/ListGroupHeader.tsx', '../patterns/Sidebar.tsx', '../../app/review/charts.tsx', '../../app/calendar/SecondZone.tsx', '../../app/CalendarEvents.tsx', '../../app/TaskRow.tsx'],
   { query: '?raw', import: 'default', eager: true },
 )
 const src = (name: string) => Object.entries(sources).find(([p]) => p.endsWith(name))![1]
@@ -25,7 +25,8 @@ describe('tabular figures in the number primitives', () => {
     ['ListGroupHeader.tsx', 'data-group-count'],
     ['Sidebar.tsx', 'data-count'],
     ['charts.tsx', 'data-tile-value'],
-    ['DayColumn.tsx', 'data-hour-label'],
+    ['SecondZone.tsx', 'data-hour-label'],
+    ['SecondZone.tsx', 'data-second-label'],
     ['CalendarEvents.tsx', 'data-event-time'],
     ['TaskRow.tsx', 'data-plan-time'], // the compact row draws the Plan's time (rows-v2 4.2)
   ]

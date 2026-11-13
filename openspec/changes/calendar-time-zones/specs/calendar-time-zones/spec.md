@@ -36,18 +36,18 @@ The Day and Week grids SHALL show, when the device's "Second time zone" is set t
 - **THEN** the second column is drawn from the device's stored preference and the clock
 
 ### Requirement: Second time zone is readable and fits the phone
-The second column's labels SHALL be decorative like the first column's, hidden from assistive technology, and the second zone SHALL be stated once in text for assistive technology in the grid's header, naming the zone's city and its offset ("Times also shown in Bogotá (UTC-5)"). The column SHALL use the same colour tokens as the first column, add no interactive element, and keep a fixed width so that at 360 px the Day grid keeps at least 260 px for its day column and the page does not scroll sideways.
+The second column's labels SHALL be decorative like the first column's, hidden from assistive technology, and the second zone SHALL be stated once in text for assistive technology in the grid's header, naming the zone's city and its offset ("Times also shown in Bogota (UTC−5)"). The column SHALL use the same colour tokens as the first column, add no interactive element, and keep a fixed width so that at 360 px the Day grid keeps at least 260 px for its day column and the page does not scroll sideways.
 
 #### Scenario: Screen reader
 - **WHEN** a screen reader user moves through the Day header with a second zone on
-- **THEN** one text states "Times also shown in Bogotá (UTC-5)" and none of the 23 second-column labels is announced
+- **THEN** one text states "Times also shown in Bogota (UTC−5)" and none of the 23 second-column labels is announced
 
 #### Scenario: Phone width
 - **WHEN** Day is opened at 360 px with a second zone on
 - **THEN** the two hour columns take 96 px, the day column has the rest, and neither the page nor the grid scrolls sideways
 
 ### Requirement: Second time zone setting
-Settings › Language and region › Calendar grid SHALL offer "Second time zone", off by default, chosen from the platform's time zones with the same picker as an event's time zone, with an "Off" choice listed first. The choice SHALL be a per-device grid preference, SHALL take effect at once on the device, SHALL NOT be synced and SHALL NOT create an operation. A stored zone the platform does not know SHALL read as off and be kept as stored.
+Settings › Language and region › Calendar grid SHALL offer "Second time zone", off by default, chosen from the platform's time zones with the same picker as an event's time zone, with an "Off" choice listed first. The choice SHALL be a per-device grid preference, SHALL take effect at once on the device, SHALL NOT be synced and SHALL NOT create an operation. A stored zone the platform does not know SHALL read as off.
 
 #### Scenario: Choose a zone
 - **WHEN** the user opens the Second time zone picker, types "Bog" and chooses Bogotá
@@ -59,4 +59,4 @@ Settings › Language and region › Calendar grid SHALL offer "Second time zone
 
 #### Scenario: Unknown stored zone
 - **WHEN** the device holds a second zone of `Mars/Olympus`
-- **THEN** the grid draws no second column and the stored value is unchanged
+- **THEN** the grid draws no second column and the stored value is read as off

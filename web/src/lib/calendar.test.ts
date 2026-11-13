@@ -276,6 +276,15 @@ describe('grid preferences', () => {
     expect(normalizeGridPrefs({ startHour: 18, endHour: 9 })).toEqual(DEFAULT_GRID_PREFS)
   })
 
+  it('second zone (calendar-time-zones D1): off by default, a known zone is kept, anything else reads as off', () => {
+    expect(DEFAULT_GRID_PREFS.secondZone).toBeUndefined()
+    expect(normalizeGridPrefs({}).secondZone).toBeUndefined()
+    expect(normalizeGridPrefs({ secondZone: 'America/Bogota' }).secondZone).toBe('America/Bogota')
+    expect(normalizeGridPrefs({ secondZone: 'Mars/Olympus' }).secondZone).toBeUndefined()
+    expect(normalizeGridPrefs({ secondZone: 5 }).secondZone).toBeUndefined()
+    expect(normalizeGridPrefs({ secondZone: '' })).toEqual(DEFAULT_GRID_PREFS)
+  })
+
   it('keeps the Plan span per device: 14 when missing or invalid (planner-view D7)', () => {
     expect(normalizeGridPrefs({ dayLength: 480 }).planDays).toBe(14)
     expect(normalizeGridPrefs({ planDays: 21 }).planDays).toBe(21)

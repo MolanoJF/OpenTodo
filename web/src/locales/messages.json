@@ -8130,6 +8130,10 @@
   "Host": [
     "web/src/app/IssueEditor.tsx"
   ],
+  "Hour labels in another zone, beside your own.": [
+    "web/src/app/settingsIndex.ts",
+    "web/src/lib/settingsCopy.ts"
+  ],
   "Hourly": [
     "web/src/app/BackupsPanel.tsx"
   ],
@@ -11702,6 +11706,7 @@
   ],
   "No zone matches": [
     "web/src/app/calendar/EventZoneField.tsx",
+    "web/src/app/calendar/SecondZoneSetting.tsx",
     "web/src/app/task-detail/ZoneControl.tsx"
   ],
   "Nobody matches.": [
@@ -12346,6 +12351,7 @@
     "web/src/app/SsoPanel.tsx",
     "web/src/app/TwoFactorPanel.tsx",
     "web/src/app/assistant/AssistantSettings.tsx",
+    "web/src/app/calendar/SecondZoneSetting.tsx",
     "web/src/app/focus/FocusSettings.tsx",
     "web/src/app/settingsStatus.ts",
     "web/src/lib/backups.ts"
@@ -15930,6 +15936,11 @@
   ],
   "Second factor reset": [
     "web/src/app/auditFormat.ts"
+  ],
+  "Second time zone": [
+    "web/src/app/calendar/SecondZoneSetting.tsx",
+    "web/src/app/settingsIndex.ts",
+    "web/src/lib/settingsCopy.ts"
   ],
   "Second-factor code rejected": [
     "web/src/app/auditFormat.ts"
@@ -20269,6 +20280,9 @@
     "web/src/app/calendar/EventRepeatField.tsx",
     "web/src/app/datetime/TimeField.tsx"
   ],
+  "Times also shown in {zone}": [
+    "web/src/app/calendar/SecondZone.tsx"
+  ],
   "Times in UTC: set your Outlook time zone": [
     "web/src/app/CalendarSyncPanel.tsx"
   ],
@@ -22849,6 +22863,7 @@
   "all day": [
     "web/src/app/CalendarEvents.tsx",
     "web/src/app/CalendarView.tsx",
+    "web/src/app/calendar/SecondZone.tsx",
     "web/src/app/calendar/WeekAgenda.tsx",
     "web/src/app/calendar/projections.tsx"
   ],

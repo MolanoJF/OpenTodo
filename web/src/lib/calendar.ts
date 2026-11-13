@@ -2,7 +2,7 @@
 // Week views, the drag layer and the keyboard handlers only turn pixels and keys into
 // minutes through these, and every write they produce is an ordinary `due` or
 // `estimate_minutes` edit (design D1, D5).
-import { addDaysISO, localDueOf } from './dates'
+import { addDaysISO, isKnownZone, localDueOf } from './dates'
 import { formatMinutes, MAX_ESTIMATE_MINUTES } from './duration'
 import type { CalendarEvent, CalendarWhen, Due, Project, Task } from './types'
 import { spanClip, spanOf } from './span'
@@ -404,6 +404,8 @@ export interface GridPrefs {
   planDays: 7 | 14 | 21
   /** "Count meetings in capacity" (meeting-aware-capacity D2): busy event minutes join Day, Week and Month capacity. */
   countEvents: boolean
+  /** A second hour column in Day and Week (calendar-time-zones D1): an IANA zone, absent when off. */
+  secondZone?: string
 }
 
 export const DEFAULT_GRID_PREFS: GridPrefs = { startHour: 6, endHour: 22, dayLength: 480, planDays: 14, countEvents: false }
@@ -423,5 +425,6 @@ export function normalizeGridPrefs(raw: unknown): GridPrefs {
   }
   const dayLength = int(r.dayLength, SLOT_MINUTES, DAY_MINUTES) ?? DEFAULT_GRID_PREFS.dayLength
   const planDays = r.planDays === 7 || r.planDays === 21 ? r.planDays : DEFAULT_GRID_PREFS.planDays
-  return { startHour, endHour, dayLength, planDays, countEvents: r.countEvents === true }
+  const secondZone = typeof r.secondZone === 'string' && isKnownZone(r.secondZone) ? r.secondZone : ''
+  return { startHour, endHour, dayLength, planDays, countEvents: r.countEvents === true, ...(secondZone ? { secondZone } : {}) }
 }
