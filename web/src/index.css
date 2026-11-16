@@ -746,7 +746,8 @@ html { -webkit-tap-highlight-color: transparent; }
 
 /* The shell owns the viewport; detail pages scroll inside it, including with a phone keyboard. */
 @layer components {
-  .app-shell { min-height: 0; min-width: 0; overflow: hidden; }
+  /* No overflow clip on the shell itself: in a phone's landscape the sidebar's footer must stay reachable above the safe area. */
+  .app-shell { min-height: 0; min-width: 0; }
   .app-shell > [data-app-frame] { min-height: 0; overflow: hidden; }
   .app-content { position: relative; min-height: 0; min-width: 0; flex: 1; overflow: hidden auto; overscroll-behavior-y: contain; scroll-padding-bottom: var(--list-scroll-pad); }
 }
