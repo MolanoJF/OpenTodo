@@ -211,7 +211,6 @@ export function CalendarView({ mode, date }: { mode: 'day' | 'week'; date?: stri
     planActions.current.onPlace(id)
     return placeFrom.current?.id === id && (placeFrom.current.tap = true)
   }, (d, start) => { if (placing) commit(placing.taskId, { type: 'slot', date: d, start }); setPlacing(null) })
-
   // After a placement from the list: focus back on it, or for a tap placement the list itself back (D2).
   usePlacementReturn(placing, placeFrom, scroller, tap.end)
 
