@@ -314,7 +314,6 @@ export function CalendarView({ mode, date }: { mode: 'day' | 'week'; date?: stri
   const statusLine = <>{week}{status}</>
   const meta = chrome.chip ? <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-2">{chrome.chip}{statusLine}</span> : <span className="inline-flex max-w-full flex-wrap items-center gap-3">{statusLine}</span>
   const overflow = <>
-    <CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} />
     <CalendarCompletedToggle shown={showCompleted} menu />
     <CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} />
     <MenuItem label={planOpen ? t('Hide the planning list') : t('Plan from a list')} icon="list" description={t('Drag tasks onto a time, or press s on one')} onSelect={() => chrome.plan(planOpen, togglePlan)} />

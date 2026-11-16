@@ -293,7 +293,6 @@ export function MonthView({ date }: { date?: string }) {
       <CalendarPageHeader chrome={chrome} title={title} meta={meta}
         actions={<MonthRange anchor={anchor} date={date} today={today} goTo={goTo} />}
         overflow={<>
-          <CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} />
           <CalendarCompletedToggle shown={showCompleted} menu />
           <CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} />
           {!narrow && <MonthsShownItems count={preferred} />}

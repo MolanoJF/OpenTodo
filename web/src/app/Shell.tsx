@@ -350,9 +350,7 @@ export function Shell({ user, onLogout }: { user: User; onLogout: () => void }) 
             <SavedViewRoute id={route.id} />
           ) : route.view === 'trash' ? (
             <TrashView />
-          ) : route.view === 'event' ? (
-            <Suspense fallback={SCREEN_LOADING}><EventPage id={route.id} /></Suspense>
-          ) : route.view === 'task' ? (
+          ) : route.view === 'event' ? <Suspense fallback={SCREEN_LOADING}><EventPage id={route.id} /></Suspense> : route.view === 'task' ? (
             <TaskPage id={route.id} user={user} asTask={route.asTask} />
           ) : route.view === 'review' ? (
             <Suspense fallback={<p className="px-4 py-6 text-body text-muted" role="status">{t('Loading the review…')}</p>}>
