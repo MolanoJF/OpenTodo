@@ -1,13 +1,18 @@
+import { useDateTimeFormat } from '../DateTimePrefsProvider'
+import { useGridPrefs } from '../../lib/liveData'
+import { saveGridPrefs } from '../../lib/localData'
+import { setUserPref } from '../../lib/userPrefs'
+import { act } from '../actionError'
 // What Day, Week, Month and Plan share of calendar-clarity: Colour by (D3), the
 // calendar's query filter and its chip (D4), the project scope (D5), adding with the
 // pointer (D2) and the overflow items that choose them.
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { CALENDAR_COLOR_BY_KEY } from '../../lib/colorBy'
 import { t } from '../../lib/i18n'
 import type { ProjectRef } from '../../lib/nlp'
 import { deadlineMarkers } from '../../lib/calendar'
 import type { Project, Task } from '../../lib/types'
-import { MenuItem, MenuSeparator, PageHeader } from '../../ui'
+import { DESKTOP_HEADER_QUERY, MenuGroup, MenuItem, MenuSeparator, PageHeader, setPageBar, useMediaQuery } from '../../ui'
 import { saveTray } from './planSource'
 import { useAddHere, type AddHere } from './addHere'
 import { EventEditorHost } from './EventEditorHost'
@@ -37,8 +42,24 @@ export interface CalendarChrome {
 
 /** The calendar's page header, or the project page's header in a project's Calendar layout (design D5). */
 export function CalendarPageHeader({ chrome, ...parts }: { chrome: Pick<CalendarChrome, 'scope'> } & CalendarHeaderParts) {
+  const desktop = useMediaQuery(DESKTOP_HEADER_QUERY)
   if (chrome.scope) return <>{chrome.scope.header(parts)}</>
-  return <PageHeader title={parts.title} help="calendar" meta={parts.meta ?? undefined} actions={parts.actions} overflow={parts.overflow} />
+  if (!desktop) return <PhoneCalendarHeader {...parts} />
+  return <PageHeader kind="day" title={parts.title} help="calendar" meta={parts.meta ?? undefined} actions={parts.actions} overflow={parts.overflow} />
+}
+
+function PhoneCalendarHeader({ title, phoneTitle, meta, actions, overflow }: CalendarHeaderParts) {
+  useEffect(() => {
+    setPageBar({ title, day: true, overflow, help: 'calendar' })
+    return () => setPageBar(null)
+  })
+  return <header className="shrink-0 pb-2" data-page-header data-page-head="calendar" data-phone-calendar-header>
+    <div className="flex min-w-0 items-center gap-2" data-page-header-row>
+      <h1 className="min-w-0 flex-1 text-body font-semibold leading-tight text-strong" data-page-title>{phoneTitle ?? title}</h1>
+      <div className="flex shrink-0 items-center gap-1" data-page-actions>{actions}</div>
+    </div>
+    {meta && <div className="mt-1 min-w-0 text-meta text-muted" data-page-meta>{meta}</div>}
+  </header>
 }
 
 /**
@@ -74,14 +95,21 @@ export function useCalendarChrome(all: readonly Task[], projects: readonly Proje
   const test = filter.test
   const keeps = useCallback((task: Task) => inScope(task) && (!test || test(task)), [inScope, test])
   const chip = filter.query ? <FilterQueryChip query={filter.query} onOpen={() => setOpen(true)} onClear={() => filter.setQuery('')} /> : null
+  const { resolved } = useDateTimeFormat()
+  const grid = useGridPrefs()
   const overflow = useMemo(() => (
     <>
       {projections && <ProjectionsMenuItem surface="calendar" />}
       <MenuSeparator />
       <MenuItem label={t('Filter…')} icon="filter" description={t('Show only the tasks a query matches')} data-calendar-filter onSelect={() => setOpen(true)} />
+      <MenuItem label={t('Shade outside grid hours')} icon="moon" checked={!!grid.shadeOffHours} description={t('Dim hours outside your configured calendar day')} data-calendar-shading onSelect={() => act(saveGridPrefs({ ...grid, shadeOffHours: !grid.shadeOffHours }))} />
+      <MenuGroup label={t('Week starts on')}>
+        <MenuItem label={t('Monday')} icon="calendar-days" checked={resolved.weekStart === 1} description={t('Start the calendar week on Monday')} data-week-start="mon" onSelect={() => act(setUserPref('week_start', 'mon'))} />
+        <MenuItem label={t('Sunday')} icon="calendar-days" checked={resolved.weekStart === 0} description={t('Start the calendar week on Sunday')} data-week-start="sun" onSelect={() => act(setUserPref('week_start', 'sun'))} />
+      </MenuGroup>
       {colorBy && <ColorByMenuItems mode={color.mode} onChange={color.setMode} />}
     </>
-  ), [color.mode, color.setMode, projections, colorBy])
+  ), [color.mode, color.setMode, projections, colorBy, grid, resolved.weekStart])
   const element = (
     <>
       <QueryFilterHost open={open} filter={filter} title={t('Filter the calendar')} onClose={() => setOpen(false)} />

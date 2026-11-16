@@ -83,8 +83,8 @@ describe('Projected occurrences in the calendar', () => {
     const r = await render(<CalendarView mode="week" date="2026-10-19" />)
     await waitFor(() => projectedIn(r.container, '2026-10-19').length === 1, 'next Monday\'s projection')
     expect(r.container.querySelector('[data-drop-lane="2026-10-19"] [data-projected]')).toBeTruthy()
-    expect(r.container.querySelector('[data-day-header="2026-10-19"] [data-capacity]')!.textContent).toContain('45m / 8h')
-    expect(r.container.querySelector('[data-day-header="2026-10-20"] [data-capacity]')!.textContent).toContain('0m / 8h')
+    expect(r.container.querySelector('[data-day-header="2026-10-19"] [data-capacity]')).toBeNull()
+    expect(r.container.querySelector('[data-day-header="2026-10-20"] [data-capacity]')).toBeNull()
     await r.unmount()
   })
 
@@ -99,7 +99,7 @@ describe('Projected occurrences in the calendar', () => {
     await click(item)
     await waitFor(() => r.container.querySelector('[data-projected]') === null, 'projections hidden')
     expect(localStorage.getItem(CALENDAR_PROJECTIONS_KEY)).toBe('0')
-    expect(r.container.querySelector('[data-day-header="2026-10-19"] [data-capacity]')!.textContent).toContain('0m / 8h')
+    expect(r.container.querySelector('[data-day-header="2026-10-19"] [data-capacity]')).toBeNull()
     await r.unmount()
 
     // A reload keeps the device's choice.

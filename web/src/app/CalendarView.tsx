@@ -1,3 +1,4 @@
+import { takeEventCalendarScroll } from './calendar/eventEditorStore'
 // Day and Week time-blocking views (OpenSpec `time-blocking`). A pure projection of
 // local tasks: a task with a due time is a block at that time, as long as its
 // estimate; date-only tasks sit in each day's unscheduled lane. Every placement,
@@ -12,7 +13,7 @@ import { clampSlotMinutes, slotAt, slotKey, slotName, type SlotView } from '../l
 import { calendarDays, calendarOrder, type DayData } from '../lib/calendarDays'
 import { useOnline } from '../lib/online'
 import { CalendarsToggle } from './calendar/CalendarsToggle'
-import { addDaysISO, dueFromView, formatDate, formatShort, viewedTask } from '../lib/dates'
+import { addDaysISO, dueFromView, formatDate, formatDateParts, monthName, viewedTask } from '../lib/dates'
 import { formatMinutes } from '../lib/duration'
 import { getTask, readGridPrefs, useCalendarShowCompleted, useGridPrefs, useLiveProjects } from '../lib/liveData'
 import { updateTask } from '../lib/ops'
@@ -20,14 +21,15 @@ import type { CalendarSubscription, Task, WriteState } from '../lib/types'
 import { useCalendarDrag, type DragState, type DropTarget } from './calendarDrag'
 import { rescheduleWithUndo, setDueWithUndo, spanWithUndo } from './undoable'
 import { useDateTimeFormat } from './DateTimePrefsProvider'
-import { CalendarRangeSwitch } from './CalendarRange'
+import { CalendarNavigation, CalendarRangeSwitch } from './CalendarRange'
 import { placement as placementSignal } from './signals'
 import { useWide } from '../ui'
 import { setPanelTaskId, usePanelTaskId } from './panel'
-import { rememberCalendarMode } from '../lib/calendarMode'
+import { calendarDayCount, rememberCalendarMode } from '../lib/calendarMode'
 import { useToday, useViewerZone } from './useViews'
 import { NO_TASKS, useLiveTasks } from '../lib/liveTasks'
 import { t } from '../lib/i18n'
+import { isoWeekOf } from '../lib/sectors'
 import { act } from './actionError'
 import { DayColumn, DayHeader } from './calendar/DayColumn'
 import { GutterCells, HourGutters, useSecondZone } from './calendar/SecondZone'
@@ -118,7 +120,8 @@ export function CalendarView({ mode, date }: { mode: 'day' | 'week'; date?: stri
   const anchor = date ?? today
   // The Week view starts on the preferred first day (date-time-preferences D5).
   const { resolved } = useDateTimeFormat()
-  const dates = useMemo(() => (mode === 'day' ? [anchor] : weekDates(anchor, resolved.weekStart)), [mode, anchor, resolved.weekStart])
+  const dayCount = calendarDayCount.use()
+  const dates = useMemo(() => mode === 'day' ? [anchor] : dayCount === 7 ? weekDates(anchor, resolved.weekStart) : Array.from({ length: dayCount }, (_, i) => addDaysISO(anchor, i)), [mode, anchor, resolved.weekStart, dayCount])
   const prefs = useGridPrefs()
   const showCompleted = useCalendarShowCompleted()
 
@@ -171,7 +174,7 @@ export function CalendarView({ mode, date }: { mode: 'day' | 'week'; date?: stri
   useLayoutEffect(() => {
     if (!scroller.current) return
     const agenda = mode === 'week' && !wide
-    scroller.current.scrollTop = agenda ? 0 : Math.max(0, prefs.startHour * 60 * PX_PER_MIN - 8)
+    scroller.current.scrollTop = takeEventCalendarScroll() ?? (agenda ? 0 : Math.max(0, prefs.startHour * 60 * PX_PER_MIN - 8))
   }, [prefs.startHour, mode, wide])
 
   /** The planning-list task being placed with the keys, to give focus back to the list after. */
@@ -267,7 +270,7 @@ export function CalendarView({ mode, date }: { mode: 'day' | 'week'; date?: stri
 
   const title = mode === 'day'
     ? formatDate(anchor, 'heading', resolved)
-    : `${formatShort(dates[0])} – ${formatShort(dates[6])}`
+    : monthName(anchor.slice(0, 7), 'long', true)
   const dragTask = drag ? taskMap.get(drag.taskId) : undefined
   const dragSlot = drag ? slotIndex.get(drag.taskId) : undefined
   const dragEvent = drag?.entity === 'event' ? eventEdits.byKey.get(drag.taskId) : undefined
@@ -296,21 +299,24 @@ export function CalendarView({ mode, date }: { mode: 'day' | 'week'; date?: stri
     onEscape: () => { if (!placing) return false; setPlacing(null); return true },
   }
   const select = (id: string) => setSelectedId(id), open = (id: string) => { setSelectedId(id); setOpenId(id) }
-  const step = (dir: 1 | -1) => goTo(addDaysISO(anchor, (mode === 'day' ? 1 : 7) * dir))
+  const step = (dir: 1 | -1) => goTo(addDaysISO(anchor, dates.length * dir))
   const { color: { hueOf } } = chrome
   const gestures: AddGestures | undefined = previewing ? undefined : gesturesOf(chrome.add, start)
 
   const status = previewing && desktopHead
     ? <Suspense fallback={null}><ReplanPreview variant="bar" {...previewProps(rp, taskMap, today)} /></Suspense>
-    : rp.missed > 0 && !placing ? <span className="inline-flex max-w-full items-center gap-3">
+    : rp.missed > 0 && !placing ? <span className="inline-flex max-w-full flex-wrap items-center gap-3">
       <CalendarStatus status={feeds.status} online={online} fetchedAt={feeds.win?.fetchedAt} />
       <ReplanEntry count={rp.missed} onStart={rp.start} />
     </span>
       : <CalendarStatus placing={placing} placingTask={placingTask} placingSlot={placingSlot ? slotName(placingSlot.slot) : undefined} status={feeds.status} online={online} fetchedAt={feeds.win?.fetchedAt} />
-  const meta = chrome.chip ? <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-2">{chrome.chip}{status}</span> : status
+  const week = mode === 'week' ? <span className="shrink-0 text-body text-muted" data-calendar-week>{t('Week {n}', { n: isoWeekOf(anchor).week })}</span> : null
+  const statusLine = <>{week}{status}</>
+  const meta = chrome.chip ? <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-2">{chrome.chip}{statusLine}</span> : <span className="inline-flex max-w-full flex-wrap items-center gap-3">{statusLine}</span>
   const overflow = <>
-    <CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} menu />
+    <CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} />
     <CalendarCompletedToggle shown={showCompleted} menu />
+    <CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} />
     <MenuItem label={planOpen ? t('Hide the planning list') : t('Plan from a list')} icon="list" description={t('Drag tasks onto a time, or press s on one')} onSelect={() => chrome.plan(planOpen, togglePlan)} />
     {rp.missed > 0 && !previewing && <MenuItem label={t('Re-plan the rest of the day')} icon="calendar-clock" data-replan-item onSelect={rp.start} />}
     <MenuItem label={t('Frames…')} icon="rows-2" description={t('Shade the hours you keep for one kind of work')} data-frames-item onSelect={() => requestFrames()} />
@@ -318,23 +324,19 @@ export function CalendarView({ mode, date }: { mode: 'day' | 'week'; date?: stri
     {chrome.overflow}
   </>
   const rangeActions = <>
-            <CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} />
-            <span className="flex items-center" role="group" aria-label={t('Range')}>
-              <Button variant="ghost" size="sm" icon="chevron-left" aria-label={mode === 'day' ? t('Previous day') : t('Previous week')} onClick={() => step(-1)} />
-              <Button variant="ghost" size="sm" onClick={() => goTo(today)}>{t('Today')}</Button>
-              <Button variant="ghost" size="sm" icon="chevron-right" aria-label={mode === 'day' ? t('Next day') : t('Next week')} onClick={() => step(1)} />
-            </span>
-            <CalendarCompletedToggle shown={showCompleted} />
-            <CalendarRangeSwitch mode={mode} date={date} />
+    <CalendarRangeSwitch mode={mode} date={anchor} />
+    <CalendarNavigation onToday={() => goTo(today)} onPrevious={() => step(-1)} onNext={() => step(1)}
+      previousLabel={mode === 'day' ? t('Previous day') : dayCount === 7 ? t('Previous week') : t('Previous {n} days', { n: dayCount })}
+      nextLabel={mode === 'day' ? t('Next day') : dayCount === 7 ? t('Next week') : t('Next {n} days', { n: dayCount })} />
   </>
 
   return (
     <PageBody width="full" flush className="page-fill flex select-none flex-col" data-calendar-page={mode}>
-        <CalendarPageHeader chrome={chrome} title={title} meta={meta} actions={rangeActions} overflow={overflow} />
+        <CalendarPageHeader chrome={chrome} title={title} phoneTitle={mode === 'day' ? formatDateParts(anchor, { weekday: 'short', month: 'short', day: 'numeric' }) : undefined} meta={meta} actions={rangeActions} overflow={overflow} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
 
         {/* Focusable, so the grid scrolls with the keyboard even when no block is in view (axe scrollable-region-focusable). */}
-        <div ref={scroller} className="add-room-end relative min-h-0 flex-1 overflow-auto outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-[-2px] focus-visible:outline-focus"
+        <div ref={scroller} className="add-room-end relative min-h-0 flex-1 overflow-auto overscroll-contain outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-[-2px] focus-visible:outline-focus"
           data-calendar-scroller data-scroll-x tabIndex={0} role="region" aria-label={mode === 'week' ? t('Week calendar') : t('Day calendar')}>
           {mode === 'week' && !wide ? (
             <WeekAgenda days={days} today={today} prefs={prefs} tasks={shown} meetings={meetings} frames={frames} taskMap={taskMap} hueOf={hueOf} projectionHue={projectionHue} deadlines={deadlines} selectedId={selectedId} subMap={feeds.subMap} zone={zone}
@@ -472,7 +474,7 @@ function CalendarGrid({ mode, days, savingEvents, today, nowMinutes, prefs, show
   const second = useSecondZone(prefs.secondZone, dates[0] ?? today, zone)
   const gutter = (label: boolean) => <GutterCells label={label} second={second} />
   return (
-    <div className="min-w-full" style={{ width: mode === 'week' ? 'max(100%, 56rem)' : undefined }}>
+    <div className="min-w-full" style={{ width: mode === 'week' ? `max(100%, ${days.length * 7.5 + 3}rem)` : undefined }}>
       {/* Sticky header: day name, capacity, the span band, the all-day strip and the unscheduled lane of each column. */}
       {spans.length === 0 && !compact ? (
         <div className="sticky top-0 z-20 flex border-b border-default bg-surface">

@@ -10,6 +10,7 @@ import { setShowEvents } from '../lib/calendarFeeds'
 import { createTask, resetDeviceId } from '../lib/ops'
 import type { CalendarEvent, CalendarSubscription } from '../lib/types'
 import { click, flush, minWidthPx, render, waitFor } from '../ui/test-utils'
+import { calendarControl } from './calendarMenu.testkit'
 import { CalendarView } from './CalendarView'
 import { MonthView } from './MonthView'
 import { resetPanel } from './panel'
@@ -93,9 +94,7 @@ describe('Week on a phone', () => {
     await seed()
     await setShowEvents(false)
     const r = await render(<CalendarView mode="week" />)
-    // On a phone the toggle is an item of the bar's menu (phone-calendar-chrome), not in the page.
     await waitFor(() => r.container.querySelector('[data-agenda-day="2026-11-18"]') !== null)
-    expect(r.container.querySelector('[data-calendars-toggle]')).toBeNull()
     // eslint-disable-next-line test-hygiene/no-fixed-wait -- it proves that nothing appears, and no event marks "nothing"
     await flush(30)
     expect(r.container.querySelector('[data-agenda-event]')).toBeNull()
@@ -128,7 +127,7 @@ describe('Month', () => {
     // An all-day event shows on each day it covers, without a time.
     expect(r.container.querySelector('[data-month-day="2026-11-20"] [data-month-event="ev2"]')!.textContent).toBe('Offsite, Work')
     expect(r.container.querySelector('[data-month-day="2026-11-21"] [data-month-event]')).toBeNull()
-    expect(r.container.querySelector('[data-calendars-toggle]')).not.toBeNull()
+    expect(await calendarControl(r.container, '[data-calendars-toggle]')).toBeTruthy()
     await r.unmount()
   })
 
@@ -140,9 +139,9 @@ describe('Month', () => {
     const r = await render(<MonthView />)
     await waitFor(() => r.container.querySelector('[data-month-event="ev1"]') !== null)
     await waitFor(() => fetched.some((u) => u.includes('/api/v1/calendar-feeds/events')), 'the stale cache refreshed')
-    await click(r.container.querySelector('[data-calendars-toggle]')!)
+    await click(await calendarControl(r.container, '[data-calendars-toggle]'))
     await waitFor(() => r.container.querySelector('[data-month-event]') === null, 'events hidden')
-    expect(r.container.querySelector('[data-calendars-toggle]')!.getAttribute('aria-pressed')).toBe('false')
+    expect((await calendarControl(r.container, '[data-calendars-toggle]')).getAttribute('aria-checked')).toBe('false')
     await r.unmount()
   })
 
@@ -186,7 +185,7 @@ describe('Year', () => {
     await seed()
     await setShowEvents(false)
     const r = await render(<YearView />)
-    await waitFor(() => r.container.querySelector('[data-calendars-toggle]') !== null)
+    expect((await calendarControl(r.container, '[data-calendars-toggle]')).getAttribute('aria-checked')).toBe('false')
     // eslint-disable-next-line test-hygiene/no-fixed-wait -- it proves that nothing appears, and no event marks "nothing"
     await flush(30)
     expect(r.container.querySelector('[data-event-mark]')).toBeNull()

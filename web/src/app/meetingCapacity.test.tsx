@@ -45,83 +45,13 @@ async function seed(events: CalendarEvent[], { count = true, window = { from: '2
   await setMeta(GRID_PREFS_META_KEY, { startHour: 6, endHour: 22, dayLength: 480, planDays: 14, countEvents: count })
 }
 
-const capacity = (root: ParentNode) => root.querySelector<HTMLElement>(`[data-day-header="${DAY}"] [data-capacity]`)
-
-async function tooltipOf(el: HTMLElement): Promise<string> {
-  el.focus()
-  await waitFor(() => !!document.querySelector('[data-tooltip]'), 'the capacity tooltip')
-  return document.querySelector('[data-tooltip]')!.textContent ?? ''
-}
-
-describe('Day and Week', () => {
-  const meetings = [
-    ev('standup', DAY, '09:00', '10:30'),
-    ev('review', DAY, '14:00', '15:00'),
-    ev('focus', DAY, '16:00', '18:00', { free: true }),
-    { ...ev('offsite', DAY, '', ''), allDay: true, start: { date: DAY }, end: { date: '2026-10-15' } },
-  ]
-
-  it('adds busy, timed meetings to the line and names both parts in the tooltip', async () => {
-    await seed(meetings)
-    await createTask({ title: 'Write report', due: { date: DAY }, estimate_minutes: 195 })
-    await createTask({ title: 'Call Ana', due: { date: DAY, time: '11:00' }, estimate_minutes: 60 })
-    await createTask({ title: 'Water plants', due: { date: DAY } })
-    const r = await render(<CalendarView mode="day" />)
-    await waitFor(() => capacity(r.container)?.textContent?.startsWith('6h 45m / 8h') ?? false, 'tasks and meetings summed')
-    const line = capacity(r.container)!
-    expect(line.hasAttribute('data-over')).toBe(false)
-    expect(line.hasAttribute('data-over-meetings')).toBe(false)
-    expect(line.className).toContain('text-muted')
-    expect(await tooltipOf(line)).toBe('4h 15m of tasks, 2h 30m in meetings · 1 task without estimate')
-    await r.unmount()
-  })
-
-  it('over only with meetings is the warning tone and is said, over by tasks stays danger', async () => {
-    await seed([ev('a', DAY, '09:00', '12:00')])
-    const id = await createTask({ title: 'Deep work', due: { date: DAY }, estimate_minutes: 360 })
-    const r = await render(<CalendarView mode="week" />)
-    await waitFor(() => capacity(r.container)?.hasAttribute('data-over-meetings') ?? false, 'over with meetings')
-    const line = capacity(r.container)!
-    expect(line.textContent).toContain('9h / 8h')
-    expect(line.textContent).toContain('over with meetings')
-    expect(line.className).toContain('text-on-warning-soft')
-    expect(line.hasAttribute('data-over')).toBe(false)
-    expect(await tooltipOf(line)).toBe('Over with meetings. 6h of tasks, 3h in meetings')
-    line.blur()
-
-    await db.tasks.update(id, { estimate_minutes: 540 })
-    await waitFor(() => capacity(r.container)?.hasAttribute('data-over') ?? false, 'over by tasks')
-    expect(capacity(r.container)!.textContent).toContain('12h / 8h')
-    expect(capacity(r.container)!.textContent).toContain('over capacity')
-    expect(capacity(r.container)!.className).toContain('text-danger')
-    await r.unmount()
-  })
-
-  it('counts nothing while the option is off or the Calendars toggle hides events', async () => {
-    await seed([ev('a', DAY, '09:00', '12:00')], { count: false })
-    await createTask({ title: 'Deep work', due: { date: DAY }, estimate_minutes: 360 })
-    let r = await render(<CalendarView mode="day" />)
-    await waitFor(() => r.container.querySelector('[data-event="a"]') !== null, 'the event drawn')
-    await waitFor(() => capacity(r.container)?.textContent?.startsWith('6h / 8h') ?? false, 'tasks only')
-    await r.unmount()
-
-    await seed([ev('a', DAY, '09:00', '12:00')])
-    await setMeta('calendar.showEvents', false)
-    r = await render(<CalendarView mode="day" />)
-    await waitFor(() => r.container.querySelector('[data-calendars-toggle]')?.getAttribute('aria-pressed') === 'false', 'calendars hidden')
-    await waitFor(() => capacity(r.container)?.textContent?.startsWith('6h / 8h') ?? false, 'tasks only, calendars hidden')
-    expect(await tooltipOf(capacity(r.container)!)).toBe('Planned estimates against a 8h day')
-    await r.unmount()
-  })
-
-  it('offline outside the cache: no event minutes, and the tooltip says so', async () => {
-    await seed([], { window: { from: '2026-12-01', to: '2026-12-31' } })
-    await createTask({ title: 'Deep work', due: { date: DAY }, estimate_minutes: 60 })
-    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
-    const r = await render(<CalendarView mode="day" />)
-    await waitFor(() => r.container.querySelector('[data-calendars-status]') !== null, 'the offline status')
-    await waitFor(() => capacity(r.container)?.textContent?.startsWith('1h / 8h') ?? false, 'the task counted')
-    expect(await tooltipOf(capacity(r.container)!)).toBe('1h of tasks · Calendars unavailable offline for this day')
+describe.each(['day', 'week'] as const)('%s without capacity summaries', (mode) => {
+  it('keeps timed meetings and tasks visible with meeting counting enabled', async () => {
+    await seed([ev('standup', DAY, '09:00', '12:00')])
+    const id = await createTask({ title: 'Deep work', due: { date: DAY, time: '14:00' }, estimate_minutes: 360 })
+    const r = await render(<CalendarView mode={mode} />)
+    await waitFor(() => !!r.container.querySelector('[data-event="standup"]') && !!r.container.querySelector(`[data-block="${id}"]`))
+    expect(r.container.querySelector('[data-capacity]')).toBeNull()
     await r.unmount()
   })
 })

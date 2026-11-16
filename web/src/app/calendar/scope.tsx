@@ -9,6 +9,8 @@ import type { CalendarRangeMode } from '../CalendarRange'
 export interface CalendarHeaderParts {
   /** The range: "12 – 18 May", "May 2026". */
   title: string
+  /** A shorter date label beside the phone's navigation controls. */
+  phoneTitle?: string
   /** Previous, Today, Next and the mode switch. */
   actions: ReactNode
   /** The calendar's overflow items (Plan from a list, Frames, Filter, Colour by). */

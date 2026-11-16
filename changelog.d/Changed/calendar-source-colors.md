@@ -1,0 +1,1 @@
+- Calendar events use soft account-colored fills and stronger edges. Choose an account's color in Calendar sync settings on each device; project tasks keep their project's color under Colour by Project.

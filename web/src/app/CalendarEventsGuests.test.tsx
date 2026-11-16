@@ -1,4 +1,7 @@
 // @vitest-environment happy-dom
+import { closeEventEditor } from './calendar/eventEditorStore'
+import type { ReactNode } from 'react'
+import { EventPageTestRoute } from './eventPage.testkit'
 // Events with guests in Day (OpenSpec change calendar-event-guests, tasks 5.1 to 5.5): a drag of a meeting the user organises
 // asks "Tell N guests?" after the scope menu, Cancel restores the block and sends nothing, Save sends `notifyGuests: true`
 // once and never queues, with no Undo; the popover shows the guests line, the reply row and Join; a guest's event is locked
@@ -9,12 +12,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { db, setMeta } from '../lib/db'
 import { resetDeviceId } from '../lib/ops'
 import type { CalendarEvent, CalendarSubscription } from '../lib/types'
-import { click, key, render, waitFor } from '../ui/test-utils'
+import { click, key, render as renderBase, waitFor } from '../ui/test-utils'
 import { useBulkToast } from './bulk/toastStore'
 import { CalendarView } from './CalendarView'
 import { PX_PER_MIN } from './calendar/grid'
 import { resetPanel } from './panel'
 
+const render = (ui: ReactNode) => renderBase(<>{ui}<EventPageTestRoute /></>)
 const DAY = '2026-10-14'
 const y = (minutes: number) => minutes * PX_PER_MIN
 const outlook: CalendarSubscription = { id: 'sub1', name: 'Work', color: '#2563eb', enabled: true, lastSuccessAt: Date.now(), managed: true, connectionId: 'c1', editEvents: true, maxReminders: 1, guests: { respond: true, silent: true, edit: true } }
@@ -33,6 +37,7 @@ beforeEach(async () => {
   await db.open()
   resetDeviceId()
   resetPanel()
+  closeEventEditor()
   localStorage.clear()
   requests = []
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
@@ -53,6 +58,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
   resetPanel()
+  closeEventEditor()
 })
 
 function layout() {
@@ -159,7 +165,9 @@ describe('a drag of a meeting the user organises', () => {
 describe('deleting a meeting with guests', () => {
   const askDelete = async (r: { container: HTMLElement }) => {
     await openPopover(r, 'ev1')
-    await click(await waitForEl('[data-event-edit-delete]'))
+    await click(await waitForEl('[data-event-open-editor]'))
+    await click(await waitForEl('[data-event-form-menu]'))
+    await click(await waitForEl('[data-event-form-delete]'))
     await waitFor(() => !!dialog(), 'the dialog')
   }
   const waitForEl = async (sel: string) => { await waitFor(() => !!document.querySelector(sel), sel); return document.querySelector(sel)! }

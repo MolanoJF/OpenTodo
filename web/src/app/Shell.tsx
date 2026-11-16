@@ -73,6 +73,7 @@ function PullHost({ scroller }: Scroller) {
   return useMediaQuery('(pointer: coarse)') ? <Suspense fallback={null}><PullToSync scroller={scroller} /></Suspense> : null
 }
 // Plan, the calendar's least used mode, loads on first use (multi-day-tasks kept the first load in its budget).
+const EventPage = lazy(() => import('./calendar/EventPage'))
 const PlanView = lazy(() => import('./PlanView').then((m) => ({ default: m.PlanView })))
 // Month and Year load on first use too (year-view): several months and the year's grids stay off the first load.
 const MonthView = lazy(() => import('./MonthView').then((m) => ({ default: m.MonthView })))
@@ -300,7 +301,7 @@ export function Shell({ user, onLogout }: { user: User; onLogout: () => void }) 
   const minimised = usePhoneChrome(content, phoneChrome, sidebarOpen)
 
   return (
-    <div className="flex h-full bg-canvas px-safe">
+    <div className="app-shell flex h-full bg-canvas px-safe">
       <SkipLink frame={frame} content={content} />
       {/* The sidebar column: a drawer below 768 px, a column from there, resizable and collapsible from 1024 px (app-shell); its colour, shared by the sticky group headers, is --sidebar-bg: the surface in the drawer, the canvas as a column (precision-tokens D1), where it sits beside the inset content surface without an edge (precision-shell D1). */}
       {drawer.open && <DrawerOverlay panel={drawer.drawer} onClose={() => setSidebarOpen(false)} />}
@@ -314,7 +315,7 @@ export function Shell({ user, onLogout }: { user: User; onLogout: () => void }) 
         {!sidebar.collapsed && <SidebarResizer width={sidebar.width} />}
       </aside>
       {/* From 768 px the page is one inset content surface on the canvas: 8 px from the window, the surface radius, one hairline (precision-shell D1). */}
-      <main ref={frame} className="flex min-w-0 flex-1 flex-col md:!pb-0 md:mt-[max(0.5rem,var(--safe-top))] md:mb-2 md:mr-2 md:overflow-hidden md:rounded-surface md:border md:border-default md:bg-surface" data-app-frame data-phone-chrome={phoneChrome || undefined} inert={drawer.open || undefined}
+      <main ref={frame} className="flex min-w-0 flex-1 flex-col md:!pb-0 md:mt-[max(0.5rem,var(--safe-top))] md:mb-2 md:mr-2 md:rounded-surface md:border md:border-default md:bg-surface" data-app-frame data-phone-chrome={phoneChrome || undefined} inert={drawer.open || undefined}
         style={phoneChrome ? { paddingBottom: `calc(${TAB_BAR_HEIGHT_REM}rem + var(--safe-bottom))` } : undefined}>
         {/* Below 768 px: the bar with the menu button, the page's title and its actions (app-shell "No desktop top bar"). */}
         <PhoneBar onMenu={() => setSidebarOpen(true)} /><PullHost scroller={content} />
@@ -324,7 +325,7 @@ export function Shell({ user, onLogout }: { user: User; onLogout: () => void }) 
         {/* Below 768 px the add button's footprint is reserved at the end of every page that shows it, so it never covers the last row
             (phone-v2 D2, phone-fab-scroll-room; a page with its own scroller: `.page-fill` in index.css); the room under the selection bar is in index.css (no-layout-jump). */}
         <div ref={content} id="content" data-add-room={addRoom || undefined}
-          className={`relative min-h-0 flex-1 overflow-y-auto scroll-pb-(--list-scroll-pad) ${addRoom ? 'max-md:pb-(--add-room)' : ''} ${sidebarOpen ? 'max-md:overflow-hidden' : ''}`}>
+          className={`app-content ${addRoom ? 'max-md:pb-(--add-room)' : ''} ${sidebarOpen ? 'max-md:overflow-hidden' : ''}`}>
           {/* One screen failing (a render bug, a chunk gone after an upgrade) leaves the shell usable (client-sync-robustness). */}
           <PanelBoundary resetKey={route}>
           {route.view === 'help' ? (
@@ -349,6 +350,8 @@ export function Shell({ user, onLogout }: { user: User; onLogout: () => void }) 
             <SavedViewRoute id={route.id} />
           ) : route.view === 'trash' ? (
             <TrashView />
+          ) : route.view === 'event' ? (
+            <Suspense fallback={SCREEN_LOADING}><EventPage id={route.id} /></Suspense>
           ) : route.view === 'task' ? (
             <TaskPage id={route.id} user={user} asTask={route.asTask} />
           ) : route.view === 'review' ? (

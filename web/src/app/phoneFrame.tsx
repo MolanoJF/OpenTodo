@@ -20,10 +20,10 @@ export const TAB_FRAME = 'flex min-w-0 flex-1 flex-col items-center justify-cent
  */
 export const TAB_HEIGHT = 'min-h-14!'
 
-/** Whether a route's screen has the tab bar; the task page and the routine editor have their own bars. */
+/** Whether a route's screen has the tab bar; the task and event pages and the routine editor have their own bars. */
 export function hasPhoneChrome(route: Route): boolean {
   if (route.view === 'rules' && !!(route.id || route.create)) return false
-  return !['share', 'invite', 'project-invite', 'workspace-invite', 'reset', 'task'].includes(route.view)
+  return !['share', 'invite', 'project-invite', 'workspace-invite', 'reset', 'task', 'event'].includes(route.view)
 }
 
 // Still, unlike the rows: the chrome is not what is loading.

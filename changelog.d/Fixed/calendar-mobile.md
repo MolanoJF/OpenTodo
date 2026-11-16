@@ -1,0 +1,1 @@
+- Keep phone calendar and task/event pages within the viewport, prevent add/navigation controls and pinned footers from covering event fields, and stack date/time fields on narrow phones.

@@ -1,21 +1,21 @@
+import { openCalendarTaskPreview } from './taskPreviewStore'
 import { useState } from 'react'
-import { dayLoad, type GridPrefs } from '../../lib/calendar'
+import { type GridPrefs } from '../../lib/calendar'
 import type { DayData } from '../../lib/calendarDays'
 import { formatDateParts } from '../../lib/dates'
 import { formatMinutes } from '../../lib/duration'
 import { t } from '../../lib/i18n'
 import type { PlacedFrame } from '../../lib/frames'
-import { slotCapacity, slotCount, slotName, type SlotView } from '../../lib/slots'
+import { slotCount, slotName, type SlotView } from '../../lib/slots'
 import type { CalendarSubscription, Task } from '../../lib/types'
 import { Button, hueFor, Icon, type HueName } from '../../ui'
 import { act } from '../actionError'
 import { completeWithUndo } from '../undoable'
-import { CapacityLine } from './CapacityLine'
 import { DeadlineDiamond, deadlineMark, DeadlineMarker } from './DeadlineMarker'
 import { FrameHeading } from './FrameBand'
 import type { DayMeetings } from './meetingCapacity'
 import { formatTime } from './grid'
-import { dayLoadProjections, dayProjections, type ProjectionHue } from './DayColumn'
+import { dayProjections, type ProjectionHue } from './DayColumn'
 import { spanDay } from '../../lib/span'
 import { ProjectedItem } from './projections'
 import { EventRow } from '../CalendarEvents'
@@ -27,7 +27,7 @@ import { EventRow } from '../CalendarEvents'
  * events (calendar-events-all-views) are read-only rows: all-day ones after the
  * spans, timed ones among the timed tasks at their start; never in the keyboard order.
  */
-export function WeekAgenda({ days, today, prefs, tasks, meetings, frames, taskMap, hueOf, projectionHue, deadlines, selectedId, subMap, zone, onSelect, onOpen, onAdd }: {
+export function WeekAgenda({ days, today, frames, taskMap, hueOf, projectionHue, deadlines, selectedId, subMap, zone, onSelect, onOpen, onAdd }: {
   days: DayData[]
   /** The subscriptions by id, for an event's colour and calendar name. */
   subMap?: ReadonlyMap<string, CalendarSubscription>
@@ -54,7 +54,7 @@ export function WeekAgenda({ days, today, prefs, tasks, meetings, frames, taskMa
 }) {
   const row = (task: Task, time: string | null, past: boolean, date: string, position?: string) => (
     <li key={task.id}>
-      <button type="button" data-cal-id={task.id} data-agenda-task={task.id} onClick={() => onSelect(task.id)} onDoubleClick={() => onOpen(task.id)}
+      <button type="button" data-cal-id={task.id} data-agenda-task={task.id} onClick={(e) => { onSelect(task.id); openCalendarTaskPreview(task.id, e.currentTarget, hueOf(task)) }} onDoubleClick={() => onOpen(task.id)}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onOpen(task.id) } }}
         className={`ui-block title-phone-row flex min-h-11 w-full items-center gap-2 px-2 py-1 text-left text-body ${past || task.completed_at ? 'ui-block--past' : ''} ${selectedId === task.id ? 'ring-1 ring-accent' : ''}`}
         data-hue={hueOf(task)}>
@@ -81,7 +81,6 @@ export function WeekAgenda({ days, today, prefs, tasks, meetings, frames, taskMa
             : <li key={x.id}><ProjectedItem p={x.projection} hue={projectionHue?.(x.projection)} variant="large" /></li>
         })
         const projected = dayProjections(d).sort((a, b) => (a.time ?? '99') < (b.time ?? '99') ? -1 : (a.time ?? '99') > (b.time ?? '99') ? 1 : 0)
-        const load = dayLoad(tasks, d.date, prefs.dayLength, meetings?.get(d.date)?.minutes ?? 0, slotCapacity([...d.slots.values()]), dayLoadProjections(d))
         const blocks = d.layout.blocks.map((b) => ({ b, t: taskMap.get(b.id) })).filter((x): x is { b: typeof x.b; t: Task } => !!x.t)
         const dayFrames = [...(frames?.get(d.date) ?? [])].sort((a, b) => a.start - b.start)
         const dayDeadlines = deadlines?.get(d.date) ?? []
@@ -93,9 +92,8 @@ export function WeekAgenda({ days, today, prefs, tasks, meetings, frames, taskMa
           .sort((a, b) => a.at - b.at || a.order - b.order)
         return (
           <section key={d.date} data-agenda-day={d.date} aria-labelledby={`agenda-${d.date}`}>
-            <div className="flex items-baseline justify-between gap-2 border-b border-default px-2 pb-1">
+            <div className="flex items-baseline justify-center gap-2 border-b border-default px-2 pb-1">
               <h2 id={`agenda-${d.date}`} className={`text-body font-semibold ${d.date === today ? 'text-accent' : 'text-strong'}`}>{name} {dd}</h2>
-              <CapacityLine load={load} dayLength={prefs.dayLength} />
             </div>
             {d.lane.length === 0 && blocks.length === 0 && d.slots.size === 0 && !dayDeadlines.length && !projected.length && !spanRows.length && d.events.size === 0 && d.allDay.length === 0
               // One quiet line per empty day, as on Plan (precision-polish D5): seven filled buttons outweighed the days that have tasks.

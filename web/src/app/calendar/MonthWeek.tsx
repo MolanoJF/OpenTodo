@@ -1,3 +1,4 @@
+import { isWeekend } from '../../lib/calendarPresentation'
 // One week row of a Month grid (OpenSpec month-view, split out of MonthView for
 // year-view): the seven day cells with their rows, "+N more", the capacity line and the
 // week's span bars. With several months stacked (year-view D1) a row belongs to one
@@ -87,7 +88,7 @@ export function MonthWeek({ week, own, c }: {
         const dayEvents = c.events.get(d)
         const eventCount = dayEvents ? dayEvents.allDay.length + dayEvents.timed.length : 0
         return (
-          <div key={d} role="gridcell" tabIndex={isFocused ? 0 : -1} data-month-day={d} data-drop-target={`day:${d}`}
+          <div key={d} role="gridcell" tabIndex={isFocused ? 0 : -1} data-month-day={d} data-weekend={isWeekend(d) || undefined} data-drop-target={`day:${d}`}
             aria-selected={isFocused} aria-current={d === c.today ? 'date' : undefined}
             onClick={() => { c.focus(d); c.select(null) }}
             // Adding with the pointer (calendar-clarity D2): double-click, right-click or a long press on an empty part.

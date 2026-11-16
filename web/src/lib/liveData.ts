@@ -6,6 +6,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, getMeta } from './db'
 import { cachedWindow, showEvents, type EventsWindow } from './calendarFeeds'
+import { coloredSubscriptions } from './calendarColors'
 import { CALENDAR_COMPLETED_META_KEY, DEFAULT_GRID_PREFS, GRID_PREFS_META_KEY, normalizeGridPrefs, type GridPrefs } from './calendar'
 import { byPosition } from './ordering'
 import { loadCollapsedSections, loadListColumns, loadShowCompleted, loadViewMode, type ProjectViewMode } from './sections'
@@ -88,7 +89,7 @@ export function useCalendarEvents(): CalendarEvent[] {
 
 /** Calendar subscriptions of this account. */
 export function useCalendarSubscriptions(): CalendarSubscription[] {
-  return useLiveQuery(() => db.calendarSubscriptions.toArray(), [], NO_SUBSCRIPTIONS)
+  return useLiveQuery(async () => coloredSubscriptions(await db.calendarSubscriptions.toArray()), [], NO_SUBSCRIPTIONS)
 }
 
 /** Whether this device shows subscribed calendars in the grid (on unless turned off). */

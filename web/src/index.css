@@ -744,6 +744,13 @@ html { -webkit-tap-highlight-color: transparent; }
   }
 }
 
+/* The shell owns the viewport; detail pages scroll inside it, including with a phone keyboard. */
+@layer components {
+  .app-shell { min-height: 0; min-width: 0; overflow: hidden; }
+  .app-shell > [data-app-frame] { min-height: 0; overflow: hidden; }
+  .app-content { position: relative; min-height: 0; min-width: 0; flex: 1; overflow: hidden auto; overscroll-behavior-y: contain; scroll-padding-bottom: var(--list-scroll-pad); }
+}
+
 html {
   font-synthesis: style;
   /* Inter's optical-size axis picks its Display cut at large sizes (tokens-v2 D7). */
@@ -1018,7 +1025,7 @@ a.note-ref:focus-visible { @apply outline-2 outline-focus; }
 
 /* Surfaces (OpenSpec change surfaces-v2): structure felt through soft fills and
    sunken areas instead of outlines. One block recipe for every task block, month and
-   plan row and timeline bar (D1); events are neutral with a hatched edge (D2); the
+   plan row and timeline bar (D1); events use source hues with a hatched edge; the
    past is dimmed by mixing, never by opacity (D3); a board column is a sunken surface
    (D6) with a drop placeholder sized to the dragged card (D7); board cards lift on
    hover (D8); secondary settings cards and statistics panels are flat sections (D9). */
@@ -1070,11 +1077,11 @@ html:root[data-contrast="high"] .ui-block--projected:not(:focus-visible) { backg
 }
 .ui-block--event {
   background:
-    repeating-linear-gradient(45deg, var(--ot-border-input) 0 2px, transparent 2px 4px) left / 3px 100% no-repeat,
-    var(--ot-sunken);
+    repeating-linear-gradient(45deg, var(--hue-solid) 0 2px, transparent 2px 4px) left / 4px 100% no-repeat,
+    var(--hue-soft);
   border-inline-start: 0;
-  padding-inline-start: calc(3px + 0.375rem);
-  color: var(--ot-muted);
+  padding-inline-start: calc(4px + 0.375rem);
+  color: var(--hue-text);
 }
 .ui-block-dot { @apply inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-hue-solid; }
 /* A frame's band behind the Day and Week blocks (calendar-frames D3): a tint lighter
@@ -1907,4 +1914,17 @@ html:root[data-contrast="high"] .quick-add-tint { background-color: transparent;
   [data-task-id] { break-inside: avoid; }
   [data-group-header] { break-after: avoid; }
 }
+}
+
+@layer components {
+.calendar-grid-block:hover, .calendar-grid-block:focus-visible { z-index: 40 !important; }
+.calendar-grid-block { box-shadow: 0 0 0 1px var(--ot-canvas); }
+}
+
+@layer components {
+  @media (width < 48rem) {
+    /* Calendars own their scroller and its end clearance. The shared list padding
+       must not reserve a strip beneath that scroller for the floating add button. */
+    .app-content:has([data-calendar-page]) { padding-bottom: 0 !important; }
+  }
 }

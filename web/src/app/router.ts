@@ -24,6 +24,7 @@ export type Route =
   | { view: 'assigned' }
   | { view: 'project'; id: string }
   | { view: 'task'; id: string; asTask?: boolean }
+  | { view: 'event'; id?: string }
   | { view: 'label'; id: string }
   | { view: 'labels' }
   // Saved locations (task-locations, the `place` entity): /locations, and /location/<id> lists the open tasks linked to one.
@@ -97,7 +98,7 @@ const LOOP_MOVES: readonly string[] = ['catch', 'clarify', 'place', 'do', 'revie
 export const VIEW_QUICK_ADD: Readonly<Record<Route['view'], boolean>> = {
   inbox: true, today: true, upcoming: true, someday: true, anytime: true,
   day: true, week: true, month: true, plan: true, year: true,
-  completed: true, assigned: true, project: true, task: true, label: true, labels: true,
+  completed: true, assigned: true, project: true, task: true, event: false, label: true, labels: true,
   places: true, place: true, projects: true, filter: true, views: true, view: true,
   triage: true, review: true, next: true, waiting: true, loop: true, focus: false, notes: true,
   rules: false, settings: false, 'theme-editor': false, import: false, help: false,
@@ -244,6 +245,8 @@ export function parseRoute(pathname: string): Route {
       return parts[1] ? { view: 'view', id: parts[1] } : { view: 'views' }
     case 'project':
       return parts[1] ? { view: 'project', id: parts[1] } : { view: 'inbox' }
+    case 'event':
+      return parts[1] && parts[1] !== 'new' ? { view: 'event', id: safeDecode(parts[1]) } : { view: 'event' }
     case 'task':
       // The expanded task page (ux-overhaul, app-shell "Panel width and expansion").
       // ?as=task: a habit's full task page, from its habit page's menu (habits-polish D3).
@@ -331,6 +334,7 @@ export function routePath(r: Route): string {
   switch (r.view) {
     case 'task':
       return `/task/${r.id}${r.asTask ? '?as=task' : ''}`
+    case 'event': return `/event/${r.id ? encodeURIComponent(r.id) : 'new'}`
     case 'project':
     case 'label':
       return `/${r.view}/${r.id}`

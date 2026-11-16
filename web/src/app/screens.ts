@@ -29,6 +29,7 @@ export const ROUTE_SCREENS: Record<Route['view'], string | null> = {
   assigned: 'assigned',
   project: 'project',
   task: 'task-panel',
+  event: 'calendar',
   label: 'label',
   labels: 'labels',
   places: 'locations',

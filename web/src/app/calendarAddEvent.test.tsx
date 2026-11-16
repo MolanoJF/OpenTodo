@@ -1,4 +1,6 @@
 // @vitest-environment happy-dom
+import type { ReactNode } from 'react'
+import { EventPageTestRoute } from './eventPage.testkit'
 // Adding an event from the Day and Week grid (OpenSpec change calendar-event-editor, task 5.3): the Task | Event
 // choice only with a writable calendar, the remembered kind for the double-click, `q` and the sweep, the menu's two
 // items, Shift+Q, and no change at all without a writable calendar.
@@ -8,12 +10,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { db, setMeta } from '../lib/db'
 import { createTask, resetDeviceId } from '../lib/ops'
 import type { CalendarSubscription } from '../lib/types'
-import { click, key, render, type, waitFor } from '../ui/test-utils'
+import { click, key, render as renderBase, type, waitFor } from '../ui/test-utils'
 import { CalendarView } from './CalendarView'
 import { PX_PER_MIN } from './calendar/grid'
 import { closeEventEditor, currentEventEditor } from './calendar/eventEditorStore'
 import { resetPanel } from './panel'
 
+const render = (ui: ReactNode) => renderBase(<>{ui}<EventPageTestRoute /></>)
 const writable: CalendarSubscription = { id: 'w1', name: 'Work', color: '#2563eb', enabled: true, lastSuccessAt: Date.now(), managed: true, connectionId: 'c1', calendarUrl: 'https://dav/work/', editEvents: true, caps: { create: true, update: true, delete: true } }
 
 beforeEach(async () => {

@@ -132,12 +132,11 @@ describe('Spans in the calendar', () => {
     await r.unmount()
   })
 
-  it('the estimate counts on the due day only', async () => {
+  it('keeps spans visible without capacity summaries', async () => {
     await trip({ estimate_minutes: 480 })
     const r = await render(<CalendarView mode="week" date="2026-11-04" />)
-    await waitFor(() => /^8h/.test(r.container.querySelector('[data-day-header="2026-11-05"] [data-capacity]')?.textContent ?? ''), 'the capacity')
-    expect(r.container.querySelector('[data-day-header="2026-11-05"] [data-capacity]')!.textContent).toMatch(/^8h \/ 8h/)
-    expect(r.container.querySelector('[data-day-header="2026-11-03"] [data-capacity]')!.textContent).toMatch(/^0m \/ 8h/)
+    await waitFor(() => !!r.container.querySelector('[data-span-bar]'))
+    expect(r.container.querySelector('[data-capacity]')).toBeNull()
     await r.unmount()
   })
 
@@ -218,6 +217,8 @@ describe('Moving and resizing a span', () => {
     const r = await render(<CalendarView mode="week" date="2026-11-04" />)
     await waitFor(() => bars(r.container, id).length > 0, 'the bar')
     await click(bars(r.container, id)[0])
+    await waitFor(() => !!document.querySelector('[data-task-preview]'))
+    await key(document.activeElement!, 'Escape')
     await key(document.body, 'ArrowRight', { shiftKey: true })
     await waitFor(async () => (await getTask(id))?.due?.date === '2026-11-06', 'the last day')
     expect((await getTask(id))!.start).toBe('2026-11-03')
@@ -235,6 +236,8 @@ describe('Moving and resizing a span', () => {
     const r = await render(<MonthView date="2026-11-04" />)
     await waitFor(() => !!r.container.querySelector(`[data-month-task="${id}"]`), 'the row')
     await click(r.container.querySelector(`[data-month-task="${id}"]`)!)
+    await waitFor(() => !!document.querySelector('[data-task-preview]'))
+    await key(document.activeElement!, 'Escape')
     await key(document.body, 'ArrowRight', { shiftKey: true })
     await waitFor(async () => (await getTask(id))?.span === true, 'the span')
     expect(await getTask(id)).toMatchObject({ start: '2026-11-03', due: { date: '2026-11-04' }, span: true })
@@ -251,6 +254,8 @@ describe('Moving and resizing a span', () => {
     expect(piece(bars(r.container, id)[0]).querySelector('[data-span-handle]')).toBeNull()
     expect(bars(r.container, id)[0].textContent).toContain('read-only')
     await click(bars(r.container, id)[0])
+    await waitFor(() => !!document.querySelector('[data-task-preview]'))
+    await key(document.activeElement!, 'Escape')
     await key(document.body, 'ArrowRight', { shiftKey: true })
     await key(document.body, 'ArrowRight')
     // eslint-disable-next-line test-hygiene/no-fixed-wait -- nothing may be written, and a refused move shows no signal to wait for

@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { calendarControl, chooseCalendarMode } from './calendarMenu.testkit'
 // The calendar's Plan mode (OpenSpec change planner-view, tasks 2.1 and 3.2-4.1):
 // route and range switch, two rows of seven columns, events and projections in the
 // columns and the capacity bar, drag and keyboard moves that keep the time, viewers
@@ -15,7 +16,7 @@ import { CalendarRangeSwitch } from './CalendarRange'
 import { resetPanel } from './panel'
 import { openedTask, resetTaskPage } from './taskPage.testkit'
 import { PlanView } from './PlanView'
-import { parseRoute, routePath } from './router'
+import { navigate, parseRoute, routePath } from './router'
 
 beforeEach(async () => {
   resetTaskPage()
@@ -27,7 +28,7 @@ beforeEach(async () => {
   resetDeviceId()
   resetPanel()
   localStorage.clear()
-  history.replaceState(null, '', '/plan')
+  navigate({ view: 'plan' }, { replace: true })
   vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 404 })))
 })
 afterEach(() => {
@@ -76,13 +77,13 @@ describe('plan route and mode', () => {
     await waitFor(() => localStorage.getItem('ot.calendar.mode') === 'plan', 'the remembered mode')
     expect(localStorage.getItem('ot.calendar.mode')).toBe('plan')
     expect(parseRoute('/calendar')).toEqual({ view: 'plan' })
-    const sw = r.container.querySelector('[role="group"][aria-label="Calendar range"]')!
-    expect(sw.querySelector('[aria-pressed="true"]')!.textContent).toBe('Plan')
-    await click([...sw.querySelectorAll('button')].find((b) => b.textContent === 'Day')!)
+    const sw = r.container.querySelector('[data-calendar-range]')!
+    expect(sw.textContent).toBe('Plan')
+    await chooseCalendarMode(r.container, 'Day')
     expect(location.pathname).toBe('/day/2026-11-05')
     await r.unmount()
     const w = await render(<CalendarRangeSwitch mode="week" date="2026-11-18" />)
-    await click([...w.container.querySelectorAll('button')].find((b) => b.textContent === 'Plan')!)
+    await chooseCalendarMode(w.container, 'Plan')
     expect(location.pathname).toBe('/plan/2026-11-18')
     await w.unmount()
   })
@@ -209,7 +210,7 @@ describe('events in the plan', () => {
     await waitFor(() => document.querySelector('[data-event-details]') === null)
 
     // Calendars hidden: no rows, no event minutes.
-    await click(r.container.querySelector('[data-calendars-toggle]')!)
+    await click(await calendarControl(r.container, '[data-calendars-toggle]'))
     await waitFor(() => day(r.container, '2026-10-13').querySelector('[data-plan-event]') === null)
     expect(day(r.container, '2026-10-13').querySelector('[data-capacity]')!.textContent).toBe('30m / 8h')
     await r.unmount()

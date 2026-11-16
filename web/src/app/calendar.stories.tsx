@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import type { ReactNode } from 'react'
 import { CalendarView } from './CalendarView'
 import { PlanView } from './PlanView'
-import { seedCalendarClarity, seedCalendarEvents, seedCalendarPlan, seedCalendarSpans, seedCalendarWeek, withSeed } from './stories/fixtures'
+import { seedCalendarClarity, seedCalendarColors, seedCalendarPolish, seedCalendarEvents, seedCalendarPlan, seedCalendarSpans, seedCalendarWeek, withSeed } from './stories/fixtures'
 import { completeTask, createTask } from '../lib/ops'
 import { setCalendarShowCompleted } from '../lib/localData'
 
@@ -88,3 +88,11 @@ export const WeekWithEvents: StoryObj = {
   ...withSeed(seedCalendarEvents()),
   render: () => <Column><CalendarView mode="week" /></Column>,
 }
+
+/** Account event hues beside inherited project task hues, including all-day/free events. */
+export const WeekWithSourceColors: StoryObj = {
+  ...withSeed(seedCalendarColors),
+  render: () => <Column><CalendarView mode="week" /></Column>,
+}
+
+export const StaggeredOverlaps: StoryObj = { ...withSeed(seedCalendarPolish), render: () => <Column><CalendarView mode="week" /></Column> }

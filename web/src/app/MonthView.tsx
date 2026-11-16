@@ -4,7 +4,7 @@
 // its time and zone; `q` adds a task due on the focused day. Works offline. A device
 // may stack 2, 3 or 6 months (year-view D1); a phone always shows one. Loads on first use.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Button, EmptyState, MenuItem, MenuSeparator, PageBody, useMediaQuery } from '../ui'
+import { EmptyState, MenuItem, MenuSeparator, PageBody, useMediaQuery } from '../ui'
 import { calendarTasks, eventsByDay, nudgeDue, type DayEvents, type EventBlock } from '../lib/calendar'
 import { MONTHS_SHOWN, monthsShown, rememberCalendarMode } from '../lib/calendarMode'
 import { addDaysISO, dueFromView, viewedTask, formatDateParts, formatDateRange, monthName } from '../lib/dates'
@@ -20,7 +20,7 @@ import type { CalendarEvent, Task } from '../lib/types'
 import { EventRow } from './CalendarEvents'
 import { CalendarsToggle } from './calendar/CalendarsToggle'
 import { CalendarStatus } from './calendar/CalendarStatus'
-import { CalendarRangeSwitch } from './CalendarRange'
+import { CalendarNavigation, CalendarRangeSwitch } from './CalendarRange'
 import { useCalendarShowCompleted, useGridPrefs } from '../lib/liveData'
 import { CalendarCompletedToggle } from './calendar/CalendarCompletedToggle'
 import { useDateTimeFormat } from './DateTimePrefsProvider'
@@ -78,19 +78,12 @@ function MonthDayList({ focused, empty, onAdd, children }: { focused: string; em
 }
 
 /** Previous, Today, Next and the mode switch of the Month. */
-function MonthRange({ anchor, date, today, goTo, showCompleted, calendars }: { anchor: string; date?: string; today: string; goTo: (d: string) => void; showCompleted: boolean; calendars: ReactNode }) {
-  return (
-    <>
-      {calendars}
-      <span className="flex items-center" role="group" aria-label={t('Range')}>
-        <Button variant="ghost" size="sm" icon="chevron-left" aria-label={t('Previous month')} onClick={() => goTo(addMonthsISO(anchor, -1))} />
-        <Button variant="ghost" size="sm" onClick={() => goTo(today)}>{t('Today')}</Button>
-        <Button variant="ghost" size="sm" icon="chevron-right" aria-label={t('Next month')} onClick={() => goTo(addMonthsISO(anchor, 1))} />
-      </span>
-      <CalendarCompletedToggle shown={showCompleted} />
-      <CalendarRangeSwitch mode="month" date={date} />
-    </>
-  )
+function MonthRange({ anchor, date, today, goTo }: { anchor: string; date?: string; today: string; goTo: (d: string) => void }) {
+  return <>
+    <CalendarRangeSwitch mode="month" date={date ?? anchor} />
+    <CalendarNavigation onToday={() => goTo(today)} onPrevious={() => goTo(addMonthsISO(anchor, -1))} onNext={() => goTo(addMonthsISO(anchor, 1))}
+      previousLabel={t('Previous month')} nextLabel={t('Next month')} />
+  </>
 }
 
 /** "Months shown" in the page's menu (year-view D1): a device choice, kept while a phone shows one month. */
@@ -296,12 +289,13 @@ export function MonthView({ date }: { date?: string }) {
   const status = <CalendarStatus status={feeds.status} online={online} fetchedAt={feeds.win?.fetchedAt} />
   const meta = chrome.chip ? <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-2">{chrome.chip}{status}</span> : status
   return (
-    <PageBody width="full" className="flex flex-col" data-calendar-page="month">
+    <PageBody width="full" className="flex flex-col max-md:pb-(--add-room)" data-calendar-page="month">
       <CalendarPageHeader chrome={chrome} title={title} meta={meta}
-        actions={<MonthRange anchor={anchor} date={date} today={today} goTo={goTo} showCompleted={showCompleted} calendars={<CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} />} />}
+        actions={<MonthRange anchor={anchor} date={date} today={today} goTo={goTo} />}
         overflow={<>
-          <CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} menu />
+          <CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} />
           <CalendarCompletedToggle shown={showCompleted} menu />
+          <CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} />
           {!narrow && <MonthsShownItems count={preferred} />}
           <MenuItem label={planOpen ? t('Hide the planning list') : t('Plan from a list')} icon="list" description={t('Drag tasks onto a day, or press s on one')} onSelect={() => chrome.plan(planOpen, togglePlan)} />
           {chrome.overflow}

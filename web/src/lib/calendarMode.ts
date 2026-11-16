@@ -30,3 +30,9 @@ export const monthsShown = createStoredValue<MonthsShown>('ot.calendar.months', 
   parse: parseMonthsShown,
   serialize: (n) => (n === 1 ? null : String(n)),
 }, { crossTab: true })
+
+/** Consecutive days on the Week route; seven means the normal aligned week. */
+export const calendarDayCount = createStoredValue<number>('ot.calendar.days', {
+  parse: (raw) => /^[2-7]$/.test(raw ?? '') ? Number(raw) : 7,
+  serialize: (n) => n === 7 ? null : String(n),
+}, { crossTab: true })

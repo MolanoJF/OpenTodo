@@ -8,6 +8,7 @@ import { readCalendarMode } from '../lib/calendarMode'
 import { db, setMeta } from '../lib/db'
 import { createProject, createTask, resetDeviceId } from '../lib/ops'
 import { click, flush, key, render, minWidthPx, waitFor } from '../ui/test-utils'
+import { calendarControl } from './calendarMenu.testkit'
 import { CalendarView } from './CalendarView'
 import { panelOccupant, resetPanel } from './panel'
 import { PanelHost } from './PanelHost'
@@ -46,7 +47,7 @@ describe('one Calendar destination', () => {
     expect(header).toBeTruthy()
     expect(r.container.querySelectorAll('h1')).toHaveLength(1)
     expect(header.querySelector('[role="group"][aria-label="Range"]')).toBeTruthy()
-    expect(header.querySelector('[role="group"][aria-label="Calendar range"] [aria-pressed="true"]')?.textContent).toBe('Week')
+    expect(header.querySelector('[data-calendar-range]')?.textContent).toBe('Week')
     expect(header.querySelector('[data-help-screen="calendar"]')).toBeTruthy()
 
     await r.rerender(<CalendarView mode="day" />)
@@ -114,7 +115,7 @@ describe('calendar events', () => {
     expect(ev.hasAttribute('data-overlap')).toBe(true)
     expect(r.container.querySelector('[data-block]')!.hasAttribute('data-overlap')).toBe(true)
     expect([...ev.childNodes].filter((n) => !(n as Element).hasAttribute?.('aria-hidden')).map((n) => n.textContent).join('')).toBe('Team sync, 10:00 to 11:00, Room 4, Work')
-    expect(r.container.querySelector('[data-capacity]')!.textContent).toContain('30m / 8h')
+    expect(r.container.querySelector('[data-capacity]')).toBeNull()
     // The all-day strip shows the two-day event on this day.
     expect(r.container.querySelector('[data-all-day="2026-10-14"] [data-event-chip="ev2"]')?.textContent).toBe('Offsite')
     await r.unmount()
@@ -154,14 +155,14 @@ describe('calendar events', () => {
     await seed()
     let r = await render(<CalendarView mode="day" />)
     await waitFor(() => r.container.querySelector('[data-event="ev1"]') !== null)
-    const toggle = r.container.querySelector('[data-calendars-toggle]')!
-    expect(toggle.getAttribute('aria-pressed')).toBe('true')
+    const toggle = await calendarControl(r.container, '[data-calendars-toggle]')
+    expect(toggle.getAttribute('aria-checked')).toBe('true')
     await click(toggle)
     await waitFor(() => r.container.querySelector('[data-event="ev1"]') === null)
     expect(r.container.querySelector('[data-event-chip]')).toBeNull()
     await r.unmount()
     r = await render(<CalendarView mode="day" />)
-    await waitFor(() => r.container.querySelector('[data-calendars-toggle]')?.getAttribute('aria-pressed') === 'false')
+    expect((await calendarControl(r.container, '[data-calendars-toggle]')).getAttribute('aria-checked')).toBe('false')
     expect(r.container.querySelector('[data-event="ev1"]')).toBeNull()
     await r.unmount()
   })
@@ -227,6 +228,8 @@ describe('surfaces (surfaces-v2, time-blocking "Filled blocks")', () => {
     expect(r.container.querySelector(`[data-lane-task="${loose}"]`)!.className).toContain('ui-block--past')
     // Dimmed is not disabled: the selected past block moves fifteen minutes with Down.
     await click(block)
+    await waitFor(() => !!document.querySelector('[data-task-preview]'))
+    await key(document.activeElement!, 'Escape')
     await key(document.body, 'ArrowDown')
     await waitFor(async () => (await db.tasks.get(past))?.due?.time === '10:15', 'moved fifteen minutes')
     expect((await db.tasks.get(past))!.due).toEqual({ date: '2026-10-13', time: '10:15' })

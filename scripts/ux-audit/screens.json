@@ -351,6 +351,26 @@
   "story": "Screens/Calendar"
  },
  {
+  "id": "calendar-task-preview",
+  "route": "day",
+  "kind": "overlay",
+  "seed": "layout-check",
+  "frequency": "weekly",
+  "core": false,
+  "on": "day",
+  "story": "Screens/Calendar"
+ },
+ {
+  "id": "calendar-event-preview",
+  "route": "day",
+  "kind": "overlay",
+  "seed": "layout-check",
+  "frequency": "weekly",
+  "core": false,
+  "on": "day",
+  "story": "Screens/Calendar"
+ },
+ {
   "id": "event-editor",
   "route": "day",
   "kind": "overlay",

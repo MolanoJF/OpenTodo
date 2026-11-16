@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { chooseCalendarMode } from './calendarMenu.testkit'
 // The Month view (OpenSpec change month-and-timeline-views, tasks 1.2 and 2.1-2.3):
 // the route and range switch, a crowded cell, the capacity marker, keyboard moves
 // that keep the time, viewers who cannot move, q on a focused day, j j Enter, axe.
@@ -47,9 +48,9 @@ describe('month route', () => {
     await waitFor(() => localStorage.getItem('ot.calendar.mode') === 'month', 'the remembered mode')
     expect(localStorage.getItem('ot.calendar.mode')).toBe('month')
     expect(parseRoute('/calendar')).toEqual({ view: 'month' })
-    const sw = r.container.querySelector('[role="group"][aria-label="Calendar range"]')!
-    expect(sw.querySelector('[aria-pressed="true"]')!.textContent).toBe('Month')
-    await click([...sw.querySelectorAll('button')].find((b) => b.textContent === 'Day')!)
+    const sw = r.container.querySelector('[data-calendar-range]')!
+    expect(sw.textContent).toBe('Month')
+    await chooseCalendarMode(r.container, 'Day')
     expect(location.pathname).toBe('/day/2026-11-18')
     await r.unmount()
   })
