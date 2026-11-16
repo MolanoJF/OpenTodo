@@ -30,12 +30,12 @@ export function CalendarSettingsView({ prefs, hasCalendars = false, onSave }: { 
   const lengths = DAY_LENGTHS.includes(prefs.dayLength) ? DAY_LENGTHS : [...DAY_LENGTHS, prefs.dayLength].sort((a, b) => a - b)
   return (
     <SettingsSection {...cardCopy('calendar')}>
-      <SettingRow label={t('Week starts on')} description={t('Choose the first day of the calendar week. This preference syncs across your devices.')} htmlFor="calendar-week-start" control={
+      <SettingRow {...rowCopy('calendar', 'weekStart')} htmlFor="calendar-week-start" control={
         <Select id="calendar-week-start" value={dt.prefs?.week_start ?? 'system'} onChange={(e) => act(setUserPref('week_start', e.target.value as WeekStartPref))}>
           <option value="system">{t('System')}</option><option value="mon">{t('Monday')}</option><option value="sun">{t('Sunday')}</option><option value="sat">{t('Saturday')}</option>
         </Select>
       } />
-      <SettingRow label={t('Shade outside grid hours')} description={t('Dim hours before the start and after the end below. All hours remain available.')} control={
+      <SettingRow {...rowCopy('calendar', 'shadeOffHours')} control={
         <Switch checked={!!prefs.shadeOffHours} label={t('Shade outside grid hours')} hideLabel onChange={(shadeOffHours) => onSave({ shadeOffHours })} />
       } />
       <SettingRow {...rowCopy('calendar', 'gridStart')} htmlFor="grid-start" control={

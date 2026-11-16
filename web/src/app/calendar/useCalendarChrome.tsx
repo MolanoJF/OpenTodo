@@ -12,7 +12,7 @@ import { t } from '../../lib/i18n'
 import type { ProjectRef } from '../../lib/nlp'
 import { deadlineMarkers } from '../../lib/calendar'
 import type { Project, Task } from '../../lib/types'
-import { DESKTOP_HEADER_QUERY, MenuGroup, MenuItem, MenuSeparator, PageHeader, setPageBar, useMediaQuery } from '../../ui'
+import { DESKTOP_HEADER_QUERY, MenuGroup, MenuItem, MenuSeparator, PageHeader, setPageBar, TruncatedText, useMediaQuery } from '../../ui'
 import { saveTray } from './planSource'
 import { useAddHere, type AddHere } from './addHere'
 import { EventEditorHost } from './EventEditorHost'
@@ -55,7 +55,7 @@ function PhoneCalendarHeader({ title, phoneTitle, meta, actions, overflow }: Cal
   })
   return <header className="shrink-0 pb-2" data-page-header data-page-head="calendar" data-phone-calendar-header>
     <div className="flex min-w-0 items-center gap-2" data-page-header-row>
-      <h1 className="min-w-0 flex-1 text-body font-semibold leading-tight text-strong" data-page-title>{phoneTitle ?? title}</h1>
+      <TruncatedText as="h1" text={phoneTitle ?? title} className="min-w-0 flex-1 text-body font-semibold leading-tight text-strong" data-page-title="" />
       <div className="flex shrink-0 items-center gap-1" data-page-actions>{actions}</div>
     </div>
     {meta && <div className="mt-1 min-w-0 text-meta text-muted" data-page-meta>{meta}</div>}

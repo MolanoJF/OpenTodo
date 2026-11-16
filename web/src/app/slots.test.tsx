@@ -15,6 +15,7 @@ import { CalendarView } from './CalendarView'
 import { closePanelIfStale, resetPanel } from './panel'
 import { navigate, useRoute } from './router'
 import { TaskRow } from './TaskRow'
+import { calendarControl } from './calendarMenu.testkit'
 
 const DAY = '2026-10-14' // a Wednesday
 
@@ -84,8 +85,8 @@ describe('a slot on the grid', () => {
       expect(q(`[data-block="${tid}"]`)).toBeNull()
       expect(q(`[data-lane-task="${tid}"]`)).toBeNull()
     }
-    // Capacity counts the slot once: 180 minutes, not the tasks' 50.
-    expect(q(`[data-day-header="${DAY}"]`)!.textContent).toContain('3h')
+    // Day keeps its heading clear of capacity totals (calendar-polish); Month and Plan count the slot once.
+    expect(q(`[data-day-header="${DAY}"]`)!.textContent).not.toContain('3h')
     await click(q('[data-slot-more]')!)
     await waitFor(() => qa('[data-slot-details-row]').length === 10, 'the popover lists all ten')
     await r.unmount()
@@ -165,10 +166,7 @@ describe('a slot on the grid', () => {
     vi.setSystemTime(new Date(2026, 9, 14, 10, 7))
     const r = await render(<Calendar />)
     await waitFor(() => !!q('[data-drop-day]'), 'the day')
-    const more = q<HTMLButtonElement>('[data-page-header] [aria-label="More"]') ?? qa('[data-page-header] button').find((b) => b.getAttribute('aria-haspopup') === 'menu')!
-    await click(more)
-    await waitFor(() => !!q('[data-new-slot]'), 'the item')
-    await click(q('[data-new-slot]')!)
+    await click(await calendarControl(r.container, '[data-new-slot]'))
     await waitFor(async () => (await db.slots.count()) === 1, 'created')
     const [s] = await db.slots.toArray()
     expect(s).toMatchObject({ date: DAY, start: '10:15', minutes: 30 })

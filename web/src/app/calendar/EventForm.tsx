@@ -14,7 +14,7 @@ import { EventMobileFields } from './EventMobileFields'
 import { EventZoneField, zoneText } from './EventZoneField'
 import type { DescriptionState } from './useEventDetail'
 import { PreviewFact } from './PreviewFact'
-import type { IconName } from '../../ui/Icon'
+import type { IconName } from '../../ui'
 
 export const DESCRIPTION_MAX = 10_000
 

@@ -1,5 +1,5 @@
 import { createStore } from '../../lib/store'
-import type { HueName } from '../../ui/tokens/palette'
+import type { HueName } from '../../ui'
 
 export interface TaskPreviewRequest { id: string; anchor: HTMLElement; hue?: HueName }
 export const taskPreview = createStore<TaskPreviewRequest | null>('calendarTaskPreview', null)

@@ -5,9 +5,9 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { setNewKind } from '../../lib/writableCalendars'
 import { parseTime } from '../../lib/calendar'
 import { t } from '../../lib/i18n'
-import { Button, ConfirmDialog, Dialog, Icon, IconButton, PAGE_FRAME, PageHeader, DESKTOP_HEADER_QUERY, useMediaQuery, Menu, MenuItem, MenuSeparator, Notice, Skeleton } from '../../ui'
+import { Button, ConfirmDialog, Dialog, Icon, IconButton, PAGE_FRAME, PageHeader, DESKTOP_HEADER_QUERY, useMediaQuery, Menu, MenuItem, MenuSeparator, Notice, Skeleton, overlayDepth } from '../../ui'
+import { useShortcutScope } from '../shortcuts'
 import { setLeaveGuard } from '../router'
-import { overlayDepth } from '../../ui/overlay/stack'
 import { showBulkToast } from '../bulk/toastStore'
 import { PanelFrame } from '../PanelFrame'
 import { ConvertToTask } from './ConvertToTask'
@@ -44,12 +44,13 @@ export function EventPanel({ request, frame, onClose }: { request: EventEditorRe
     setLeaveGuard((go) => { setLeaving(() => go); setAsking(true); return true })
     return () => setLeaveGuard(null)
   }, [frame, s.dirty])
-  useEffect(() => {
-    if (frame !== 'route') return
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && overlayDepth() === 0) { e.preventDefault(); attemptClose() } }
-    window.addEventListener('keydown', key)
-    return () => window.removeEventListener('keydown', key)
-  })
+  // Esc leaves the event page through the shortcut dispatcher (keyboard-shortcuts), unless an overlay above it is open.
+  useShortcutScope('view', {}, { view: 'event', enabled: frame === 'route', any: (e) => {
+    if (e.key !== 'Escape' || overlayDepth() > 0) return false
+    e.preventDefault()
+    attemptClose()
+    return true
+  } })
   const canDelete = !creating && !!s.ev?.access?.delete
   const saveAction = (!readOnly && <Button variant="primary" type="submit" form={formId} size={phoneHeader ? 'sm' : 'md'} busy={s.moving} data-event-form-save disabled={!s.form || s.moving || (s.moveReceipt ? s.moveBlocked : s.invalid || s.offlineBlocked || (creating && !s.calendar) || (!creating && !s.dirty) || s.calendarChanged && s.moveBlocked)}>{s.moveReceipt ? t('Finish move') : s.calendarChanged ? t('Move event') : creating ? t('Add event') : t('Save')}</Button>)
   const eventMenu = (creating ? (!request.draft && phoneHeader ? <Menu label={t('More actions')} kind="menu" trigger={<Icon name="ellipsis" />} triggerClassName="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" triggerProps={{ 'data-event-form-menu': '' }}>

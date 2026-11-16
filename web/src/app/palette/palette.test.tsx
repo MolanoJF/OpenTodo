@@ -441,23 +441,23 @@ describe('New event (calendar-event-editor 5.5)', () => {
     expect(cmd()?.label).toBe('New event')
   })
 
-  it('opens the editor in create mode at the next free half hour and shows the Day view from another screen', async () => {
+  it('opens the event page in create mode at the next free half hour (calendar-detail-pages)', async () => {
     const store = await clock(10, 7)
     navigate({ view: 'inbox' })
     cmd()!.run()
     await waitFor(() => store.currentEventEditor() !== null, 'the editor request')
     expect(store.currentEventEditor()).toMatchObject({ mode: 'create', place: { date: '2026-10-14', start: 10 * 60 + 30, end: 11 * 60 } })
-    expect(location.pathname).toBe('/day')
+    expect(location.pathname).toBe('/event/new')
   })
 
-  it('skips a busy half hour, and stays in Week when the app is in Week', async () => {
+  it('skips a busy half hour, from Week too', async () => {
     const store = await clock(10, 7)
     await db.calendarEvents.put({ id: 'e', subscriptionId: 's', uid: 'u', summary: 'Busy', location: '', start: { date: '2026-10-14', time: '10:30' }, end: { date: '2026-10-14', time: '11:00' }, allDay: false, free: false })
     navigate({ view: 'week' })
     cmd({ route: { view: 'week' } })!.run()
     await waitFor(() => store.currentEventEditor() !== null, 'the editor request')
     expect(store.currentEventEditor()).toMatchObject({ place: { date: '2026-10-14', start: 11 * 60 } })
-    expect(location.pathname).toBe('/week')
+    expect(location.pathname).toBe('/event/new')
   })
 
   it('late in the day it opens tomorrow at 09:00, and shows calendars when the device hides them', async () => {

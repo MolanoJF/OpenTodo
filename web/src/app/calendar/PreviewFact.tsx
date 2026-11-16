@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Icon, type IconName } from '../../ui/Icon'
+import { Icon, type IconName } from '../../ui'
 
 export function PreviewFact({ icon, children }: { icon: IconName; children: ReactNode }) {
   return <div className="flex min-w-0 items-start gap-2 py-1 text-meta">

@@ -300,6 +300,8 @@ export const SETTINGS_COPY = {
     description: msg('Working hours and day length for Day and Week, on this device.'),
     learnMore: 'settings/calendar',
     rows: {
+      weekStart: { label: msg('Week starts on'), description: msg('Choose the first day of the calendar week. This preference syncs across your devices.') },
+      shadeOffHours: { label: msg('Shade outside grid hours'), description: msg('Dim hours before the start and after the end below. All hours remain available.') },
       gridStart: { label: msg('Grid starts') },
       gridEnd: { label: msg('Grid ends') },
       dayLength: { label: msg('Day length'), description: msg('Your daily capacity; the Day view warns when planned work goes over it.') },

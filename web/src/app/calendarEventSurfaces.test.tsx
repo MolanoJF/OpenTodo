@@ -74,22 +74,24 @@ describe('opening the editor', () => {
     expect(currentEventEditor()).toMatchObject({ mode: 'edit', eventId: 'ev1' })
   })
 
-  it('a double-click on a block opens it; a locked event keeps the read-only popover with its reason, Duplicate and Convert', async () => {
+  it('a double-click on a block opens it, a locked one read-only (calendar-detail-pages); its popover keeps the reason, Duplicate and Convert', async () => {
     const r = await openDay()
     await dblclick(block(r.container, 'ev1'))
     expect(currentEventEditor()).toMatchObject({ mode: 'edit', eventId: 'ev1' })
     closeEventEditor()
     await dblclick(block(r.container, 'ev2'))
-    expect(currentEventEditor()).toBeNull()
+    expect(currentEventEditor()).toMatchObject({ mode: 'edit', eventId: 'ev2' })
+    closeEventEditor()
     await click(block(r.container, 'ev2'))
     await waitFor(() => !!document.querySelector('[data-event-locked="series_unsupported"]'), 'the reason')
-    expect(button('All details')).toBeUndefined()
+    // Every preview offers the full details (calendar-detail-pages); a locked event's page is read-only.
+    expect(button('All details')).toBeDefined()
     await click(document.querySelector<HTMLElement>('[data-event-actions] [aria-haspopup="menu"], [data-event-actions] button[aria-label="More actions"]')!)
     await waitFor(() => !!document.querySelector('[data-event-duplicate]'), 'the overflow')
     expect(document.querySelector('[data-event-convert]')).not.toBeNull()
   })
 
-  it('an all-day chip opens the editor on a double-click and on Enter; a locked one does not', async () => {
+  it('an all-day chip opens the editor on a double-click and on Enter; a locked one only on a double-click, read-only', async () => {
     const r = await openDay()
     await dblclick(chip(r.container, 'ev3'))
     expect(currentEventEditor()).toMatchObject({ mode: 'edit', eventId: 'ev3' })
@@ -97,18 +99,19 @@ describe('opening the editor', () => {
     await key(chip(r.container, 'ev3'), 'Enter')
     expect(currentEventEditor()).toMatchObject({ mode: 'edit', eventId: 'ev3' })
     closeEventEditor()
-    await dblclick(chip(r.container, 'ev4'))
     await key(chip(r.container, 'ev4'), 'Enter')
     expect(currentEventEditor()).toBeNull()
+    await dblclick(chip(r.container, 'ev4'))
+    expect(currentEventEditor()).toMatchObject({ mode: 'edit', eventId: 'ev4' })
   })
 
-  it('a Month, Plan or agenda row opens the editor on a double-click', async () => {
+  it('a Month, Plan or agenda row opens the editor on a double-click, a locked one read-only', async () => {
     const r = await render(<><EventRow ev={coffee} sub={sub} variant="cell" /><EventRow ev={weekly} sub={sub} variant="plan" /><EventChip ev={offsite} sub={sub} /></>)
     await dblclick(r.container.querySelector('[data-month-event="ev1"]')!)
     expect(currentEventEditor()).toMatchObject({ mode: 'edit', eventId: 'ev1' })
     closeEventEditor()
     await dblclick(r.container.querySelector('[data-plan-event="ev2"]')!)
-    expect(currentEventEditor()).toBeNull()
+    expect(currentEventEditor()).toMatchObject({ mode: 'edit', eventId: 'ev2' })
   })
 
   it('an all-day event is editable in the editor only: it does not drag, and the Delete key ignores it', async () => {

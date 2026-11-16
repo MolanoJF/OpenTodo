@@ -267,8 +267,9 @@ describe('visible properties', () => {
   it('focus not obscured: the content scroller keeps room for a toast and the selection bar (rows-v2 D7)', async () => {
     const r = await render(<Shell user={user} onLogout={() => {}} />)
     const content = r.container.querySelector('#content')!
-    expect(content.className).toContain('scroll-pb-(--list-scroll-pad)')
+    expect(content.className).toContain('app-content')
     const css = (await import('../index.css?raw')).default
+    expect(css).toMatch(/\.app-content \{[^}]*scroll-padding-bottom: var\(--list-scroll-pad\)/)
     expect(css).toMatch(/--list-scroll-pad:\s*8rem/)
     await r.unmount()
   })
