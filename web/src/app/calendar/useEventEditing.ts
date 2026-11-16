@@ -1,3 +1,7 @@
+import { useEventMove, moveSingleEvent, keepEventCopies } from '../../lib/eventMove'
+import { useOnline } from '../../lib/online'
+import { t } from '../../lib/i18n'
+import { showBulkToast } from '../bulk/toastStore'
 // The state of the full event editor (OpenSpec changes calendar-event-editor D11 and calendar-event-series D12): the
 // fields as the person left them over the event as it is (an `edits` object over a `base`, so a description that
 // arrives late does not disturb what was typed), the Save for both modes, Duplicate and Delete. Saving or deleting
@@ -42,7 +46,12 @@ export function useEventEditing(request: EventEditorRequest, close: () => void) 
   const { list, calendar: fallback } = useEventCreation()
   const editing = request.mode === 'edit'
   const detail = useEventDetail(editing ? request.eventId : null)
-  const ev: CalendarEvent | null = detail.event ?? null
+  const moveReceipt = useEventMove(editing ? request.eventId : undefined)
+  const online = useOnline()
+  const [moving, setMoving] = useState(false)
+  const [moveDone, setMoveDone] = useState(false)
+  const [moveError, setMoveError] = useState<string | null>(null)
+  const ev: CalendarEvent | null = detail.event ?? moveReceipt?.source ?? null
   const extras = detail.extras
   const eventCalendar = useCalendarSubscription(ev?.subscriptionId)
   const [edits, setEdits] = useState<Partial<EventFull>>({})
@@ -52,8 +61,9 @@ export function useEventEditing(request: EventEditorRequest, close: () => void) 
   const base = useMemo(() => (request.mode === 'create' ? createBase(request, viewerZone) : ev ? eventFullOf(ev, viewerZone, description.status === 'ready' ? description.text : '', extras) : null),
     [request, ev, viewerZone, description, extras])
   const form = base ? { ...base, ...edits } : null
-  const dirty = !!base && (Object.keys(edits) as (keyof EventFull)[]).some((k) => !sameField(k, edits[k], base[k]))
-  const calendar: CalendarSubscription | undefined = list.find((c) => c.id === chosen) ?? fallback
+  const calendarChanged = editing && !!chosen && chosen !== ev?.subscriptionId
+  const dirty = !moveReceipt && (!!base && (Object.keys(edits) as (keyof EventFull)[]).some((k) => !sameField(k, edits[k], base[k])) || calendarChanged)
+  const calendar: CalendarSubscription | undefined = editing ? list.find((c) => c.id === chosen) ?? eventCalendar : list.find((c) => c.id === chosen) ?? fallback
   const timesInvalid = !!form && pointsOf(form) === 'invalid'
   const invalid = !form || timesInvalid || form.title.trim() === ''
 
@@ -83,7 +93,28 @@ export function useEventEditing(request: EventEditorRequest, close: () => void) 
 
   const gf = useEventGuestsField({ editing, ev, sub, form, set, info: detail.info, description })
 
+  const canMove = !!ev?.rev && !!ev.access?.update && !!ev.access.delete && !ev.series && !form?.repeat && !form?.guestAdds.length && !form?.teams && !ev.guests?.count && !detail.info?.guests?.count && !ev.conference && !detail.info?.conference && !detail.info?.onlineMeeting && description.status === 'ready' && description.editable && extras?.reminders !== undefined && !extras.remindersOther
+  const moveTargets = eventCalendar ? [eventCalendar, ...list.filter((c) => c.id !== eventCalendar.id)] : list
+  const targetFits = !calendarChanged || !!calendar && (form?.reminders.length ?? 0) <= (calendar.maxReminders ?? DEFAULT_MAX_REMINDERS)
   const save = async () => {
+    if (moving) return
+    if (moveReceipt || calendarChanged) {
+      if (!online || !ev || !moveReceipt && (!canMove || !calendar || !targetFits || !form || invalid)) return
+      const draft = moveReceipt?.draft ?? (calendar && form ? draftFromFull(form, calendar) : null)
+      const connection = moveReceipt?.sourceConnection ?? eventCalendar?.connectionId
+      if (!draft || !connection) return
+      setMoving(true); setMoveError(null)
+      try {
+        await moveSingleEvent(moveReceipt?.source ?? ev, connection, draft)
+        setMoveDone(true)
+        close()
+        showBulkToast(t('Event moved to another calendar'), null)
+      } catch {
+        setMoveError(t('The event could not be moved. Try again when the calendars are available.'))
+      } finally { setMoving(false) }
+      return
+    }
+    if (editing && !ev?.access?.update) return
     if (!form || invalid || gf.offlineBlocked) return
     if (request.mode === 'create') {
       const draft = calendar && draftFromFull(form, calendar)
@@ -115,15 +146,22 @@ export function useEventEditing(request: EventEditorRequest, close: () => void) 
     if (draft) openEventEditor({ mode: 'create', draft })
   }
   const remove = async () => {
-    if (!ev) return
+    if (!ev?.access?.delete) return
     const asked = await askFirst(ev, 'delete', { from: '[data-event-form-save]' })
     if (!asked) return
     close()
     await deleteEvent(ev, asked.scope, asked.sure)
   }
+  const keepBoth = async () => {
+    if (moving || !moveReceipt?.created) return
+    await keepEventCopies(moveReceipt.source.id)
+    close()
+  }
 
   return {
-    form, base, set, setAllDay, dirty, invalid, timesInvalid, save, duplicate, remove, ev, eventCalendar, description, loaded, gone: editing && detail.event === null,
+    form, base, set, setAllDay, dirty, invalid, timesInvalid, save, duplicate, remove, ev, eventCalendar, description, loaded, gone: editing && !moving && !moveDone && detail.event === null && moveReceipt === null,
+    canMove, moveTargets, calendarChanged, moveReceipt, moving, moveError, keepBoth, moveBlocked: !online || !moveReceipt && calendarChanged && (!canMove || !targetFits),
+    moveNote: calendarChanged && !online ? t('Connect to the internet to change calendars.') : calendarChanged && !targetFits ? t('This calendar allows fewer reminders. Remove a reminder or choose another calendar.') : undefined,
     calendars: list, calendar, chooseCalendar: setChosen, viewerZone, floating: !!base && base.zone === '' && !!ev, repeatField, remindersField, guestsField: gf.guests, videoCall: gf.videoCall, offlineBlocked: gf.offlineBlocked,
   }
 }

@@ -1,4 +1,7 @@
 // @vitest-environment happy-dom
+import { closeEventEditor } from './calendar/eventEditorStore'
+import type { ReactNode } from 'react'
+import { EventPageTestRoute } from './eventPage.testkit'
 // Events of a connected calendar edited in Day (OpenSpec change calendar-event-edits, tasks 5.1 to 5.4):
 // a drop, a resize, the popover's Save and Delete and the keys all queue the same command with an
 // Undo toast; a locked event never starts a drag, takes no key and says why.
@@ -9,12 +12,13 @@ import { flushEventEdits } from '../lib/calendarEventEdits'
 import { db, setMeta } from '../lib/db'
 import { resetDeviceId } from '../lib/ops'
 import type { CalendarEvent, CalendarSubscription } from '../lib/types'
-import { click, key, render, type, waitFor } from '../ui/test-utils'
+import { click, key, render as renderBase, type, waitFor } from '../ui/test-utils'
 import { useBulkToast } from './bulk/toastStore'
 import { CalendarView } from './CalendarView'
 import { PX_PER_MIN } from './calendar/grid'
 import { resetPanel } from './panel'
 
+const render = (ui: ReactNode) => renderBase(<>{ui}<EventPageTestRoute /></>)
 const DAY = '2026-10-14'
 const y = (minutes: number) => minutes * PX_PER_MIN
 
@@ -32,6 +36,7 @@ beforeEach(async () => {
   await db.open()
   resetDeviceId()
   resetPanel()
+  closeEventEditor()
   localStorage.clear()
   requests = []
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
@@ -52,6 +57,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
   resetPanel()
+  closeEventEditor()
 })
 
 /** The block of an event sits where its minutes put it; the day column starts at y 0. */
@@ -160,29 +166,36 @@ describe('dragging an event', () => {
   })
 })
 
-describe('the popover editor', () => {
+async function openFullDetails() {
+  await waitFor(() => !!document.querySelector('[data-event-open-editor]'))
+  expect(document.querySelector('[data-event-edit]')).toBeNull()
+  await click(document.querySelector('[data-event-open-editor]')!)
+  await waitFor(() => !!document.querySelector('[data-event-form-title]'))
+}
+
+describe('the preview and full editor', () => {
   it('Save makes the same command as a drag', async () => {
     const r = await rendered()
     await click(r.container.querySelector('[data-event="ev1"]')!)
-    await waitFor(() => document.querySelector('[data-event-edit]') !== null)
-    await type(document.querySelector<HTMLInputElement>('[data-event-edit-start]')!, '14:00')
-    await type(document.querySelector<HTMLInputElement>('[data-event-edit-end]')!, '15:00')
-    await click(document.querySelector('[data-event-edit-save]')!)
+    await openFullDetails()
+    await type(document.querySelector<HTMLInputElement>('[data-event-form-start-time]')!, '14:00')
+    await type(document.querySelector<HTMLInputElement>('[data-event-form-end-time]')!, '15:00')
+    await click(document.querySelector('[data-event-form-save]')!)
     await waitFor(async () => (await command()) !== undefined)
     expect((await command())!.patch).toEqual({ start: at('14:00'), end: at('15:00'), allDay: false })
-    await waitFor(() => document.querySelector('[data-event-edit]') === null)
+    await waitFor(() => document.querySelector('[data-event-form]') === null)
     await r.unmount()
   })
 
   it('renames, and refuses an end that is not after the start', async () => {
     const r = await rendered()
     await click(r.container.querySelector('[data-event="ev1"]')!)
-    await waitFor(() => document.querySelector('[data-event-edit]') !== null)
-    await type(document.querySelector<HTMLInputElement>('[data-event-edit-end]')!, '09:00')
-    await waitFor(() => document.querySelector<HTMLButtonElement>('[data-event-edit-save]')!.disabled)
-    await type(document.querySelector<HTMLInputElement>('[data-event-edit-end]')!, '11:00')
-    await type(document.querySelector<HTMLInputElement>('[data-event-edit-title]')!, 'Coffee with Sam')
-    await click(document.querySelector('[data-event-edit-save]')!)
+    await openFullDetails()
+    await type(document.querySelector<HTMLInputElement>('[data-event-form-end-time]')!, '09:00')
+    await waitFor(() => document.querySelector<HTMLButtonElement>('[data-event-form-save]')!.disabled)
+    await type(document.querySelector<HTMLInputElement>('[data-event-form-end-time]')!, '11:00')
+    await type(document.querySelector<HTMLInputElement>('[data-event-form-title]')!, 'Coffee with Sam')
+    await click(document.querySelector('[data-event-form-save]')!)
     await waitFor(async () => (await command()) !== undefined)
     expect((await command())!.patch).toEqual({ summary: 'Coffee with Sam' })
     await waitFor(() => toastText() === 'Event renamed')
@@ -192,8 +205,10 @@ describe('the popover editor', () => {
   it('Delete hides the event and queues a delete that waits for Undo', async () => {
     const r = await rendered()
     await click(r.container.querySelector('[data-event="ev1"]')!)
-    await waitFor(() => document.querySelector('[data-event-edit-delete]') !== null)
-    await click(document.querySelector('[data-event-edit-delete]')!)
+    await openFullDetails()
+    await click(document.querySelector('[data-event-form-menu]')!)
+    await waitFor(() => document.querySelector('[data-event-form-delete]') !== null)
+    await click(document.querySelector('[data-event-form-delete]')!)
     await waitFor(() => r.container.querySelector('[data-event="ev1"]') === null)
     expect((await command())!.patch).toEqual({ delete: true })
     expect((await command())!.notBefore).toBeGreaterThan(Date.now() + 7000)
@@ -379,9 +394,9 @@ describe('repeating events: the scope menu', () => {
   it('the popover Save on an occurrence asks and then sends the chosen scope', async () => {
     const r = await rendered()
     await click(r.container.querySelector('[data-event="ev3"]')!)
-    await waitFor(() => document.querySelector('[data-event-edit]') !== null)
-    await type(document.querySelector<HTMLInputElement>('[data-event-edit-title]')!, 'Routine B')
-    await click(document.querySelector('[data-event-edit-save]')!)
+    await openFullDetails()
+    await type(document.querySelector<HTMLInputElement>('[data-event-form-title]')!, 'Routine B')
+    await click(document.querySelector('[data-event-form-save]')!)
     await chooseScope('all')
     await waitFor(async () => (await routineCommand()) !== undefined)
     expect(await routineCommand()).toMatchObject({ scope: 'all', patch: { summary: 'Routine B' } })

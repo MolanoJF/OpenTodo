@@ -9,6 +9,24 @@ order: 33
 ---
 # Calendar sync
 
+## Event details and calendar previews
+
+Click a calendar event or task once for a preview. Event previews show available times, dates, time zone, repeat, guests, call link, location, description, reminders and calendar. Task previews show the schedule, project, labels and notes. **All details** opens the full page; double-click still opens details directly. Press Escape to close a preview before using the calendar's scheduling shortcuts.
+
+Events open through the app's normal page navigation at `/event/<id>`, with title and description on the left and schedule/details on the right, stacking on phones. There is no modal overlay. Save applies changes through the same calendar connection; repeating-event scope and guest notification confirmations still apply. Leaving unsaved edits asks before discarding them. Read-only events remain read-only. Close returns to the originating calendar range and scroll position.
+
+## Changing an event's calendar
+
+On phones, event pages keep Back, More actions and Add event/Save in the top bar, with list navigation and the floating add button hidden. The title and schedule are compact, and optional fields open from summary rows: time zone, repeat, guests, location, description, calendar, availability and reminders. Tap When to edit the native date/time fields; they stack on narrow screens. Read-only and unavailable provider details remain protected. The page background is continuous, with no contrasting footer block. Week uses an agenda on phones, and previews open as bottom sheets.
+
+On an existing event page, choose **Calendar** to move an eligible single event to another writable connected calendar, then choose **Move event**. This requires an internet connection. Repeating events, events with guests or video calls, formatted descriptions and unsupported reminders stay in their original calendar. The destination copy is created before the original is removed. If interrupted, return to the page and choose **Finish move**; if a destination copy exists but the original cannot be removed, **Keep both events** leaves both calendars as they are. Moves are verified against simulated providers; moving between real Google/Outlook accounts is not yet verified.
+
+## Calendar colors
+
+Events from each connected account share a color, with a pastel fill and a stronger colored edge. In **Settings → Integrations → Calendar sync**, choose **Colour** beside an account to change it; **Automatic** restores its default. This appearance preference works offline and stays on this device. It does not change colors in Google, Outlook or the connected calendar provider. Subscribed ICS calendars keep their own configured colors.
+
+Tasks use their project's color by default. Choose a project's color from its header or project menu, and keep **Colour by → Project** selected in the calendar's overflow menu. Tasks without a project stay neutral. Label and priority coloring remain available.
+
 Connect the calendar account you already use and OpenTodo writes your dated tasks into one of its calendars as ordinary events. Move an event to another time there, make it longer, rename it or delete it, and the task follows. Change the task in OpenTodo and the event follows. Other calendars of the same account can be shown next to your tasks in the calendar views.
 
 It works with every calendar service that speaks CalDAV with an app password (iCloud, Fastmail, Nextcloud, Synology Calendar, Radicale, Baïkal, mailbox.org and others) with Google Calendar, and with Outlook.com and Microsoft 365 (work or school) calendars: see [Connect Microsoft Outlook](#connect-microsoft-outlook).

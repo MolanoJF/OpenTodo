@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { chooseCalendarMode } from './calendarMenu.testkit'
 // The Year view (OpenSpec change year-view, tasks 2.1 and 2.3–2.5): the route and the
 // remembered mode, twelve months with their marks, the switch keeping the date, the
 // keyboard grid from the year to a day, the screen-reader names, the tip, the phone's
@@ -128,9 +129,9 @@ describe('navigating from the year', () => {
     expect(day(r.container, '2026-01-25').getAttribute('aria-selected')).toBe('true')
     await key(document.body, ']')
     await waitFor(() => location.pathname === '/year/2027-01-25' && day(r.container, '2027-01-25')?.getAttribute('aria-selected') === 'true', 'the next year')
-    const sw = r.container.querySelector('[role="group"][aria-label="Calendar range"]')!
-    expect(sw.querySelector('[aria-pressed="true"]')!.textContent).toBe('Year')
-    await click([...sw.querySelectorAll('button')].find((b) => b.textContent === 'Month')!)
+    const sw = r.container.querySelector('[data-calendar-range]')!
+    expect(sw.textContent).toBe('Year')
+    await chooseCalendarMode(r.container, 'Month')
     await waitFor(() => location.pathname === '/month/2027-01-25')
     await r.unmount()
   })

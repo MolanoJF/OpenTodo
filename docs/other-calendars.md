@@ -34,11 +34,11 @@ Each calendar's row shows when it was last refreshed. When fetches fail, the row
 - Timed events are drawn as blocks in the calendar's colour, next to your task blocks. When a task and an event overlap, both get the overlap marker.
 - All-day and multi-day events appear as chips above each day's unscheduled lane.
 - Events marked as *free* in their calendar are drawn as an outline only, so the slot still reads as free.
-- Busy events count toward a day's total in the [Plan](calendar-views.md#plan-the-next-two-weeks), and in Day, Week and Month with [Count meetings in capacity](time-blocking.md#adjust-the-grid) on: overlaps once; free, all-day and hidden events never.
+- Busy events count toward a day's total in the [Plan](calendar-views.md#plan-the-next-two-weeks), and in Month with [Count meetings in capacity](time-blocking.md#adjust-the-grid) on: overlaps once; free, all-day and hidden events never.
 - Subscribed events are read-only ([connected calendars](calendar-sync.md#edit-events-in-opentodo) can be edited). Click one, or Tab to it and press Enter, to read it.
 - [Month](calendar-views.md#see-the-month) lists them after a day's tasks; [Year](months-and-year.md#see-the-year) marks their days with a ring.
 
-The **Calendars** button hides or shows them on this device, in every view. Today can list them too: [Calendar events in Today](calendar-events-in-today.md).
+The **Show other calendars on this device** item in **More actions** hides or shows them on this device, in every view. Today can list them too: [Calendar events in Today](calendar-events-in-today.md).
 
 Events are cached on each device, so they still show offline, as of the last refresh. The toolbar then says **Calendars as of** and the time. Days your device has not loaded yet show none while offline.
 

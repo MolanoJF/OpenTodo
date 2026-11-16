@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useState } from 'react'
+import EventPage from './EventPage'
+import { seedCalendarPolish, withSeed } from '../stories/fixtures'
 import { eventFullOf, switchAllDay, type EventFull } from '../../lib/eventFull'
 import type { CalendarEvent, CalendarRepeat, CalendarSubscription } from '../../lib/types'
 import type { RemindersFieldProps } from './EventRemindersField'
@@ -23,14 +25,14 @@ const calendars: CalendarSubscription[] = ['Work', 'Home', 'Family'].map((name, 
   editEvents: true, caps: { create: true, update: true, delete: true },
 }))
 
-function Story({ initial, description = { status: 'ready', text: 'Bring the draft and the numbers.', editable: true }, creating = false, repeat, reminders }: {
-  initial: EventFull; description?: DescriptionState; creating?: boolean
+function Story({ initial, description = { status: 'ready', text: 'Bring the draft and the numbers.', editable: true }, creating = false, page = false, repeat, reminders }: {
+  initial: EventFull; description?: DescriptionState; creating?: boolean; page?: boolean
   repeat?: Partial<Omit<RepeatFieldProps, 'startDate' | 'value' | 'onChange'>>; reminders?: Partial<Omit<RemindersFieldProps, 'allDay' | 'value' | 'onChange'>>
 }) {
   const [form, setForm] = useState(initial)
   return (
-    <div className="w-[22rem] bg-surface p-4">
-      <EventForm form={form} viewerZone={VIEWER} floating={false} description={description} invalid={false} onSubmit={() => {}}
+    <div className={page ? "min-h-screen w-full bg-surface p-6" : "w-[22rem] bg-surface p-4"}>
+      <EventForm page={page} form={form} viewerZone={VIEWER} floating={false} description={description} invalid={false} onSubmit={() => {}}
         set={(p) => setForm((f) => ({ ...f, ...p }))} setAllDay={(on) => setForm((f) => switchAllDay(f, on))}
         onTask={creating ? () => {} : undefined}
         repeat={{ value: form.repeat, onChange: (r) => setForm((f) => ({ ...f, repeat: r })), custom: false, state: 'ready', canStop: true, resets: false, ...repeat }}
@@ -66,3 +68,7 @@ export const RepeatResetsExceptions: StoryObj = { render: () => <Story initial={
 export const RemindersWithOthers: StoryObj = { render: () => <Story initial={series(null, [10, 1440])} reminders={{ other: 2 }} /> }
 export const RemindersMicrosoftLimit: StoryObj = { render: () => <Story initial={series(null, [15])} reminders={{ max: 1, microsoft: true }} /> }
 export const RemindersOffline: StoryObj = { render: () => <Story initial={series(weekdays)} reminders={{ state: 'unavailable', reason: 'offline' }} /> }
+
+export const FullPage: StoryObj = { render: () => <Story page initial={series(weekdays, [30])} /> }
+
+export const RoutedPage: StoryObj = { ...withSeed(seedCalendarPolish), render: () => <EventPage id="polish-long" /> }

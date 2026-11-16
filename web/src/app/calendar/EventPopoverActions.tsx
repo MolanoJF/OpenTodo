@@ -36,7 +36,7 @@ export function EventPopoverActions({ ev, sub, onClose }: { ev: CalendarEvent; s
       <EventRespond ev={ev} sub={sub} />
       <div className="flex items-center justify-between gap-2 pt-1" data-event-actions>
         <div className="flex min-w-0 items-center gap-1.5">
-          {ev.access?.update && <Button size="sm" variant="secondary" data-event-open-editor onClick={() => { onClose?.(); openEventEditor({ mode: 'edit', eventId: ev.id }) }}>{t('All details')}</Button>}
+          <Button size="sm" variant="secondary" icon="external-link" data-event-open-editor onClick={() => { onClose?.(); openEventEditor({ mode: 'edit', eventId: ev.id }) }}>{t('All details')}</Button>
           <JoinButton ev={ev} />
         </div>
         <Menu label={t('More actions')} kind="menu" trigger={<Icon name="ellipsis" />} triggerClassName="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" align="end">

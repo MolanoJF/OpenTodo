@@ -521,7 +521,7 @@ export const OVERLAYS = {
   async 'event-editor'(p) {
     const trigger = p.locator('[data-event="layout-edit"]')
     await trigger.click()
-    await p.locator('[data-event-edit]').waitFor()
+    await p.locator('[data-event-details]').waitFor()
     return { overlay: overlayLoc(p), trigger, kind: 'popover' }
   },
   // The scope menu (calendar-event-series D12): a key press on an occurrence of a repeating event, once the keys settle, asks which events to change.
@@ -552,7 +552,7 @@ export const OVERLAYS = {
       await p.locator('[data-event-open-editor]').click()
     }
     await p.locator('[data-event-form]').waitFor()
-    return { overlay: wide ? p.locator('[data-panel-frame="event-editor"]') : overlayLoc(p), trigger, kind: wide ? 'panel' : 'dialog' }
+    return { overlay: p.locator('[data-event-page-route]'), trigger, kind: 'panel' }
   },
   // The When popover, one segment at a time (task-panel-facets D3).
   async 'when-popover'(p) {

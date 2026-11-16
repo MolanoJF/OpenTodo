@@ -11,6 +11,7 @@ import { cardCopy, noticeCopy, rowCopy } from '../lib/settingsCopy'
 import { CalDAVDialog, CalendarsDialog, emptyCalDAVDraft, GoogleClientDialog, MicrosoftClientDialog, PasswordDialog, type CalDAVDraft } from './CalendarSyncDialogs'
 import { useSettingsPending } from './settingsPending'
 import { ago } from '../lib/dates'
+import { AccountColor } from './calendar/AccountColor'
 
 // Settings → Integrations → Calendar sync (OpenSpec change calendar-two-way): the
 // owner's switch and Google and Microsoft clients (outlook-calendar-sync), and the
@@ -205,6 +206,7 @@ function ConnectionCard({ c, p, disabled, onChoose, onPassword, onDelete }: { c:
           {run && <p className="text-meta text-faint">{run}</p>}
         </div>
         <div className="flex items-center gap-1">
+          <AccountColor id={c.id} name={c.name} />
           {c.state === 'choose_calendar' ? (
             <Button size="sm" variant="primary" disabled={disabled} onClick={onChoose}>{t('Choose calendars')}</Button>
           ) : c.state === 'reconnect' ? (

@@ -1,3 +1,4 @@
+import { openCalendarTaskPreview } from './taskPreviewStore'
 // One task row of a Month cell or of the phone's day list (OpenSpec month-view), split
 // out of MonthView: time, title, priority and the deadline diamond; a span shows its
 // range (multi-day-tasks D8) and a date-only row its trailing end, which makes it a
@@ -38,7 +39,7 @@ export function MonthRow({ task, v, compact, today, selected, hue, canMove, read
         if (e.button !== 0) return
         beginDrag(e, { label: task.title, onDrop: (key) => { if (key.startsWith('day:')) onDrop(task.id, key.slice(4)) } })
       } : undefined}
-      onClick={(e) => { e.stopPropagation(); onSelect(task.id, v?.due?.date) }}
+      onClick={(e) => { e.stopPropagation(); onSelect(task.id, v?.due?.date); openCalendarTaskPreview(task.id, e.currentTarget, hue) }}
       onDoubleClick={() => onOpen(task.id)}
       className={`ui-block ui-block--row relative flex w-full min-w-0 touch-manipulation items-center gap-1 px-1 text-left ${compact ? 'py-0 text-hint' : 'py-0.5 text-meta'} ${task.completed_at || (v?.due && v.due.date < today) ? 'ui-block--past' : ''} ${selected ? 'ring-1 ring-accent' : ''} ${canMove ? 'cursor-grab' : ''}`}>
       {/* Named by its content (WCAG 2.5.3 Label in Name): the spoken text is visually hidden, the visible one is not read twice. */}

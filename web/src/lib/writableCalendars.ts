@@ -3,6 +3,7 @@
 // events (lib/eventCreate.ts) stays out of it. Nothing here is synced.
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, getMeta, setMeta } from './db'
+import { coloredSubscriptions } from './calendarColors'
 import type { CalendarSubscription } from './types'
 
 const KIND_KEY = 'calendar.newKind'
@@ -36,7 +37,7 @@ const NONE: CalendarSubscription[] = []
 
 /** The writable calendars, live (empty until the cache is read): the Event choice appears only when this is not empty. */
 export function useWritableCalendars(): CalendarSubscription[] {
-  return useLiveQuery(async () => writableCalendars(await db.calendarSubscriptions.toArray()), [], NONE) ?? NONE
+  return useLiveQuery(async () => writableCalendars(await coloredSubscriptions(await db.calendarSubscriptions.toArray())), [], NONE) ?? NONE
 }
 
 /** The writable calendars with the default one and the remembered Task or Event choice. */
@@ -48,5 +49,8 @@ export function useEventCreation(): { list: CalendarSubscription[]; calendar: Ca
 
 /** One cached calendar (an event's), live. */
 export function useCalendarSubscription(id: string | undefined): CalendarSubscription | undefined {
-  return useLiveQuery(async () => (id ? db.calendarSubscriptions.get(id) : undefined), [id])
+  return useLiveQuery(async () => {
+    const sub = id ? await db.calendarSubscriptions.get(id) : undefined
+    return sub ? (await coloredSubscriptions([sub]))[0] : undefined
+  }, [id])
 }

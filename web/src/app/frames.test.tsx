@@ -92,9 +92,9 @@ describe('bands on the grid', () => {
     const r = await render(<Calendar />)
     await waitFor(() => !!q('[data-frame-band]') && !!q('[data-block]'), 'band and block')
     const block = q('[data-block]')!
-    expect(block.className).toContain('z-10')
+    expect(block.style.zIndex).toBe('10')
     expect(block.className).toContain('ui-block')
-    expect(q(`[data-day-header="${DAY}"] [data-capacity]`)!.textContent).toMatch(/^1h \/ 8h/)
+    expect(q(`[data-day-header="${DAY}"] [data-capacity]`)).toBeNull()
     await r.unmount()
   })
 

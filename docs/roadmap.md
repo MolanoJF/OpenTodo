@@ -81,6 +81,11 @@ Why each milestone exists, and the order inside it, is in [ROADMAP.md](../ROADMA
 | `calendar-event-editor` | Add events to a connected calendar from Day and Week, edit all their details in a side panel, duplicate them and turn them into tasks; off until turned on per connection (built and verified against Radicale; proposed in #1233) | Shipped |
 | `calendar-event-series` | Change repeating events of a connected calendar for this event, this and following events or all events, and set their repeat and reminders in the editor (built; proposed in #1233) | In progress (35 of 38) |
 | `calendar-event-guests` | See guests, answer invitations, change meetings you organise on Outlook after one confirmation and join calls from the calendar; Google replies stay off until verified (built; proposed in #1233) | In progress (37 of 40) |
+| `calendar-mobile` | Stable phone detail pages, clear event actions and narrow calendar fields | In progress (4 of 4) |
+| `calendar-finishing` | Subtle weekends, aligned event-page fields and single-event calendar switching | In progress (5 of 5) |
+| `calendar-polish` | Routed event pages, layered calendar blocks and appearance preferences | In progress (5 of 5) |
+| `calendar-detail-pages` | Full event detail pages and clean task/event calendar previews | In progress (5 of 5) |
+| `calendar-source-colors` | Account-colored calendar events and existing project task colors | In progress (4 of 5) |
 | `calendar-time-zones` | Show a second time zone beside the hours of Day and Week, off until you pick one (built; proposed in #1233) | In progress (11 of 12) |
 | `play-production` | Google Play production, F-Droid and reproducible builds: reproducible builds, the F-Droid metadata and the Play upload are in; the store listings wait for the owner's Play Console and F-Droid steps | In progress (13 of 18) |
 | `agent-tools-complete` | Agent and MCP tools for reminders, project notes, sections, fields, time and Focus | Shipped in 0.20 |

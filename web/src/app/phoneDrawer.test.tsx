@@ -8,13 +8,14 @@ import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '../lib/db'
 import { setMethodMode } from '../lib/method/mode'
-import { createProject, resetDeviceId } from '../lib/ops'
+import { createProject, createTask, resetDeviceId } from '../lib/ops'
 import type { User } from '../lib/types'
-import { click, key, render, minWidthPx, waitFor } from '../ui/test-utils'
+import { click, key, render, minWidthPx, type, waitFor } from '../ui/test-utils'
 import { resetPanel } from './panel'
 import { navigate } from './router'
 import { Shell } from './Shell'
 import { Sidebar } from './Sidebar'
+import { closeEventEditor, openEventEditor } from './calendar/eventEditorStore'
 
 const user = { id: 'u1', email: 'a@example.com', name: 'Ada', role: 'owner', created_at: 0 } as unknown as User
 const original = window.matchMedia
@@ -31,12 +32,80 @@ beforeEach(async () => {
   })) as typeof window.matchMedia
   vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 404 })))
 })
-afterEach(() => { window.matchMedia = original; vi.unstubAllGlobals() })
+afterEach(() => { closeEventEditor(); window.matchMedia = original; vi.unstubAllGlobals() })
 
 const menuButton = () => document.querySelector<HTMLButtonElement>('[data-phone-bar] button[aria-label="Open menu"]')
 const primary = () => [...document.querySelectorAll('nav[data-sidebar-primary] [data-sidebar-item]')].map((b) => b.textContent ?? '')
 
 describe('the phone drawer at 390 px', () => {
+  it('keeps the calendar range beside its title and lets the grid use the space beneath the add button', async () => {
+    navigate({ view: 'day', date: '2026-11-13' })
+    await render(<Shell user={user} onLogout={() => {}} />)
+    await waitFor(() => !!document.querySelector('[data-phone-calendar-header] [data-calendar-range]'))
+    const heading = document.querySelector('[data-phone-calendar-header] [data-page-header-row]')!
+    expect(heading.querySelector('h1')).toBeTruthy()
+    expect(heading.querySelector('[data-calendar-range]')).toBeTruthy()
+    expect(heading.querySelector('[data-calendar-today]')).toBeTruthy()
+    expect(document.querySelector('[data-calendar-scroller]')).toBeTruthy()
+    expect(document.querySelector('[data-add-button]')).toBeTruthy()
+    expect(document.querySelector('[data-tab-bar]')).toBeTruthy()
+  })
+
+  it('edits the compact schedule and submits the event from the phone header', async () => {
+    await db.calendarSubscriptions.put({ id: 'work', name: 'Work', color: '#2563eb', enabled: true, lastSuccessAt: Date.now(), managed: true, connectionId: 'c-work', calendarUrl: 'https://dav/work/', editEvents: true, caps: { create: true, update: true, delete: true } })
+    navigate({ view: 'week', date: '2026-11-13' })
+    openEventEditor({ mode: 'create', place: { date: '2026-11-13', start: 600, end: 660 } })
+    await render(<Shell user={user} onLogout={() => {}} />)
+    await waitFor(() => !!document.querySelector('[data-event-mobile-fields]'))
+    expect(document.querySelector('[data-event-form-footer]')).toBeNull()
+    const save = document.querySelector<HTMLButtonElement>('[data-phone-bar] [data-event-form-save]')!
+    expect(save.form).toBe(document.querySelector('[data-event-form]'))
+    expect(save.disabled).toBe(true)
+    const when = document.querySelector<HTMLDetailsElement>('[data-event-mobile-field="When"]')!
+    expect(when.open).toBe(false)
+    await click(when.querySelector('summary')!)
+    expect(when.open).toBe(true)
+    await type(document.querySelector('[data-event-form-start-time]')!, '12:00')
+    await waitFor(() => save.disabled && !!when.querySelector('[role="alert"]'))
+    await type(document.querySelector('[data-event-form-start-time]')!, '09:30')
+    await type(document.querySelector('[data-event-form-title]')!, 'Phone appointment')
+    await waitFor(() => !save.disabled)
+    await click(document.querySelector('[data-page-back]')!)
+    await waitFor(() => document.body.textContent?.includes('Discard changes?') === true)
+    await click([...document.querySelectorAll('button')].find((b) => b.textContent === 'Keep editing')!)
+    await click(save)
+    await waitFor(() => !!document.querySelector('[data-calendar-page="week"]'))
+    const queued = await db.eventOutbox.toArray()
+    expect(queued).toHaveLength(1)
+    expect(queued[0].patch).toMatchObject({ create: { summary: 'Phone appointment', start: { date: '2026-11-13', time: '09:30' }, end: { date: '2026-11-13', time: '11:00' } } })
+  })
+
+  it('keeps event-page actions clear of the floating add button and bottom tabs, with Back to the calendar', async () => {
+    navigate({ view: 'week', date: '2026-11-13' })
+    openEventEditor({ mode: 'create', place: { date: '2026-11-13', start: 600, end: 660 } })
+    await render(<Shell user={user} onLogout={() => {}} />)
+    await waitFor(() => !!document.querySelector('[data-event-page-route]'))
+    expect(document.querySelector('[data-add-button]')).toBeNull()
+    expect(document.querySelector('[data-tab-bar]')).toBeNull()
+    expect(document.querySelector('[data-app-frame]')?.hasAttribute('data-phone-chrome')).toBe(false)
+    expect(document.querySelector('[data-event-form-save]')?.textContent).toBe('Add event')
+    await click(document.querySelector('[data-page-back]')!)
+    await waitFor(() => !!document.querySelector('[data-calendar-page="week"]'))
+    expect(document.querySelector('[data-tab-bar]')).toBeTruthy()
+    expect(document.querySelector('[data-add-button]')).toBeTruthy()
+  })
+
+  it('keeps long task pages in the detail frame without list-only phone controls', async () => {
+    const id = await createTask({ title: 'A long task title for a narrow phone screen', description: 'Notes\n\n'.repeat(20) })
+    navigate({ view: 'task', id })
+    await render(<Shell user={user} onLogout={() => {}} />)
+    await waitFor(() => !!document.querySelector('[data-task-page]'))
+    expect(document.querySelector('[data-add-button]')).toBeNull()
+    expect(document.querySelector('[data-tab-bar]')).toBeNull()
+    expect(document.querySelector('[data-page-back]')).toBeTruthy()
+    expect(document.querySelector('[data-panel-footer]')).toBeTruthy()
+  })
+
   it('Companion: Calendar first, and no Today, Inbox or Upcoming (the tab bar has them)', async () => {
     await setMethodMode('companion')
     const r = await render(<Sidebar route={{ view: 'inbox' }} user={user} />)

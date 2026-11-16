@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+import { openCalendarTaskPreview } from './taskPreviewStore'
 // The rows and the capacity bar of the Plan (OpenSpec change planner-view, design
 // D3 and D5), shared by the columns and the phone agenda. A task is the one row in its
 // compact shape (rows-v2 D8: time, title, estimate and priority ring; the column says
@@ -48,9 +50,10 @@ export function PlanTaskRow({ task, date, time, today, selected, canEdit, projec
   onSelect: () => void
   onOpen: () => void
 }) {
+  const ref = useRef<HTMLDivElement>(null)
   return (
-    <TaskRow shape="compact" task={task} date={date} time={time} today={today} selected={selected} readOnly={!canEdit} project={project} hue={hue} large={large} position={position}
-      onPointerDown={task.completed_at ? undefined : onPointerDown} onSelect={onSelect} onOpen={onOpen} attrs={{ 'data-plan-task': task.id }} />
+    <div ref={ref}><TaskRow shape="compact" task={task} date={date} time={time} today={today} selected={selected} readOnly={!canEdit} project={project} hue={hue} large={large} position={position}
+      onPointerDown={task.completed_at ? undefined : onPointerDown} onSelect={() => { onSelect(); const el = ref.current; if (el) openCalendarTaskPreview(task.id, el, hue) }} onOpen={onOpen} attrs={{ 'data-plan-task': task.id }} /></div>
   )
 }
 

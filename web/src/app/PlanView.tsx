@@ -22,7 +22,7 @@ import { canEditTasks, roleOf } from '../lib/sharing'
 import type { Task } from '../lib/types'
 import { t } from '../lib/i18n'
 import { act, reportActionError } from './actionError'
-import { CalendarRangeSwitch } from './CalendarRange'
+import { CalendarNavigation, CalendarRangeSwitch } from './CalendarRange'
 import { CalendarPageHeader, useCalendarChrome } from './calendar/useCalendarChrome'
 import { useCalendarGo } from './calendar/scope'
 import { CalendarCompletedToggle } from './calendar/CalendarCompletedToggle'
@@ -224,6 +224,7 @@ export function PlanView({ date }: { date?: string }) {
   const meta = chrome.chip ? <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-2">{chrome.chip}{status}</span> : status
   const overflow = <>
     <CalendarCompletedToggle shown={showCompleted} menu />
+    <CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} />
     {PLAN_SPANS.map((n) => (
       <MenuItem key={n} label={t('{n} days', { n })} icon="calendar-days" checked={span === n} data-plan-span={n}
         onSelect={() => act(saveGridPrefs({ ...prefs, planDays: n }))} />
@@ -233,18 +234,13 @@ export function PlanView({ date }: { date?: string }) {
     {chrome.overflow}
   </>
   const rangeActions = <>
-          <CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} />
-          <span className="flex items-center" role="group" aria-label={t('Range')}>
-            <Button variant="ghost" size="sm" icon="chevron-left" aria-label={t('Previous week')} onClick={() => goTo(addDaysISO(anchor, -7))} />
-            <Button variant="ghost" size="sm" onClick={() => goTo(today)}>{t('Today')}</Button>
-            <Button variant="ghost" size="sm" icon="chevron-right" aria-label={t('Next week')} onClick={() => goTo(addDaysISO(anchor, 7))} />
-          </span>
-          <CalendarCompletedToggle shown={showCompleted} />
-          <CalendarRangeSwitch mode="plan" date={date} />
+    <CalendarRangeSwitch mode="plan" date={date ?? anchor} />
+    <CalendarNavigation onToday={() => goTo(today)} onPrevious={() => goTo(addDaysISO(anchor, -7))} onNext={() => goTo(addDaysISO(anchor, 7))}
+      previousLabel={t('Previous week')} nextLabel={t('Next week')} />
   </>
 
   return (
-    <PageBody width="full" className="flex flex-col" data-calendar-page="plan">
+    <PageBody width="full" className="flex flex-col max-md:pb-(--add-room)" data-calendar-page="plan">
       <CalendarPageHeader chrome={chrome} title={title} meta={meta} actions={rangeActions} overflow={overflow} />
       {/* Inside the content, above the columns; Tab reaches it before the first column (plan-objectives D3). */}
       {objectivesOn && <Suspense fallback={null}><ObjectivesStrip today={today} spanStart={dates[0]} /></Suspense>}

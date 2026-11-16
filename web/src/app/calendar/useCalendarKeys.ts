@@ -99,7 +99,7 @@ export function focusedDay(dates: readonly string[], today: string, selectedDate
 }
 
 export function useCalendarKeys(c: CalendarKeyContext) {
-  const { placing, setPlacing, selectedId, setSelectedId, order, mode, anchor, today } = c
+  const { placing, setPlacing, selectedId, setSelectedId, order, anchor, today } = c
   const edit = useQueuedEdit()
   const idx = selectedId ? order.indexOf(selectedId) : -1
   const task = selectedId && order.includes(selectedId) ? c.taskMap.get(selectedId) : undefined
@@ -219,8 +219,8 @@ export function useCalendarKeys(c: CalendarKeyContext) {
     }),
     'calendar.next': unlessPlacing(() => setSelectedId(order[Math.min(order.length - 1, idx + 1)] ?? null)),
     'calendar.prev': unlessPlacing(() => setSelectedId(order[Math.max(0, idx - 1)] ?? null)),
-    'calendar.range-prev': unlessPlacing(() => c.goTo(addDaysISO(anchor, mode === 'day' ? -1 : -7))),
-    'calendar.range-next': unlessPlacing(() => c.goTo(addDaysISO(anchor, mode === 'day' ? 1 : 7))),
+    'calendar.range-prev': unlessPlacing(() => c.goTo(addDaysISO(anchor, -c.days.length))),
+    'calendar.range-next': unlessPlacing(() => c.goTo(addDaysISO(anchor, c.days.length))),
     'calendar.today': unlessPlacing(() => c.goTo(today)),
     // Keyboard twin of dropping on the lane: keep the date, clear the time.
     'calendar.unschedule': unlessPlacing(() => { if (!task?.due || task.completed_at || !block) return false; edit(task.id, (tk) => (tk.due ? { due: { date: tk.due.date } } : null)) }),

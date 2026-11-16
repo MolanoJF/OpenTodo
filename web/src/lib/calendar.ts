@@ -405,6 +405,8 @@ export interface GridPrefs {
   countEvents: boolean
   /** A second hour column in Day and Week (calendar-time-zones D1): an IANA zone, absent when off. */
   secondZone?: string
+  /** Shade times outside startHour/endHour; off by default on this device. */
+  shadeOffHours?: boolean
 }
 
 export const DEFAULT_GRID_PREFS: GridPrefs = { startHour: 6, endHour: 22, dayLength: 480, planDays: 14, countEvents: false }
@@ -425,5 +427,5 @@ export function normalizeGridPrefs(raw: unknown): GridPrefs {
   const dayLength = int(r.dayLength, SLOT_MINUTES, DAY_MINUTES) ?? DEFAULT_GRID_PREFS.dayLength
   const planDays = r.planDays === 7 || r.planDays === 21 ? r.planDays : DEFAULT_GRID_PREFS.planDays
   const secondZone = typeof r.secondZone === 'string' && isKnownZone(r.secondZone) ? r.secondZone : ''
-  return { startHour, endHour, dayLength, planDays, countEvents: r.countEvents === true, ...(secondZone ? { secondZone } : {}) }
+  return { startHour, endHour, dayLength, planDays, countEvents: r.countEvents === true, ...(secondZone ? { secondZone } : {}), ...(r.shadeOffHours === true ? { shadeOffHours: true } : {}) }
 }

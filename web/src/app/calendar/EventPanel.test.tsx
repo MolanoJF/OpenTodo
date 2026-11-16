@@ -58,7 +58,7 @@ afterEach(() => {
 const create = (over: Partial<Extract<EventEditorRequest, { mode: 'create' }>> = {}): EventEditorRequest => ({ mode: 'create', key: 1, place: { date: DAY, start: 14 * 60, end: 15 * 60 }, ...over })
 const edit: EventEditorRequest = { mode: 'edit', key: 2, eventId: 'ev1' }
 const q = <T extends Element = HTMLInputElement>(sel: string) => document.querySelector<T>(sel)!
-const submit = async () => { await click(q('[data-event-form-save]')) }
+const submit = async () => { await waitFor(() => !q<HTMLButtonElement>('[data-event-form-save]').disabled, 'save enabled'); await click(q('[data-event-form-save]')) }
 const send = async () => { await act(async () => { await flushEventEdits(Date.now() + EDIT_SETTLE_MS + 1000) }) }
 
 function Toast() {
@@ -111,6 +111,51 @@ describe('create mode', () => {
 })
 
 describe('edit mode', () => {
+  it('reopens an unfinished move even if the original is already gone locally', async () => {
+    const made = { ...review, id: 'destination', subscriptionId: 'home' }
+    const draft: CalendarEventDraft = { connectionId: 'c-home', calendarUrl: 'https://dav/home/', subscriptionId: 'home', clientId: 'pending-move-id', summary: review.summary, start: review.start, end: review.end, allDay: false, free: false, location: '', description: 'Agenda' }
+    await setMeta('calendar.move.ev1', { source: review, sourceConnection: 'c-work', draft, created: made })
+    await db.calendarEvents.delete(review.id)
+    const onClose = vi.fn()
+    await render(<EventPanel request={edit} frame="page" onClose={onClose} />)
+    await waitFor(() => q('[data-event-form-save]')?.textContent === 'Finish move')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(q('[data-event-form-title]').closest('fieldset')?.disabled).toBe(true)
+    await submit()
+    await waitFor(() => onClose.mock.calls.length === 1)
+    expect(requests.filter((r) => r.method === 'POST')).toHaveLength(0)
+    expect(requests.filter((r) => r.method === 'DELETE')).toHaveLength(1)
+  })
+
+  it('moves a single event to the chosen account, preserving its full details', async () => {
+    detail.body = { event: review, description: 'Agenda', descriptionEditable: true, reminders: [30] }
+    const onClose = vi.fn()
+    await render(<EventPanel request={edit} frame="page" onClose={onClose} />)
+    await waitFor(() => !!document.querySelector('[role="combobox"][aria-label="Calendar"]'), 'calendar picker')
+    await act(async () => { q('[role="combobox"][aria-label="Calendar"]').focus() })
+    await waitFor(() => !!document.querySelector('[role="option"]'))
+    await click([...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent?.trim() === 'Home')!)
+    expect(q('[data-event-form-save]').textContent).toBe('Move event')
+    await submit()
+    await waitFor(() => onClose.mock.calls.length === 1, 'move completed')
+    const writes = requests.filter((r) => r.method !== 'GET')
+    expect(writes.map((r) => r.method)).toEqual(['POST', 'DELETE'])
+    expect(writes[0].url).toContain('/c-home/events')
+    expect(writes[0].body).toMatchObject({ calendarUrl: 'https://dav/home/', summary: 'Review', description: 'Agenda', reminders: [30] })
+    expect(writes[1].url).toContain('/c-work/events/ev1?rev=r1')
+    expect(await db.eventOutbox.count()).toBe(0)
+  })
+
+  it('keeps repeating events in their original account', async () => {
+    const event = { ...review, series: { id: 'series', first: true, repeat: { freq: 'daily', interval: 1, days: [], ends: { type: 'never' } } } }
+    await db.calendarEvents.put(event as CalendarEvent)
+    detail.body = { event, description: 'Agenda', descriptionEditable: true, reminders: [] }
+    await render(<EventPanel request={edit} frame="page" onClose={() => {}} />)
+    await waitFor(() => q<HTMLTextAreaElement>('[data-event-form-description]')?.value === 'Agenda')
+    expect(document.querySelector('[role="combobox"][aria-label="Calendar"]')).toBeNull()
+    expect(q('[data-event-form-calendar]').textContent).toContain('Work')
+  })
+
   it('reads the description when it opens, and Save sends only the fields that changed', async () => {
     await render(<EventPanel request={edit} frame="dialog" onClose={() => {}} />)
     await waitFor(() => q<HTMLTextAreaElement>('[data-event-form-description]')?.value === 'Agenda', 'the description')
@@ -456,4 +501,15 @@ describe('repeating events', () => {
     expect(next).toMatchObject({ mode: 'create' })
     expect((next as { draft: CalendarEventDraft }).draft.repeat).toBeUndefined()
   })
+})
+
+it('opens a full event page with separate content and facts and confirms dirty close', async () => {
+  await render(<EventPanel request={edit} frame="page" onClose={() => {}} />)
+  await waitFor(() => q<HTMLTextAreaElement>('[data-event-form-description]')?.value === 'Agenda')
+  expect(q('[data-event-page] [data-event-content]')).toBeTruthy()
+  expect(q('[data-event-page] [data-event-facts]')).toBeTruthy()
+  expect(q('[data-testid="event-editor-dialog"]').className).toContain('sm:max-w-none')
+  await type(q('[data-event-form-title]'), 'Changed review')
+  await click(q('[data-testid="event-editor-dialog"] [data-overlay-close]'))
+  await waitFor(() => document.body.textContent?.includes('Discard changes?') === true)
 })
