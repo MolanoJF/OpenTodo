@@ -18,6 +18,7 @@ import { EventBlockView, EventChip } from '../CalendarEvents'
 import type { useCalendarDrag } from '../calendarDrag'
 import { ALL_DAY_CAP, toggleAllDay, useAllDayExpanded } from './allDayExpanded'
 import { laneShape, setLaneFold, useLaneFold } from './laneFold'
+import { tapTarget } from './tapPlace'
 import { isEmptyPlace, startAddHold, type AddGestures } from './addHere'
 import { DeadlineDiamond, deadlineMark, DeadlineMarker } from './DeadlineMarker'
 import { FrameBands } from './FrameBand'
@@ -168,7 +169,7 @@ export interface ReplanGhosts {
   movesTo: Map<string, number>
 }
 
-export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, taskMap, hueOf, projectionHue, subMap, zone, selectedId, draggingId, savingEvents, slotDrop = null, expanded, setExpanded, preview, replan, frames, gestures, onSelect, onOpen, onDragStart }: {
+export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, taskMap, hueOf, projectionHue, subMap, zone, selectedId, draggingId, savingEvents, slotDrop = null, expanded, setExpanded, preview, replan, frames, gestures, onTapTime, onSelect, onOpen, onDragStart }: {
   day: DayData
   /** Layout ids of the events with a queued change (calendar-event-edits). */
   savingEvents?: ReadonlyMap<string, WriteState>
@@ -188,6 +189,8 @@ export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, tas
   draggingId: string | null
   /** Adding with the pointer (calendar-clarity D2). */
   gestures?: AddGestures
+  /** During a tap placement: a tap on this day places the task at that quarter hour (plan-list-tap-to-place D3). */
+  onTapTime?: (date: string, start: number) => void
   /** The slot a dragged task would be added to (calendar-slots D3). */
   slotDrop?: string | null
   expanded: string | null
@@ -221,6 +224,10 @@ export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, tas
       onPointerDown={add.onPointerDown}
       onPointerMove={gestures ? track : undefined}
       onPointerLeave={() => { if (hover.current) hover.current.hidden = true }}
+      onClick={onTapTime ? (e) => {
+        const at = tapTarget(e.target, e.currentTarget, () => slotOf(e, e.currentTarget), preview?.id === 'placement-ghost' ? preview.start : null)
+        if (at !== null) onTapTime(day.date, at)
+      } : undefined}
       className="relative min-w-0 flex-1 border-l border-default"
       style={{
         height: GRID_HEIGHT,

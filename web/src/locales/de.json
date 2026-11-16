@@ -7954,5 +7954,10 @@
   "This calendar allows fewer reminders. Remove a reminder or choose another calendar.": "This calendar allows fewer reminders. Remove a reminder or choose another calendar.",
   "Use priority colors for tasks": "Use priority colors for tasks",
   "Use the first colored label on each task": "Use the first colored label on each task",
-  "Use the project color for each task": "Use the project color for each task"
+  "Use the project color for each task": "Use the project color for each task",
+  "Tap a time to plan {title}": "Tippe auf eine Uhrzeit, um {title} einzuplanen",
+  "Not synced since {time}": "Nicht synchronisiert seit {time}",
+  "Not synced yet": "Noch nicht synchronisiert",
+  "Add a subtask to {title}": "Unteraufgabe zu {title} hinzufügen",
+  "Add a subtask to this task": "Unteraufgabe zu dieser Aufgabe hinzufügen"
 }

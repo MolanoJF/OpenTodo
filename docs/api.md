@@ -3,7 +3,7 @@ title: HTTP API
 summary: Authentication, every route, entity fields, error codes and examples for scripts and integrations.
 audience: developer
 section: Integrations
-specs: [http-api, calendar-event-edits]
+specs: [http-api, api-description, calendar-event-edits]
 screens: []
 order: 10
 ---
@@ -1697,7 +1697,7 @@ The writes are refused on a demo instance. There is no environment variable for 
 
 **Downloads** are served with `Content-Security-Policy: default-src 'none'; sandbox`, `X-Content-Type-Options: nosniff`, `Content-Disposition` with the file name, `Cache-Control: private, no-cache` and the digest as `ETag`, so a browser revalidates its copy (304 while signed in) and shows nothing without a session; signing out answers `Clear-Site-Data: "cache"`. Only images (PNG, JPEG, GIF, WebP, AVIF), PDF, plain text, audio and video are served inline with their type; everything else (HTML and SVG included) and every encrypted file is `application/octet-stream` with `attachment`.
 
-Errors: `400 attachment_mismatch` (bytes do not match the size or digest), `413 attachment_too_large`, `403 quota_exceeded`, `403 attachments_disabled`, `409 already_uploaded`, `507 insufficient_storage`.
+Errors: `400 attachment_mismatch` (bytes do not match the size or digest), `413 attachment_too_large`, `403 quota_exceeded`, `403 attachments_disabled`, `409 already_uploaded` (the attachment reads uploaded; a file that is stored while the attachment reads not uploaded is marked uploaded again with 204), `507 insufficient_storage`.
 
 ```sh
 curl -sS -X POST "$OT/api/v1/tasks/$TASK/attachments" -H "Authorization: Bearer $TOKEN" -F file=@receipt.pdf
@@ -2795,7 +2795,7 @@ Every error answers `{"error":{"code","message"}}`; some validation errors add `
 | --- | --- | --- |
 | `bad_request` | 400 | malformed JSON, an unknown field, data after the JSON value, or a missing required parameter (for example `device` on `/sync` or `/sync/events`); an import upload that is not multipart or has no `file` part |
 | `invalid_input` | 400/422 | validation failure naming the field or parameter (422 on `/api/v1/frames` and `/api/v1/slots`) |
-| `invalid_op` | 400 | `/api/v1/sync` batch with an op that fails schema validation (unknown entity or field, wrong type, an `entityId` outside the allowed characters), or a device id starting with the reserved `agent:`, `caldav:`, `issues:` or `rule:` (`assistant:` is a device prefix and is accepted); nothing in the batch is applied |
+| `invalid_op` | 400 | `/api/v1/sync` batch with an op that fails schema validation (unknown entity or field, wrong type, an `entityId` outside the allowed characters), or a reserved device id (`server` and `server:<suffix>`, `agent:`, `caldav:`, `issues:`, `rule:`, `calsync:`, `public:`, `page:`; `assistant:` is accepted), see [device ids](sync.md#device-ids); nothing in the batch is applied |
 | `unauthorized` | 401 | any protected route without a valid session or token |
 | `demo_expired` | 401 | demo instance: a session cookie that no longer resolves, because its sandbox was deleted (inactivity, maximum age or the nightly reset). Clients drop their local data and offer a new sandbox |
 | `forbidden` | 403 | an action your account role or project role does not allow: invitation management or user administration by a member, an admin acting on an admin or the owner, a role change or transfer by a non-owner; owner settings (backups, audit, webhook policy, two-factor policy, single sign-on, MCP, CalDAV) or a member reset by a non-owner; a write, purge or membership change your project role does not allow; editing someone else's comment |

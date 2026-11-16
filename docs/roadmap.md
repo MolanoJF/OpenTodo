@@ -74,6 +74,7 @@ Why each milestone exists, and the order inside it, is in [ROADMAP.md](../ROADMA
 | `focus-session-readable` | The running Focus session readable by the shells and agents | Shipped in 0.20 |
 | `obsidian-origin` | An `obsidian` origin that links a task back to its note | Shipped in 0.19 |
 | `view-project-drops` | In views grouped by project, drop a task into another project's group to move it, or onto a task to nest it | Shipped in 1.5 |
+| `today-project-drops` | Move, place and nest tasks in Today's project groups | Shipped in 1.5 |
 | `board-completed-column` | Show completed tasks on a project board: a Completed column at the end; drop a card there to complete it | Shipped in 1.5 |
 | `completed-view-review` | Completed for reviews: narrow to projects, group by project, search, and done rows without a strikethrough | Shipped in 1.5 |
 | `click-selects-title` | One click rule in every list: a first click selects the row (and shows it beside the list), a second click edits its title, `a` adds a subtask after a click; "Click a task to" goes | Planned |
@@ -191,11 +192,13 @@ Why each milestone exists, and the order inside it, is in [ROADMAP.md](../ROADMA
 | Change | What | Status |
 | --- | --- | --- |
 | `sidebar-brand-and-row-grid` | The workspace gets its own picture and OpenTodo a quiet brand line with the version in the sidebar's footer. Task rows get one grid of fixed slots, with marks on the title's baseline. The task panel fits its width, with quieter subtasks and a compact estimate editor. Upcoming summarises later days | Shipped in 1.4 |
+| `one-line-label-fit` | One line rows fit labels in their column, with an ellipsis for a long first label and a count for labels that do not fit | Shipped in 1.5 |
 | `when-picker` | The Do on editor gets a date field that shows an example, one "time of day" row (Any time, Morning, Afternoon, Evening, Time) and the zone beside the time | Shipped in 1.4 |
 | `focus-redesign` | Focus becomes one stage: the task, the time left and one control. Settings, the mode and today's sessions move behind a quiet menu, and breaks are a calm state | Shipped in 1.4 |
 | `close-the-day-redesign` | Close the day becomes three steps (done, what moves, tomorrow's first thing), keyboard-first, with one write and one Undo | Shipped in 1.4 |
 | `task-progress` | A parent's progress as a small ring before its subtask count and a percentage in the task panel; a project's progress next to its title | Shipped in 1.4 |
 | `loop-guided-dashboard` | The Loop home names the next step and why. A stepper shows only the moves with work, and each move opens in place | Shipped in 1.4 |
+| `project-icons-in-ui` | Project icons appear at existing project marks across the app and beside tinted project group names | Shipped in 1.5 |
 
 ## Habits area
 
