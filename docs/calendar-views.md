@@ -11,7 +11,7 @@ order: 61
 
 <picture><source srcset="images/week-dark.webp" media="(prefers-color-scheme: dark)"><img src="images/week-light.webp" alt="The Week calendar with timed tasks as blocks, date-only tasks above the hour grid and centered day headings."></picture>
 
-The calendar shows dated tasks by day, week, month, two-week plan or [year](months-and-year.md). Dragging and keyboard moves are in [Place tasks on the calendar](place-tasks-on-the-calendar.md); estimates and the grid settings are in [Time blocking](time-blocking.md).
+The calendar shows dated tasks by day, week, month, two-week plan or [year](months-and-year.md). Dragging and keyboard moves are in [Place tasks on the calendar](place-tasks-on-the-calendar.md); estimates and the grid settings are in [Time blocking](time-blocking.md); the header is in [Calendar toolbar and appearance](calendar-toolbar.md).
 
 [Completed](completed-on-the-calendar.md "Show completed tasks on the calendar").
 
@@ -21,7 +21,7 @@ Choose **Calendar** in the sidebar, then **Day**, **Week**, **Month**, **Plan** 
 
 - Tasks with a date **and** a time appear as blocks at that time, in their project's colour. The block is as tall as the estimate.
 - A timed task without an estimate gets a 30-minute block with a dashed edge.
-- Tasks with a date but no time wait in the **Unscheduled** lane above their day. On a touch screen, more than three fold under a tappable count.
+- Tasks with a date but no time sit above the hour grid. On a touch screen, more than three fold under a tappable count.
 - Past days are dimmed.
 - A red line marks the current time.
 - **+N** shows more all-day events.
@@ -58,7 +58,3 @@ Switching views keeps the date you're looking at. On a phone, each day shows how
 - Choose 7, 14 or 21 days in the page's menu; this device remembers it.
 
 On a phone the days are listed vertically.
-
-## Compact view controls
-
-The current view name opens the view dropdown. Choose **Number of days** for a 2-6 day range, or choose **Week** for the full week. Today is separate from the arrows. Week headings show the month, year and ISO week number; Day and Week have centered day names, hourly grid lines and no capacity totals or empty Unscheduled placeholders. See [Calendar toolbar](time-blocking.md#calendar-toolbar). Completed tasks and other calendars are shown or hidden through **More actions**.

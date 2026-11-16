@@ -127,6 +127,7 @@ The automated gate runs on every pull request; "not toured" screens are only rea
 | `triage` | core | pass | 2 of 6 passes done, 4 pending |
 | `day` | core | pass | 2 of 6 passes done, 4 pending |
 | `week` | core | pass | 2 of 6 passes done, 4 pending |
+| `calendar-task-preview` | rare | pass | not in the manual audit |
 | `event-editor` | rare | pass | not in the manual audit |
 | `event-scope-menu` | rare | pass | not in the manual audit |
 | `event-notify-guests` | rare | pass | not in the manual audit |

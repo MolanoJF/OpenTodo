@@ -520,7 +520,16 @@ export const OVERLAYS = {
     if (!(await editor.waitFor({ timeout: 3000 }).then(() => true, () => false))) { await p.keyboard.press('Escape'); return null }
     return { overlay: editor, kind: 'inline', after: async () => p.keyboard.press('Escape') }
   },
-  // The popover of an event of a connected calendar, with its title, date and times, Save and Delete (calendar-event-edits D7).
+  // The preview of a task on the calendar grid (calendar-detail-pages): a click on its block shows the task's details and "All details".
+  // A phone lists the day as agenda rows, with no block to click: nothing to check there.
+  async 'calendar-task-preview'(p) {
+    const trigger = p.locator('[data-block]').filter({ hasText: 'Get three quotes' }).first()
+    if (!(await trigger.isVisible().catch(() => false))) return null
+    await trigger.click()
+    await p.locator('[data-task-preview]').waitFor()
+    return { overlay: overlayLoc(p), trigger, kind: 'popover' }
+  },
+  // The preview of an event of a connected calendar (calendar-detail-pages), opened with a click: title, times, guests, the join link and the actions.
   async 'event-editor'(p) {
     const trigger = p.locator('[data-event="layout-edit"]')
     await trigger.click()
