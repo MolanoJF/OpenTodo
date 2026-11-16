@@ -74,6 +74,7 @@
                   "base_url_required",
                   "body_changed",
                   "busy",
+                  "calendar_read_only",
                   "calendar_sync_disabled",
                   "calendar_unreachable",
                   "channels_disabled",
@@ -96,6 +97,10 @@
                   "encryption_conflict",
                   "encryption_disabled",
                   "encryption_enabled",
+                  "event_changed",
+                  "event_edits_off",
+                  "event_gone",
+                  "event_not_editable",
                   "fallback",
                   "feeds_disabled",
                   "forbidden",
@@ -184,6 +189,7 @@
                   "routine_changed",
                   "run_closed",
                   "scope_change",
+                  "scope_required",
                   "self_action",
                   "session_only",
                   "session_required",
@@ -4763,7 +4769,7 @@
     },
     "/api/v1/calendar-feeds/events": {
       "get": {
-        "description": "at most 92 days; `{events: [{id, subscriptionId, uid, summary, location, start, end, allDay, free}], subscriptions: [{id, name, color, enabled, lastSuccessAt, managed?}]}` (`managed`: a calendar of a [calendar sync](https://open-todo.app/docs/api/#calendar-sync) connection); answers while calendar feeds or calendar sync is on; `start` and `end` are shaped like a task's `due` (`{date, time?, tz?}`; no `tz` means floating)",
+        "description": "at most 92 days; `{events: [{id, subscriptionId, uid, summary, location, start, end, allDay, free, rev?, access?, series?, guests?, conference?}], subscriptions: [{id, name, color, enabled, lastSuccessAt, managed?, connectionId?, calendarUrl?, caps?, editEvents?, maxReminders?, guests?}]}` (`guests` on an event is `{count, you?, organizer, canRespond}`, never an address, and `conference` is `{url, provider}` with an `https` join address; `access.notifies` says that changing or deleting the event tells its guests; a subscription's `guests` is `{respond, silent, edit}`; `managed`: a calendar of a [calendar sync](https://open-todo.app/docs/api/#calendar-sync) connection, which also has `connectionId`, `calendarUrl`, `caps` (`{create, update, delete}`) and `editEvents`; `rev` and `access` (`{update, delete, reason?}`) belong to the events of such a calendar and are never served for a subscribed feed, see [Editing events](https://open-todo.app/docs/api/#editing-events-of-a-connected-calendar); `series` marks an occurrence of a repeating event and `maxReminders` is how many reminders the calendar takes, 5 or 1 for Microsoft); answers while calendar feeds or calendar sync is on; `start` and `end` are shaped like a task's `due` (`{date, time?, tz?}`; no `tz` means floating)",
         "externalDocs": {
           "url": "https://open-todo.app/docs/api/#calendar-feeds"
         },
@@ -4777,8 +4783,42 @@
                     "events": {
                       "items": {
                         "properties": {
+                          "access": {
+                            "properties": {
+                              "delete": {
+                                "type": "boolean"
+                              },
+                              "notifies": {
+                                "type": "boolean"
+                              },
+                              "reason": {
+                                "type": "string"
+                              },
+                              "update": {
+                                "type": "boolean"
+                              }
+                            },
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          },
                           "allDay": {
                             "type": "boolean"
+                          },
+                          "conference": {
+                            "properties": {
+                              "provider": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "type": [
+                              "object",
+                              "null"
+                            ]
                           },
                           "end": {
                             "properties": {
@@ -4803,11 +4843,92 @@
                           "free": {
                             "type": "boolean"
                           },
+                          "guests": {
+                            "properties": {
+                              "canRespond": {
+                                "type": "boolean"
+                              },
+                              "count": {
+                                "type": "number"
+                              },
+                              "organizer": {
+                                "type": "boolean"
+                              },
+                              "you": {
+                                "type": "string"
+                              }
+                            },
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          },
                           "id": {
                             "type": "string"
                           },
                           "location": {
                             "type": "string"
+                          },
+                          "rev": {
+                            "type": "string"
+                          },
+                          "series": {
+                            "properties": {
+                              "custom": {
+                                "type": "boolean"
+                              },
+                              "first": {
+                                "type": "boolean"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "repeat": {
+                                "properties": {
+                                  "by": {
+                                    "type": "string"
+                                  },
+                                  "days": {
+                                    "items": {},
+                                    "type": "array"
+                                  },
+                                  "ends": {
+                                    "properties": {
+                                      "count": {
+                                        "type": "number"
+                                      },
+                                      "date": {
+                                        "type": "string"
+                                      },
+                                      "type": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "freq": {
+                                    "type": "string"
+                                  },
+                                  "interval": {
+                                    "type": "number"
+                                  }
+                                },
+                                "type": [
+                                  "object",
+                                  "null"
+                                ]
+                              },
+                              "rev": {
+                                "type": "string"
+                              },
+                              "rrule": {
+                                "type": "string"
+                              }
+                            },
+                            "type": [
+                              "object",
+                              "null"
+                            ]
                           },
                           "start": {
                             "properties": {
@@ -4846,11 +4967,60 @@
                     "subscriptions": {
                       "items": {
                         "properties": {
+                          "calendarUrl": {
+                            "type": "string"
+                          },
+                          "caps": {
+                            "properties": {
+                              "create": {
+                                "type": "boolean"
+                              },
+                              "delete": {
+                                "type": "boolean"
+                              },
+                              "onlineMeeting": {
+                                "type": "boolean"
+                              },
+                              "update": {
+                                "type": "boolean"
+                              }
+                            },
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          },
                           "color": {
                             "type": "string"
                           },
+                          "connectionId": {
+                            "type": "string"
+                          },
+                          "editEvents": {
+                            "type": [
+                              "boolean",
+                              "null"
+                            ]
+                          },
                           "enabled": {
                             "type": "boolean"
+                          },
+                          "guests": {
+                            "properties": {
+                              "edit": {
+                                "type": "boolean"
+                              },
+                              "respond": {
+                                "type": "boolean"
+                              },
+                              "silent": {
+                                "type": "boolean"
+                              }
+                            },
+                            "type": [
+                              "object",
+                              "null"
+                            ]
                           },
                           "id": {
                             "type": "string"
@@ -4863,6 +5033,9 @@
                           },
                           "managed": {
                             "type": "boolean"
+                          },
+                          "maxReminders": {
+                            "type": "number"
                           },
                           "name": {
                             "type": "string"
@@ -4889,6 +5062,74 @@
         "summary": "List calendar feeds events",
         "tags": [
           "Calendar feeds"
+        ],
+        "x-opentodo-policy": "signed-in"
+      }
+    },
+    "/api/v1/calendar-feeds/events/{eventId}/guests": {
+      "get": {
+        "description": "the guest list of one occurrence of a connected calendar, from the cache only (no request to the calendar), `Cache-Control: no-store`: `{organizer: {name, email, you} | null, guests: [{name, email, role, response, you}], count, truncated}` (`role` `required`, `optional` or `room`; `response` `needs-action`, `accepted`, `tentative` or `declined`; at most 100 guests are kept); `404 not_found` when the event is not the caller's, is not cached or has no guests. The list is personal data of people who are not users of this server: clients hold it in memory only",
+        "externalDocs": {
+          "url": "https://open-todo.app/docs/api/#calendar-sync"
+        },
+        "operationId": "getCalendarFeedsEventsByEventIdGuests",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "count": {
+                      "type": "number"
+                    },
+                    "guests": {
+                      "items": {},
+                      "type": "array"
+                    },
+                    "organizer": {
+                      "properties": {
+                        "email": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "you": {
+                          "type": "boolean"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "List calendar feeds event guests",
+        "tags": [
+          "Calendar sync"
         ],
         "x-opentodo-policy": "signed-in"
       }
@@ -5544,7 +5785,7 @@
     },
     "/api/v1/calendar-sync/connections": {
       "get": {
-        "description": "`{connections: [...]}`: `id`, `provider` (`caldav`, `google`, `microsoft`), `name`, `server_url`, `username`, `calendars` (`[{url, name, color, time_zone?, read_only}]`), `target`, `read`, `include_date_only`, `scope` (see [Sync scope](https://open-todo.app/docs/api/#sync-scope)), `enabled`, `state` (`off`, `choose_calendar`, `pending`, `ok`, `failed`, `reconnect`, `stopped`), `next_sync_at`, `last_sync_at`, `last_success_at`, `last_error`, `last_error_at`, `stopped_reason`, `last_run` (`{moved, renamed, unscheduled, written, removed, conflicts, refused, partial}`), `password_set`, `event_count`. Never the password or token.",
+        "description": "`{connections: [...]}`: `id`, `provider` (`caldav`, `google`, `microsoft`), `name`, `server_url`, `username`, `calendars` (`[{url, name, color, time_zone?, read_only, caps: {create, update, delete}}]`), `edit_events`, `target`, `read`, `include_date_only`, `scope` (see [Sync scope](https://open-todo.app/docs/api/#sync-scope)), `enabled`, `state` (`off`, `choose_calendar`, `pending`, `ok`, `failed`, `reconnect`, `stopped`), `next_sync_at`, `last_sync_at`, `last_success_at`, `last_error`, `last_error_at`, `stopped_reason`, `last_run` (`{moved, renamed, unscheduled, written, removed, conflicts, refused, partial}`), `password_set`, `event_count`. Never the password or token.",
         "externalDocs": {
           "url": "https://open-todo.app/docs/api/#calendar-sync"
         },
@@ -5561,6 +5802,26 @@
                           "calendars": {
                             "items": {
                               "properties": {
+                                "caps": {
+                                  "properties": {
+                                    "create": {
+                                      "type": "boolean"
+                                    },
+                                    "delete": {
+                                      "type": "boolean"
+                                    },
+                                    "onlineMeeting": {
+                                      "type": "boolean"
+                                    },
+                                    "update": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "type": [
+                                    "object",
+                                    "null"
+                                  ]
+                                },
                                 "color": {
                                   "type": "string"
                                 },
@@ -5583,6 +5844,9 @@
                           },
                           "created_at": {
                             "type": "number"
+                          },
+                          "edit_events": {
+                            "type": "boolean"
                           },
                           "enabled": {
                             "type": "boolean"
@@ -5778,6 +6042,26 @@
                         "calendars": {
                           "items": {
                             "properties": {
+                              "caps": {
+                                "properties": {
+                                  "create": {
+                                    "type": "boolean"
+                                  },
+                                  "delete": {
+                                    "type": "boolean"
+                                  },
+                                  "onlineMeeting": {
+                                    "type": "boolean"
+                                  },
+                                  "update": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "type": [
+                                  "object",
+                                  "null"
+                                ]
+                              },
                               "color": {
                                 "type": "string"
                               },
@@ -5800,6 +6084,9 @@
                         },
                         "created_at": {
                           "type": "number"
+                        },
+                        "edit_events": {
+                          "type": "boolean"
                         },
                         "enabled": {
                           "type": "boolean"
@@ -5985,7 +6272,7 @@
         "x-opentodo-policy": "signed-in"
       },
       "patch": {
-        "description": "any of `name`, `target` (a writable calendar of the connection), `read` (up to 10 of its calendars), `include_date_only`, `scope` (see [Sync scope](https://open-todo.app/docs/api/#sync-scope); makes the connection due now), `enabled`, `password` (CalDAV only; Google and Microsoft reconnect instead; needs a fresh sign-in, `403 reauth_required`; checked by discovery, then clears a stop)",
+        "description": "any of `name`, `target` (a writable calendar of the connection), `read` (up to 10 of its calendars), `include_date_only`, `edit_events` (boolean, off by default: lets the events routes below change the connection's events), `scope` (see [Sync scope](https://open-todo.app/docs/api/#sync-scope); makes the connection due now), `enabled`, `password` (CalDAV only; Google and Microsoft reconnect instead; needs a fresh sign-in, `403 reauth_required`; checked by discovery, then clears a stop)",
         "externalDocs": {
           "url": "https://open-todo.app/docs/api/#calendar-sync"
         },
@@ -6005,6 +6292,12 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "edit_events": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
                   "enabled": {
                     "type": [
                       "boolean",
@@ -6092,6 +6385,26 @@
                         "calendars": {
                           "items": {
                             "properties": {
+                              "caps": {
+                                "properties": {
+                                  "create": {
+                                    "type": "boolean"
+                                  },
+                                  "delete": {
+                                    "type": "boolean"
+                                  },
+                                  "onlineMeeting": {
+                                    "type": "boolean"
+                                  },
+                                  "update": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "type": [
+                                  "object",
+                                  "null"
+                                ]
+                              },
                               "color": {
                                 "type": "string"
                               },
@@ -6114,6 +6427,9 @@
                         },
                         "created_at": {
                           "type": "number"
+                        },
+                        "edit_events": {
+                          "type": "boolean"
                         },
                         "enabled": {
                           "type": "boolean"
@@ -6264,6 +6580,1419 @@
         "x-opentodo-policy": "signed-in"
       }
     },
+    "/api/v1/calendar-sync/connections/{id}/events": {
+      "post": {
+        "description": "create an event in a shown calendar of the connection (OpenSpec change `calendar-event-editor`): `{clientId, calendarUrl, summary, start, end, allDay?, location?, description?, free?, repeat?, reminders?, guests?, notifyGuests?, onlineMeeting?}` (`guests` is `[{email, name?, role?}]` and needs `notifyGuests: true`); `clientId` is 8 to 64 of `A-Za-z0-9_-` and makes a retry safe. `201 {event, clientId}`, or `200` with the same body when that `clientId` was created before (nothing is written); `404 event_gone` when that event has been deleted since. Needs `edit_events` on and a calendar with `caps.create`; records `calendar_event.changed` (`created`, only for a `201`)",
+        "externalDocs": {
+          "url": "https://open-todo.app/docs/api/#calendar-sync"
+        },
+        "operationId": "postCalendarSyncConnectionsByIdEvents",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "allDay": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "calendarUrl": {
+                    "type": "string"
+                  },
+                  "clientId": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "end": {
+                    "properties": {
+                      "date": {
+                        "type": "string"
+                      },
+                      "time": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "tz": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "date"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "free": {
+                    "type": "boolean"
+                  },
+                  "guests": {
+                    "items": {
+                      "properties": {
+                        "email": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "email",
+                        "name",
+                        "role"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "location": {
+                    "type": "string"
+                  },
+                  "notifyGuests": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "onlineMeeting": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "reminders": {
+                    "items": {},
+                    "type": "array"
+                  },
+                  "repeat": {},
+                  "start": {
+                    "properties": {
+                      "date": {
+                        "type": "string"
+                      },
+                      "time": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "tz": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "date"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "summary": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "calendarUrl",
+                  "clientId",
+                  "description",
+                  "free",
+                  "guests",
+                  "location",
+                  "reminders",
+                  "repeat",
+                  "summary"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clientId": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "properties": {
+                        "access": {
+                          "properties": {
+                            "delete": {
+                              "type": "boolean"
+                            },
+                            "notifies": {
+                              "type": "boolean"
+                            },
+                            "reason": {
+                              "type": "string"
+                            },
+                            "update": {
+                              "type": "boolean"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "allDay": {
+                          "type": "boolean"
+                        },
+                        "conference": {
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "end": {
+                          "properties": {
+                            "date": {
+                              "type": "string"
+                            },
+                            "time": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "tz": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "free": {
+                          "type": "boolean"
+                        },
+                        "guests": {
+                          "properties": {
+                            "canRespond": {
+                              "type": "boolean"
+                            },
+                            "count": {
+                              "type": "number"
+                            },
+                            "organizer": {
+                              "type": "boolean"
+                            },
+                            "you": {
+                              "type": "string"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "rev": {
+                          "type": "string"
+                        },
+                        "series": {
+                          "properties": {
+                            "custom": {
+                              "type": "boolean"
+                            },
+                            "first": {
+                              "type": "boolean"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "repeat": {
+                              "properties": {
+                                "by": {
+                                  "type": "string"
+                                },
+                                "days": {
+                                  "items": {},
+                                  "type": "array"
+                                },
+                                "ends": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "number"
+                                    },
+                                    "date": {
+                                      "type": "string"
+                                    },
+                                    "type": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "freq": {
+                                  "type": "string"
+                                },
+                                "interval": {
+                                  "type": "number"
+                                }
+                              },
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            },
+                            "rev": {
+                              "type": "string"
+                            },
+                            "rrule": {
+                              "type": "string"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "start": {
+                          "properties": {
+                            "date": {
+                              "type": "string"
+                            },
+                            "time": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "tz": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "subscriptionId": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "uid": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Create a calendar sync connection event",
+        "tags": [
+          "Calendar sync"
+        ],
+        "x-opentodo-policy": "signed-in"
+      }
+    },
+    "/api/v1/calendar-sync/connections/{id}/events/{eventId}": {
+      "delete": {
+        "description": "all` (required), and `\u0026notifyGuests=true` when `access.notifies` is true (the calendar cancels the meeting for the guests); the same checks and errors as the `PATCH`, see [Editing events](https://open-todo.app/docs/api/#editing-events-of-a-connected-calendar)",
+        "externalDocs": {
+          "url": "https://open-todo.app/docs/api/#calendar-sync"
+        },
+        "operationId": "deleteCalendarSyncConnectionsByIdEventsByEventId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Delete a calendar sync connection event",
+        "tags": [
+          "Calendar sync"
+        ],
+        "x-opentodo-policy": "signed-in"
+      },
+      "get": {
+        "description": "read one event from its calendar with its description: `200 {event, replaces?, description, descriptionEditable, guests, conference?, onlineMeeting}` (`guests` is the list as the calendar holds it now with `you`, `canRespond` and `canEdit`; `onlineMeeting` is `{available, on}`); when the calendar holds a newer version than the cache the cache takes it and `replaces` names the old id. Needs `edit_events` on; the event need not be editable",
+        "externalDocs": {
+          "url": "https://open-todo.app/docs/api/#calendar-sync"
+        },
+        "operationId": "getCalendarSyncConnectionsByIdEventsByEventId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "conference": {
+                      "properties": {
+                        "provider": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      },
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "descriptionEditable": {
+                      "type": "boolean"
+                    },
+                    "event": {
+                      "properties": {
+                        "access": {
+                          "properties": {
+                            "delete": {
+                              "type": "boolean"
+                            },
+                            "notifies": {
+                              "type": "boolean"
+                            },
+                            "reason": {
+                              "type": "string"
+                            },
+                            "update": {
+                              "type": "boolean"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "allDay": {
+                          "type": "boolean"
+                        },
+                        "conference": {
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "end": {
+                          "properties": {
+                            "date": {
+                              "type": "string"
+                            },
+                            "time": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "tz": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "free": {
+                          "type": "boolean"
+                        },
+                        "guests": {
+                          "properties": {
+                            "canRespond": {
+                              "type": "boolean"
+                            },
+                            "count": {
+                              "type": "number"
+                            },
+                            "organizer": {
+                              "type": "boolean"
+                            },
+                            "you": {
+                              "type": "string"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "rev": {
+                          "type": "string"
+                        },
+                        "series": {
+                          "properties": {
+                            "custom": {
+                              "type": "boolean"
+                            },
+                            "first": {
+                              "type": "boolean"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "repeat": {
+                              "properties": {
+                                "by": {
+                                  "type": "string"
+                                },
+                                "days": {
+                                  "items": {},
+                                  "type": "array"
+                                },
+                                "ends": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "number"
+                                    },
+                                    "date": {
+                                      "type": "string"
+                                    },
+                                    "type": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "freq": {
+                                  "type": "string"
+                                },
+                                "interval": {
+                                  "type": "number"
+                                }
+                              },
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            },
+                            "rev": {
+                              "type": "string"
+                            },
+                            "rrule": {
+                              "type": "string"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "start": {
+                          "properties": {
+                            "date": {
+                              "type": "string"
+                            },
+                            "time": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "tz": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "subscriptionId": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "uid": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "guests": {
+                      "properties": {
+                        "canEdit": {
+                          "type": "boolean"
+                        },
+                        "canRespond": {
+                          "type": "boolean"
+                        },
+                        "you": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "onlineMeeting": {
+                      "properties": {
+                        "available": {
+                          "type": "boolean"
+                        },
+                        "on": {
+                          "type": "boolean"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "reminders": {
+                      "items": {},
+                      "type": "array"
+                    },
+                    "remindersMax": {
+                      "type": "number"
+                    },
+                    "remindersOther": {
+                      "type": "number"
+                    },
+                    "replaces": {
+                      "type": "string"
+                    },
+                    "series": {
+                      "properties": {
+                        "custom": {
+                          "type": "boolean"
+                        },
+                        "exceptions": {
+                          "type": "number"
+                        },
+                        "repeat": {
+                          "properties": {
+                            "by": {
+                              "type": "string"
+                            },
+                            "days": {
+                              "items": {},
+                              "type": "array"
+                            },
+                            "ends": {
+                              "properties": {
+                                "count": {
+                                  "type": "number"
+                                },
+                                "date": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "freq": {
+                              "type": "string"
+                            },
+                            "interval": {
+                              "type": "number"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "rrule": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Get a calendar sync connection event",
+        "tags": [
+          "Calendar sync"
+        ],
+        "x-opentodo-policy": "signed-in"
+      },
+      "patch": {
+        "description": "move, resize or rename one event of the connection's calendars (OpenSpec changes `calendar-event-edits` and `calendar-event-series`): `{rev, scope?, summary?, start?, end?, allDay?, location?, description?, free?, repeat?, reminders?, guests?, notifyGuests?, onlineMeeting?}`; `guests` is `{add: [{email, name?, role?}], remove: [email]}` (Microsoft only), `notifyGuests: true` is required for any change of an event whose `access.notifies` is true, or that adds guests, because the calendar then sends the guests an update itself, `onlineMeeting: true` makes a Teams meeting where `caps.onlineMeeting` is true; `scope` (`this`, `following` or `all`) is required for an occurrence of a repeating event and refused for any other event, `repeat` and `reminders` are described in [Repeating events](https://open-todo.app/docs/api/#repeating-events-of-a-connected-calendar); `rev` is the one the event was served with, `summary` 1 to 500 characters, `start` and `end` go together as `{date, time?, tz?}` (all-day: dates, end exclusive; no `tz`: floating). `200 {event, replaces, series?, refetch?}`: the event as the calendar now holds it (new `id`, `rev`, `access`, or `null` when it left the cached window) and the id it had; for an occurrence, `series` and, when other occurrences changed, `refetch: true`. Needs the connection's `edit_events` on; written with `If-Match`; records `calendar_event.changed`; wakes the other devices. Examples and errors: [Editing events](https://open-todo.app/docs/api/#editing-events-of-a-connected-calendar)",
+        "externalDocs": {
+          "url": "https://open-todo.app/docs/api/#calendar-sync"
+        },
+        "operationId": "patchCalendarSyncConnectionsByIdEventsByEventId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "allDay": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "end": {
+                    "properties": {
+                      "date": {
+                        "type": "string"
+                      },
+                      "time": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "tz": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "date"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "free": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "guests": {
+                    "properties": {
+                      "add": {
+                        "items": {
+                          "properties": {
+                            "email": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "email",
+                            "name",
+                            "role"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
+                      "remove": {
+                        "items": {},
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "add",
+                      "remove"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "location": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "notifyGuests": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "onlineMeeting": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "reminders": {
+                    "items": {},
+                    "type": "array"
+                  },
+                  "repeat": {},
+                  "rev": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "start": {
+                    "properties": {
+                      "date": {
+                        "type": "string"
+                      },
+                      "time": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "tz": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "date"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "repeat",
+                  "rev"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "event": {
+                      "properties": {
+                        "access": {
+                          "properties": {
+                            "delete": {
+                              "type": "boolean"
+                            },
+                            "notifies": {
+                              "type": "boolean"
+                            },
+                            "reason": {
+                              "type": "string"
+                            },
+                            "update": {
+                              "type": "boolean"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "allDay": {
+                          "type": "boolean"
+                        },
+                        "conference": {
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "end": {
+                          "properties": {
+                            "date": {
+                              "type": "string"
+                            },
+                            "time": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "tz": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "free": {
+                          "type": "boolean"
+                        },
+                        "guests": {
+                          "properties": {
+                            "canRespond": {
+                              "type": "boolean"
+                            },
+                            "count": {
+                              "type": "number"
+                            },
+                            "organizer": {
+                              "type": "boolean"
+                            },
+                            "you": {
+                              "type": "string"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "rev": {
+                          "type": "string"
+                        },
+                        "series": {
+                          "properties": {
+                            "custom": {
+                              "type": "boolean"
+                            },
+                            "first": {
+                              "type": "boolean"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "repeat": {
+                              "properties": {
+                                "by": {
+                                  "type": "string"
+                                },
+                                "days": {
+                                  "items": {},
+                                  "type": "array"
+                                },
+                                "ends": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "number"
+                                    },
+                                    "date": {
+                                      "type": "string"
+                                    },
+                                    "type": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "freq": {
+                                  "type": "string"
+                                },
+                                "interval": {
+                                  "type": "number"
+                                }
+                              },
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            },
+                            "rev": {
+                              "type": "string"
+                            },
+                            "rrule": {
+                              "type": "string"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "start": {
+                          "properties": {
+                            "date": {
+                              "type": "string"
+                            },
+                            "time": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "tz": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "subscriptionId": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "uid": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "replaces": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Update a calendar sync connection event",
+        "tags": [
+          "Calendar sync"
+        ],
+        "x-opentodo-policy": "signed-in"
+      }
+    },
+    "/api/v1/calendar-sync/connections/{id}/events/{eventId}/response": {
+      "post": {
+        "description": "answer an invitation (OpenSpec change `calendar-event-guests`): `{rev, response, scope?, sendResponse?}`; `response` is `accepted`, `tentative` or `declined`; `scope` (`this` or `all`) is required for an occurrence of a repeating event and refused for any other; `sendResponse` (default `true`) is honoured only where the subscription's `guests.silent` is true. Only the user's own answer changes. `200 {event, replaces, series?, refetch?}`; `422 event_not_editable` with reason `cannot_respond` (the user organises it or is not invited, the provider does not reply, the address is not known, edits are off); `502 calendar_unreachable` with reason `response_not_kept` (the calendar accepted the write and does not hold the answer; the cache then shows the real one). Needs `edit_events` on; records `calendar_event.changed` with `event_action` `responded`",
+        "externalDocs": {
+          "url": "https://open-todo.app/docs/api/#calendar-sync"
+        },
+        "operationId": "postCalendarSyncConnectionsByIdEventsByEventIdResponse",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "response": {
+                    "type": "string"
+                  },
+                  "rev": {
+                    "type": "string"
+                  },
+                  "scope": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "sendResponse": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "response",
+                  "rev"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "event": {
+                      "properties": {
+                        "access": {
+                          "properties": {
+                            "delete": {
+                              "type": "boolean"
+                            },
+                            "notifies": {
+                              "type": "boolean"
+                            },
+                            "reason": {
+                              "type": "string"
+                            },
+                            "update": {
+                              "type": "boolean"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "allDay": {
+                          "type": "boolean"
+                        },
+                        "conference": {
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "end": {
+                          "properties": {
+                            "date": {
+                              "type": "string"
+                            },
+                            "time": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "tz": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "free": {
+                          "type": "boolean"
+                        },
+                        "guests": {
+                          "properties": {
+                            "canRespond": {
+                              "type": "boolean"
+                            },
+                            "count": {
+                              "type": "number"
+                            },
+                            "organizer": {
+                              "type": "boolean"
+                            },
+                            "you": {
+                              "type": "string"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "type": "string"
+                        },
+                        "rev": {
+                          "type": "string"
+                        },
+                        "series": {
+                          "properties": {
+                            "custom": {
+                              "type": "boolean"
+                            },
+                            "first": {
+                              "type": "boolean"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "repeat": {
+                              "properties": {
+                                "by": {
+                                  "type": "string"
+                                },
+                                "days": {
+                                  "items": {},
+                                  "type": "array"
+                                },
+                                "ends": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "number"
+                                    },
+                                    "date": {
+                                      "type": "string"
+                                    },
+                                    "type": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "freq": {
+                                  "type": "string"
+                                },
+                                "interval": {
+                                  "type": "number"
+                                }
+                              },
+                              "type": [
+                                "object",
+                                "null"
+                              ]
+                            },
+                            "rev": {
+                              "type": "string"
+                            },
+                            "rrule": {
+                              "type": "string"
+                            }
+                          },
+                          "type": [
+                            "object",
+                            "null"
+                          ]
+                        },
+                        "start": {
+                          "properties": {
+                            "date": {
+                              "type": "string"
+                            },
+                            "time": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "tz": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "subscriptionId": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "uid": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "replaces": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Calendar sync connection event response",
+        "tags": [
+          "Calendar sync"
+        ],
+        "x-opentodo-policy": "signed-in"
+      }
+    },
     "/api/v1/calendar-sync/connections/{id}/sync": {
       "post": {
         "description": "discovery and a cycle now: `{ok, run?, reason?, connection}`",
@@ -6292,6 +8021,26 @@
                         "calendars": {
                           "items": {
                             "properties": {
+                              "caps": {
+                                "properties": {
+                                  "create": {
+                                    "type": "boolean"
+                                  },
+                                  "delete": {
+                                    "type": "boolean"
+                                  },
+                                  "onlineMeeting": {
+                                    "type": "boolean"
+                                  },
+                                  "update": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "type": [
+                                  "object",
+                                  "null"
+                                ]
+                              },
                               "color": {
                                 "type": "string"
                               },
@@ -6314,6 +8063,9 @@
                         },
                         "created_at": {
                           "type": "number"
+                        },
+                        "edit_events": {
+                          "type": "boolean"
                         },
                         "enabled": {
                           "type": "boolean"
