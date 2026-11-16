@@ -47,7 +47,7 @@ describe('one Calendar destination', () => {
     expect(header).toBeTruthy()
     expect(r.container.querySelectorAll('h1')).toHaveLength(1)
     expect(header.querySelector('[role="group"][aria-label="Range"]')).toBeTruthy()
-    expect(header.querySelector('[data-calendar-range]')?.textContent).toBe('Week')
+    expect(header.querySelector('[data-calendar-range]')?.textContent).toBe('Calendar range Week')
     expect(header.querySelector('[data-help-screen="calendar"]')).toBeTruthy()
 
     await r.rerender(<CalendarView mode="day" />)

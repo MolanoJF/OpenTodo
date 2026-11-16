@@ -160,6 +160,14 @@ export function screens(ids, base) {
 // (Escape + tap outside, close button on phones), 'panel' (detail panel / drawer:
 // close button + Escape), 'toast' (inside the viewport only).
 export const overlayLoc = (p) => p.locator('[data-overlay]').last()
+// The arrow keys move the selected event (calendar-event-edits D7): a click selects it and opens its preview, Escape closes the preview and keeps the selection.
+async function selectEvent(p, trigger) {
+  await trigger.click()
+  await p.locator('[data-event-details]').waitFor()
+  await p.keyboard.press('Escape')
+  await p.locator('[data-event-details]').waitFor({ state: 'detached' })
+  await trigger.focus()
+}
 // The project's Share and layout choice: page controls from 768 px, project menu items on a phone (phone-v2 D1).
 async function openShare(p) {
   const button = p.locator('[data-project-share]')
@@ -539,7 +547,7 @@ export const OVERLAYS = {
   // The scope menu (calendar-event-series D12): a key press on an occurrence of a repeating event, once the keys settle, asks which events to change.
   async 'event-scope-menu'(p) {
     const trigger = p.locator('[data-event="layout-series"]')
-    await trigger.focus()
+    await selectEvent(p, trigger)
     await p.keyboard.press('ArrowDown')
     await p.locator('[data-event-scope]').first().waitFor({ timeout: 5000 })
     return { overlay: overlayLoc(p), trigger, kind: 'popover' }
@@ -547,7 +555,7 @@ export const OVERLAYS = {
   // "Tell 3 guests?" (calendar-event-guests D8, D13): a key press on a meeting the user organises on Outlook asks before the calendar tells the guests.
   async 'event-notify-guests'(p) {
     const trigger = p.locator('[data-event="layout-edit"]')
-    await trigger.focus()
+    await selectEvent(p, trigger)
     await p.keyboard.press('ArrowDown')
     await p.locator('[data-notify-guests]').waitFor({ timeout: 5000 })
     return { overlay: overlayLoc(p), trigger, kind: 'dialog' }

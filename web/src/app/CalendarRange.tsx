@@ -25,9 +25,9 @@ export function CalendarRangeSwitch({ mode, date }: { mode: CalendarRangeMode; d
   const items = useRef<HTMLDivElement>(null)
   useEffect(() => { if (open) items.current?.querySelector<HTMLButtonElement>('[role^="menuitem"]')?.focus() }, [days, open])
   return (
-    <Menu kind="menu" label={t('Calendar range')} title={t('Calendar range')} align="start" anchored width="w-60" open={open}
+    <Menu kind="menu" label={t('Calendar range')} namedByContent title={t('Calendar range')} align="start" anchored width="w-60" open={open}
       onOpenChange={(next) => { setOpen(next); if (!next) setDays(false) }}
-      trigger={<><span>{label}</span><Icon name="chevron-down" size="sm" /></>}
+      trigger={<><span className="sr-only">{t('Calendar range')} </span><span>{label}</span><Icon name="chevron-down" size="sm" /></>}
       triggerClassName="ui-btn ui-btn--secondary ui-btn--sm gap-2 max-md:gap-1 max-md:px-1.5" triggerProps={{ 'data-calendar-range': mode }}>
       <div ref={items} onKeyDown={(e) => { if (days && e.key === 'ArrowLeft') { e.preventDefault(); setDays(false) } }}>
         {days ? <>

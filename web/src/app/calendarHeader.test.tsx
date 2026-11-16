@@ -32,7 +32,7 @@ it('chooses a consecutive range by keyboard, pages by that range and restores no
   const dates = () => [...r.container.querySelectorAll<HTMLElement>('[data-drop-day]')].map((el) => el.dataset.dropDay)
   await waitFor(() => dates().length === 3)
   expect(dates()).toEqual(['2026-11-13', '2026-11-14', '2026-11-15'])
-  expect(r.container.querySelector('[data-calendar-range]')?.textContent).toBe('3 days')
+  expect(r.container.querySelector('[data-calendar-range]')?.textContent).toBe('Calendar range 3 days')
   expect(calendarDayCount.get()).toBe(3)
   expect(localStorage.getItem('ot.calendar.days')).toBe('3')
   await click(r.container.querySelector('[aria-label="Next 3 days"]')!)

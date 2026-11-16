@@ -7,7 +7,8 @@ export function blockGeometry(block: BlockInput & { lane: number; lanes: number 
   const width = Math.min(100 - left, block.lanes > 1 ? step * 3 : 100)
   return {
     top: block.start * pxPerMinute + 2,
-    height: Math.max(16, Math.max(minHeight, (block.end - block.start) * pxPerMinute) - 4),
+    // At least 24 px, the WCAG 2.5.8 target size: the gap gives way on the shortest blocks.
+    height: Math.max(24, Math.max(minHeight, (block.end - block.start) * pxPerMinute) - 4),
     left: `calc(${left}% + 3px)`, width: `calc(${width}% - 6px)`, zIndex: 10 + block.lane,
   }
 }

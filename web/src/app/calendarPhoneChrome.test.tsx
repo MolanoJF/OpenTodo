@@ -54,12 +54,12 @@ describe('the calendar on a phone', () => {
     phone()
     const r = await render(<CalendarView mode="week" date="2026-10-14" />)
     const row = r.container.querySelector('[data-page-header] [data-page-actions]')!
-    expect(names(row)).toEqual(['Calendar range', 'Today', 'Previous week', 'Next week'])
+    expect(names(row)).toEqual(['Calendar range Week', 'Today', 'Previous week', 'Next week'])
     expect(row.querySelector('[role="group"][aria-label="Calendar range"]')).toBeNull()
 
     const view = row.querySelector<HTMLElement>('[data-calendar-range]')!
     expect(view.getAttribute('aria-haspopup')).toBe('menu')
-    expect(view.textContent).toBe('Week')
+    expect(view.textContent).toBe('Calendar range Week')
     await click(view)
     await waitFor(() => items().length === 6, 'the five views and Number of days')
     expect(items().map((i) => `${i.textContent}:${i.getAttribute('aria-checked')}`))
@@ -74,7 +74,7 @@ describe('the calendar on a phone', () => {
     phone()
     const r = await render(<MonthView date="2026-11-18" />)
     const row = r.container.querySelector('[data-page-header] [data-page-actions]')!
-    expect(names(row)).toEqual(['Calendar range', 'Today', 'Previous month', 'Next month'])
+    expect(names(row)).toEqual(['Calendar range Month', 'Today', 'Previous month', 'Next month'])
     await click(row.querySelector('button[aria-label="Next month"]')!)
     expect(location.pathname).toBe('/month/2026-12-18')
     await click(row.querySelector('button[aria-label="Today"]')!)
@@ -104,7 +104,7 @@ describe('the calendar on a phone', () => {
     const r = await render(<CalendarView mode="week" date="2026-10-14" />)
     const header = r.container.querySelector('[data-page-header]')!
     expect(header.querySelector('[role="group"][aria-label="Calendar range"]')).toBeNull()
-    expect(header.querySelector('[data-calendar-range]')!.textContent).toBe('Week')
+    expect(header.querySelector('[data-calendar-range]')!.textContent).toBe('Calendar range Week')
     await r.unmount()
   })
 })

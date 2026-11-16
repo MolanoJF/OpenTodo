@@ -130,7 +130,7 @@ describe('navigating from the year', () => {
     await key(document.body, ']')
     await waitFor(() => location.pathname === '/year/2027-01-25' && day(r.container, '2027-01-25')?.getAttribute('aria-selected') === 'true', 'the next year')
     const sw = r.container.querySelector('[data-calendar-range]')!
-    expect(sw.textContent).toBe('Year')
+    expect(sw.textContent).toBe('Calendar range Year')
     await chooseCalendarMode(r.container, 'Month')
     await waitFor(() => location.pathname === '/month/2027-01-25')
     await r.unmount()

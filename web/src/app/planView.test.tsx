@@ -78,7 +78,7 @@ describe('plan route and mode', () => {
     expect(localStorage.getItem('ot.calendar.mode')).toBe('plan')
     expect(parseRoute('/calendar')).toEqual({ view: 'plan' })
     const sw = r.container.querySelector('[data-calendar-range]')!
-    expect(sw.textContent).toBe('Plan')
+    expect(sw.textContent).toBe('Calendar range Plan')
     await chooseCalendarMode(r.container, 'Day')
     expect(location.pathname).toBe('/day/2026-11-05')
     await r.unmount()

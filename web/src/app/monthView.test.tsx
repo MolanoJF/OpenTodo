@@ -49,7 +49,7 @@ describe('month route', () => {
     expect(localStorage.getItem('ot.calendar.mode')).toBe('month')
     expect(parseRoute('/calendar')).toEqual({ view: 'month' })
     const sw = r.container.querySelector('[data-calendar-range]')!
-    expect(sw.textContent).toBe('Month')
+    expect(sw.textContent).toBe('Calendar range Month')
     await chooseCalendarMode(r.container, 'Day')
     expect(location.pathname).toBe('/day/2026-11-18')
     await r.unmount()
