@@ -532,7 +532,7 @@ export const OVERLAYS = {
   // A phone lists the day as agenda rows, with no block to click: nothing to check there.
   async 'calendar-task-preview'(p) {
     const trigger = p.locator('[data-block]').filter({ hasText: 'Get three quotes' }).first()
-    if (!(await trigger.isVisible().catch(() => false))) return null
+    if (!(await trigger.waitFor({ timeout: 5000 }).then(() => true, () => false))) return null
     await trigger.click()
     await p.locator('[data-task-preview]').waitFor()
     return { overlay: overlayLoc(p), trigger, kind: 'popover' }
