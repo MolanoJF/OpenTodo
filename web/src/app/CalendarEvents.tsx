@@ -145,7 +145,7 @@ export function EventChip({ ev, sub, zone }: { ev: CalendarEvent; sub?: Calendar
         onClick={() => setOpen((o) => !o)}
         onDoubleClick={() => { setOpen(false); openEditor(ev) }}
         onKeyDown={(e) => { if (e.key === 'Enter' && ev.access?.update) { e.preventDefault(); setOpen(false); openEditor(ev) } }}
-        className={`flex w-full min-w-0 items-center gap-1 px-1.5 py-0.5 text-left text-hint ${ev.free ? 'rounded-chip border border-dashed border-hue-solid text-hue' : 'ui-block ui-block--row ui-block--event'} focus-visible:outline-2 focus-visible:outline-focus`}
+        className={`flex min-h-6 w-full min-w-0 items-center gap-1 px-1.5 py-0.5 text-left text-hint ${ev.free ? 'rounded-chip border border-dashed border-hue-solid text-hue' : 'ui-block ui-block--row ui-block--event'} focus-visible:outline-2 focus-visible:outline-focus`}
       >
         {!ev.free && <span aria-hidden className="ui-block-dot" />}
         <span className="truncate">{ev.summary || t('Busy')}</span>
