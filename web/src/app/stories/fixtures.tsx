@@ -6,6 +6,7 @@
 // and realistic titles. Stories that take plain props use `withClock` only.
 import type { Decorator, StoryObj } from '@storybook/react-vite'
 import { db, setMeta } from '../../lib/db'
+import { saveAccountColor } from '../../lib/calendarColors'
 import { setDateTime } from '../../lib/dates'
 import { createFrame } from '../../lib/frames'
 import { createSlot } from '../../lib/slots'
@@ -339,6 +340,30 @@ export function seedCalendarEvents(base: () => Promise<void> = seedCalendarWeek)
     ])
     await setMeta('calendar.events.window', { from: '2026-01-01', to: '2026-12-31', fetchedAt: Date.parse('2026-10-14T11:00:00') })
   }
+}
+
+/** Two connected accounts, several project colors and an all-day/free event. */
+export async function seedCalendarColors(): Promise<void> {
+  await seedCalendarEvents()()
+  await db.calendarSubscriptions.update('story-sub', { managed: true, connectionId: 'work-account' })
+  await db.calendarSubscriptions.put({ id: 'personal-sub', name: 'Personal calendar', connectionId: 'personal-account', managed: true, color: hue('blue'), enabled: true, lastSuccessAt: 1 })
+  await saveAccountColor('work-account', hue('cyan'))
+  await saveAccountColor('personal-account', hue('yellow'))
+  await db.calendarEvents.bulkPut([
+    { id: 'personal-lunch', uid: 'lunch', subscriptionId: 'personal-sub', summary: 'Lunch with Ana', location: '', start: { date: TODAY, time: '12:00' }, end: { date: TODAY, time: '13:00' }, allDay: false, free: false },
+    { id: 'personal-day', uid: 'day', subscriptionId: 'personal-sub', summary: 'Family day', location: '', start: { date: TOMORROW }, end: { date: '2026-10-16' }, allDay: true, free: false },
+    { id: 'personal-free', uid: 'free', subscriptionId: 'personal-sub', summary: 'Optional walk', location: '', start: { date: TODAY, time: '15:00' }, end: { date: TODAY, time: '16:00' }, allDay: false, free: true },
+  ])
+}
+
+/** Long and transitively overlapping events for layered calendar geometry. */
+export async function seedCalendarPolish(): Promise<void> {
+  await seedCalendarColors()
+  for (const id of ['story-sub', 'personal-sub']) await db.calendarSubscriptions.update(id, { calendarUrl: `https://dav.example/${id}/`, editEvents: true, caps: { create: true, update: true, delete: true } })
+  const event = (id: string, summary: string, start: string, end: string): CalendarEvent => ({ id, uid: id, subscriptionId: 'story-sub', summary, location: '', start: { date: TOMORROW, time: start }, end: { date: TOMORROW, time: end }, allDay: false, free: false, access: { update: true, delete: true }, rev: 'r1' })
+  const events = [event('polish-long', 'New task for OpenTodo', '11:30', '13:30'), event('polish-lunch', 'Lunch with the team', '13:00', '14:00'), event('polish-follow', 'Lunch follow-up', '13:30', '14:30')]
+  await db.calendarEvents.bulkPut(events)
+  answerRequests({ '/api/v1/calendar-sync/connections/': { body: { event: events[0], description: 'Review the week and plan the next steps.', descriptionEditable: true, reminders: [30] } } })
 }
 
 /**

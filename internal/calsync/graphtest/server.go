@@ -11,10 +11,12 @@ package graphtest
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,18 +36,57 @@ type DT struct {
 type Event struct {
 	ID, Calendar, ETag string
 	Subject, Body      string
-	Start, End         DT
-	IsAllDay           bool
+	// BodyType is the body's contentType, "" or "text" for plain text and "html"
+	// for a rich body; Location is the location's displayName; ShowAs is Graph's
+	// showAs ("" is busy).
+	BodyType, Location, ShowAs string
+	Start, End                 DT
+	IsAllDay                   bool
 	// TaskID is the value of OpenTodo's extended property, "" without it.
 	TaskID        string
 	TransactionID string
 	Modified      time.Time
+	// Type is Graph's event type ("" is singleInstance), NotOrganizer makes
+	// isOrganizer false, Attendees are the guests' addresses.
+	Type         string
+	NotOrganizer bool
+	Attendees    []string
+	// Guests are attendees with a name, a type (required, optional, resource) and an
+	// answer (accepted, tentativelyAccepted, declined, notResponded); Organizer is who
+	// organises an event the user does not (NotOrganizer), ResponseStatus is the user's
+	// own answer, JoinURL the online meeting's address and Provider its service.
+	Guests         []Attendee
+	Organizer      Person
+	ResponseStatus string
+	JoinURL        string
+	Provider       string
+	// Series: SeriesMasterID names the master of an occurrence or exception, Recurrence is
+	// a master's pattern (Type "seriesMaster"), Original the date of the occurrence an
+	// exception replaces, Cancelled hides it.
+	SeriesMasterID, Original string
+	Recurrence               *Recurrence
+	Cancelled                bool
+	// Reminder, attachments and the members a following copy takes along.
+	ReminderMinutes         int
+	ReminderOn              bool
+	HasAttachments          bool
+	IsOnlineMeeting         bool
+	Importance, Sensitivity string
+	Categories              []string
 }
 
-// Calendar is one calendar of the account.
+// Attendee is one guest of an event.
+type Attendee struct{ Address, Name, Type, Response string }
+
+// Person is a name and an address.
+type Person struct{ Name, Address string }
+
+// Calendar is one calendar of the account; OnlineProviders is what it lists as
+// allowedOnlineMeetingProviders.
 type Calendar struct {
 	ID, Name, Color string
 	CanEdit         bool
+	OnlineProviders []string
 }
 
 type change struct {
@@ -75,24 +116,26 @@ type Server struct {
 	// Now stamps changes (defaults to time.Now).
 	Now func() time.Time
 
-	mu        sync.Mutex
-	cals      map[string]*Calendar
-	order     []string
-	events    map[string]*Event
-	log       map[string][]change // calendar → changes
-	seq       int
-	tokens    map[string]bool // access tokens issued
-	refresh   map[string]bool
-	issued    int
-	throttle  int
-	skip      int
-	race      bool
-	throttleS int
-	retry     string
-	loseNext  int
-	requests  []string
-	prefers   []string
-	refreshes int
+	mu            sync.Mutex
+	cals          map[string]*Calendar
+	order         []string
+	events        map[string]*Event
+	log           map[string][]change // calendar → changes
+	seq           int
+	tokens        map[string]bool // access tokens issued
+	refresh       map[string]bool
+	issued        int
+	throttle      int
+	skip          int
+	race          bool
+	throttleS     int
+	retry         string
+	loseNext      int
+	unconditional int
+	requests      []string
+	prefers       []string
+	refreshes     int
+	messages      []Message
 }
 
 // New starts a fake with one writable calendar "cal-work" named "Calendar".
@@ -112,8 +155,12 @@ func New() *Server {
 	mux.HandleFunc("GET /v1.0/me/calendars/{cal}/calendarView", s.guard(s.view))
 	mux.HandleFunc("POST /v1.0/me/calendars/{cal}/events", s.guard(s.create))
 	mux.HandleFunc("GET /v1.0/me/events/{id}", s.guard(s.get))
+	mux.HandleFunc("GET /v1.0/me/events/{id}/instances", s.guard(s.instances))
 	mux.HandleFunc("PATCH /v1.0/me/events/{id}", s.guard(s.patch))
 	mux.HandleFunc("DELETE /v1.0/me/events/{id}", s.guard(s.remove))
+	for _, action := range []string{"accept", "tentativelyAccept", "decline"} {
+		mux.HandleFunc("POST /v1.0/me/events/{id}/"+action, s.guard(s.respond(action)))
+	}
 	s.Server = httptest.NewServer(mux)
 	return s
 }
@@ -170,6 +217,13 @@ func (s *Server) ThrottleAfter(k, n, status int, retryAfter string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.skip, s.throttle, s.throttleS, s.retry = k, n, status, retryAfter
+}
+
+// Unconditional counts PATCH and DELETE requests without If-Match.
+func (s *Server) Unconditional() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.unconditional
 }
 
 // RaceNextPatch changes the next patched event just before the patch arrives,
@@ -423,7 +477,8 @@ func (s *Server) calendars(w http.ResponseWriter, _ *http.Request) {
 	list := []map[string]any{}
 	for _, id := range s.order {
 		if c := s.cals[id]; c != nil {
-			list = append(list, map[string]any{"id": c.ID, "name": c.Name, "hexColor": c.Color, "canEdit": c.CanEdit})
+			list = append(list, map[string]any{"id": c.ID, "name": c.Name, "hexColor": c.Color, "canEdit": c.CanEdit,
+				"allowedOnlineMeetingProviders": append([]string{}, c.OnlineProviders...)})
 		}
 	}
 	writeJSON(w, 200, map[string]any{"value": list})
@@ -461,12 +516,42 @@ func (s *Server) render(e *Event, r *http.Request, expand bool) map[string]any {
 		end = DT{instant(e.End, false).UTC().Format("2006-01-02T15:04:05") + ".0000000", "UTC"}
 	}
 	out := map[string]any{"id": e.ID, "@odata.etag": e.ETag, "subject": e.Subject, "isAllDay": e.IsAllDay, "start": start, "end": end,
-		"showAs": "busy", "isCancelled": false, "lastModifiedDateTime": e.Modified.UTC().Format(time.RFC3339Nano),
-		"body": map[string]string{"contentType": "text", "content": e.Body}}
+		"isCancelled": false, "lastModifiedDateTime": e.Modified.UTC().Format(time.RFC3339Nano),
+		"body": renderBody(e, r), "location": map[string]string{"displayName": e.Location}}
+	out["showAs"] = firstNonEmpty(e.ShowAs, "busy")
+	out["type"] = firstNonEmpty(e.Type, "singleInstance")
+	out["isOrganizer"] = !e.NotOrganizer
+	out["attendees"] = s.renderGuests(e)
+	s.renderMeeting(e, out)
+	out["hasAttachments"], out["isOnlineMeeting"] = e.HasAttachments, e.IsOnlineMeeting
+	out["isReminderOn"], out["reminderMinutesBeforeStart"] = e.ReminderOn, e.ReminderMinutes
+	out["importance"], out["sensitivity"] = firstNonEmpty(e.Importance, "normal"), firstNonEmpty(e.Sensitivity, "normal")
+	out["categories"] = append([]string{}, e.Categories...)
+	out["isCancelled"] = e.Cancelled
+	if e.SeriesMasterID != "" {
+		out["seriesMasterId"] = e.SeriesMasterID
+	}
+	if e.Type == "seriesMaster" {
+		out["recurrence"] = e.Recurrence
+		ex := []map[string]string{}
+		for _, x := range s.events {
+			if x.SeriesMasterID == e.ID && x.Type == "exception" {
+				ex = append(ex, map[string]string{"id": x.ID})
+			}
+		}
+		out["exceptionOccurrences"] = ex
+	}
 	if expand && e.TaskID != "" {
 		out["singleValueExtendedProperties"] = []map[string]string{{"id": s.Property, "value": e.TaskID}}
 	}
 	return out
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 func (s *Server) expands(r *http.Request) bool {
@@ -513,7 +598,14 @@ func (s *Server) view(w http.ResponseWriter, r *http.Request) {
 	}
 	items := []map[string]any{}
 	for _, e := range s.sorted(cal) {
-		if s.inWindow(e, from, to) {
+		switch {
+		case e.Type == "seriesMaster":
+			for _, o := range s.occurrences(e, from, to) {
+				items = append(items, s.render(o, r, false))
+			}
+		case e.Type == "exception":
+			// shown with its master's occurrences
+		case s.inWindow(e, from, to):
 			items = append(items, s.render(e, r, s.expands(r)))
 		}
 	}
@@ -566,7 +658,7 @@ func (s *Server) delta(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		for _, e := range s.sorted(cal) {
-			if s.inWindow(e, from, to) {
+			if e.Type != "seriesMaster" && e.Type != "exception" && s.inWindow(e, from, to) {
 				items = append(items, s.render(e, r, false))
 			}
 		}
@@ -577,14 +669,28 @@ func (s *Server) delta(w http.ResponseWriter, r *http.Request) {
 
 // input is an event as a client sends it.
 type input struct {
-	Subject *string `json:"subject"`
-	Body    *struct {
-		Content string `json:"content"`
+	Subject  *string `json:"subject"`
+	ShowAs   *string `json:"showAs"`
+	Location *struct {
+		DisplayName string `json:"displayName"`
+	} `json:"location"`
+	Body *struct {
+		ContentType string `json:"contentType"`
+		Content     string `json:"content"`
 	} `json:"body"`
-	Start         *DT    `json:"start"`
-	End           *DT    `json:"end"`
-	IsAllDay      *bool  `json:"isAllDay"`
-	TransactionID string `json:"transactionId"`
+	Start         *DT           `json:"start"`
+	End           *DT           `json:"end"`
+	IsAllDay      *bool         `json:"isAllDay"`
+	Recurrence    *Recurrence   `json:"recurrence"`
+	ReminderMin   *int          `json:"reminderMinutesBeforeStart"`
+	ReminderOn    *bool         `json:"isReminderOn"`
+	Importance    *string       `json:"importance"`
+	Sensitivity   *string       `json:"sensitivity"`
+	Categories    []string      `json:"categories"`
+	Attendees     *[]inAttendee `json:"attendees"`
+	OnlineMeeting *bool         `json:"isOnlineMeeting"`
+	Provider      *string       `json:"onlineMeetingProvider"`
+	TransactionID string        `json:"transactionId"`
 	Props         []struct {
 		ID    string `json:"id"`
 		Value string `json:"value"`
@@ -592,11 +698,17 @@ type input struct {
 }
 
 func (in *input) apply(e *Event) {
+	if in.ShowAs != nil {
+		e.ShowAs = *in.ShowAs
+	}
+	if in.Location != nil {
+		e.Location = in.Location.DisplayName
+	}
 	if in.Subject != nil {
 		e.Subject = *in.Subject
 	}
 	if in.Body != nil {
-		e.Body = in.Body.Content
+		e.Body, e.BodyType = in.Body.Content, in.Body.ContentType
 	}
 	if in.Start != nil {
 		e.Start = *in.Start
@@ -607,6 +719,29 @@ func (in *input) apply(e *Event) {
 	if in.IsAllDay != nil {
 		e.IsAllDay = *in.IsAllDay
 	}
+	if in.ReminderMin != nil {
+		e.ReminderMinutes = *in.ReminderMin
+	}
+	if in.ReminderOn != nil {
+		e.ReminderOn = *in.ReminderOn
+	}
+	if in.Importance != nil {
+		e.Importance = *in.Importance
+	}
+	if in.Sensitivity != nil {
+		e.Sensitivity = *in.Sensitivity
+	}
+	if in.Categories != nil {
+		e.Categories = in.Categories
+	}
+	if in.Recurrence != nil {
+		e.Recurrence, e.Type = in.Recurrence, "seriesMaster"
+	}
+}
+
+// changesSeries says the input changes what an exception depends on: the master's times or pattern.
+func (in *input) changesSeries() bool {
+	return in.Start != nil || in.End != nil || in.Recurrence != nil || in.IsAllDay != nil
 }
 
 func readInput(r *http.Request) (*input, bool) {
@@ -631,6 +766,10 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 		graphError(w, 400, "ErrorInvalidRequest")
 		return
 	}
+	if !meetingAllowed(in, cal) {
+		graphError(w, 400, "ErrorInvalidRequest")
+		return
+	}
 	if in.TransactionID != "" {
 		for _, e := range s.events {
 			if e.TransactionID == in.TransactionID && e.Calendar == cal.ID {
@@ -641,6 +780,11 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 	}
 	e := &Event{Calendar: cal.ID, TransactionID: in.TransactionID}
 	in.apply(e)
+	applyGuests(e, in)
+	s.applyMeeting(e, in)
+	if !e.NotOrganizer {
+		s.send("update", addresses(guestList(e))...)
+	}
 	for _, p := range in.Props {
 		if strings.EqualFold(p.ID, s.Property) {
 			e.TaskID = p.Value
@@ -658,7 +802,7 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 func (s *Server) get(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	e := s.events[r.PathValue("id")]
+	e := s.find(r.PathValue("id"))
 	if e == nil {
 		graphError(w, 404, "ErrorItemNotFound")
 		return
@@ -667,7 +811,10 @@ func (s *Server) get(w http.ResponseWriter, r *http.Request) {
 }
 
 // precondition answers 412 when If-Match names another version.
-func precondition(w http.ResponseWriter, r *http.Request, e *Event) bool {
+func (s *Server) precondition(w http.ResponseWriter, r *http.Request, e *Event) bool {
+	if r.Header.Get("If-Match") == "" {
+		s.unconditional++
+	}
 	if m := r.Header.Get("If-Match"); m != "" && m != "*" && m != e.ETag {
 		graphError(w, 412, "ErrorIrresolvableConflict")
 		return false
@@ -679,7 +826,7 @@ func (s *Server) patch(w http.ResponseWriter, r *http.Request) {
 	in, ok := readInput(r)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	e := s.events[r.PathValue("id")]
+	e := s.find(r.PathValue("id"))
 	switch {
 	case e == nil:
 		graphError(w, 404, "ErrorItemNotFound")
@@ -696,10 +843,27 @@ func (s *Server) patch(w http.ResponseWriter, r *http.Request) {
 		e.Modified = s.now()
 		s.store(e)
 	}
-	if !precondition(w, r, e) {
+	if !s.precondition(w, r, e) {
 		return
 	}
+	if cal := s.cals[e.Calendar]; cal != nil && !meetingAllowed(in, cal) {
+		graphError(w, 400, "ErrorInvalidRequest")
+		return
+	}
+	if e.Type == "occurrence" { // a generated occurrence becomes an exception of its master
+		e.Type = "exception"
+	}
+	if e.Type == "seriesMaster" && in.changesSeries() {
+		if in.Recurrence != nil && in.Start == nil && in.End == nil && fmt.Sprint(in.Recurrence.Pattern) == fmt.Sprint(e.Recurrence.Pattern) && in.Recurrence.Range.Type == "endDate" {
+			s.dropExceptionsAfter(e.ID, in.Recurrence.Range.EndDate) // the range ends: the later ones go
+		} else {
+			s.dropExceptions(e.ID) // Graph drops them when the master's times or pattern change
+		}
+	}
 	in.apply(e)
+	changed, removed := applyGuests(e, in)
+	s.applyMeeting(e, in)
+	s.noteEdit(e, in, changed, removed)
 	e.Modified = s.now()
 	s.store(e)
 	writeJSON(w, 200, s.render(e, r, false))
@@ -708,7 +872,7 @@ func (s *Server) patch(w http.ResponseWriter, r *http.Request) {
 func (s *Server) remove(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	e := s.events[r.PathValue("id")]
+	e := s.find(r.PathValue("id"))
 	switch {
 	case e == nil:
 		graphError(w, 404, "ErrorItemNotFound")
@@ -716,9 +880,39 @@ func (s *Server) remove(w http.ResponseWriter, r *http.Request) {
 	case s.cals[e.Calendar] != nil && !s.cals[e.Calendar].CanEdit:
 		graphError(w, 403, "ErrorAccessDenied")
 		return
-	case !precondition(w, r, e):
+	case !s.precondition(w, r, e):
 		return
 	}
-	s.drop(e.ID)
+	if !e.NotOrganizer {
+		s.send("cancel", addresses(guestList(e))...)
+	}
+	switch e.Type {
+	case "seriesMaster":
+		s.dropExceptions(e.ID)
+		s.drop(e.ID)
+	case "occurrence", "exception": // Graph records a cancelled exception
+		e.Type, e.Cancelled = "exception", true
+		e.Modified = s.now()
+		s.store(e)
+	default:
+		s.drop(e.ID)
+	}
 	w.WriteHeader(204)
+}
+
+var tagRE = regexp.MustCompile(`(?s)<style.*?</style>|<[^>]*>`)
+
+// renderBody is the event's body as Graph answers it: an html body comes back
+// as html, or as its text when the request has Prefer
+// outlook.body-content-type="text" (markup stripped; an Outlook skeleton with no
+// words comes back empty).
+func renderBody(e *Event, r *http.Request) map[string]string {
+	if e.BodyType != "html" {
+		return map[string]string{"contentType": "text", "content": e.Body}
+	}
+	if strings.Contains(strings.Join(r.Header.Values("Prefer"), ","), `outlook.body-content-type="text"`) {
+		text := strings.TrimSpace(html.UnescapeString(tagRE.ReplaceAllString(e.Body, "")))
+		return map[string]string{"contentType": "text", "content": text}
+	}
+	return map[string]string{"contentType": "html", "content": e.Body}
 }

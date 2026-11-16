@@ -11,7 +11,7 @@ export interface DialogProps {
   onClose: () => void
   children: ReactNode
   /** Width of the card from 640 px up. */
-  size?: 'sm' | 'md' | 'lg' | 'graph' | 'xl'
+  size?: 'sm' | 'md' | 'lg' | 'graph' | 'xl' | 'page'
   /** Controls in the header between the title and Close (the Connections dialog's Graph / List switch). */
   actions?: ReactNode
   /** A tap outside closes (default). Off for destructive confirmations. */
@@ -49,7 +49,7 @@ export interface DialogProps {
   motion?: 'dialog' | 'fade'
 }
 
-const WIDTH = { sm: 'sm:max-w-sm', md: 'sm:max-w-md', lg: 'sm:max-w-lg', graph: 'sm:max-w-[48rem]', xl: 'sm:max-w-5xl' }
+const WIDTH = { sm: 'sm:max-w-sm', md: 'sm:max-w-md', lg: 'sm:max-w-lg', graph: 'sm:max-w-[48rem]', xl: 'sm:max-w-5xl', page: 'sm:max-w-none sm:min-h-[calc(100dvh-2rem)]' }
 const HEADER = 'sticky top-0 z-10 flex items-center gap-2 border-b border-default bg-inherit pl-4 pr-1 pt-[var(--safe-top)] sm:-top-4 sm:rounded-t-card'
 // The sheet sits at the bottom, below the notch: no top inset, its own curved corners.
 const HEADER_SHEET = 'sticky top-0 z-10 flex items-center gap-2 rounded-t-card border-b border-default bg-inherit pl-4 pr-1 sm:-top-4'

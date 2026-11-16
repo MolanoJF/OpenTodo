@@ -14,6 +14,8 @@ import type { DropTarget } from '../calendarDrag'
 import { isActivationTarget, isTypingTarget, useShortcutScope } from '../shortcuts'
 import { estimateFocus } from '../signals'
 import { addTaskToSlot, isSlotKey, moveSlot, resizeSlot, slotAt, type SlotView } from '../../lib/slots'
+import { requestOpenEvent } from './eventOpen'
+import { type EventEdits, nudgeOf } from './useEventEdits'
 import { runSlot } from './slotActions'
 import { extendToSpanPatch, moveSpanPatch, resizeSpanPatch, spanOf } from '../../lib/span'
 import { completeWithUndo } from '../undoable'
@@ -68,8 +70,12 @@ export interface CalendarKeyContext {
   replan?: { apply: () => void; cancel: () => void } | null
   /** `q`: the add dialog for the focused day (calendar-clarity D2). */
   onQuickAdd?: (date: string) => void
+  /** Shift+Q: an event on the focused day; absent while no calendar allows new events (calendar-event-editor D10). */
+  onNewEvent?: (date: string) => void
   /** Whether the user may move a task (multi-day-tasks D4: a viewer's spans do not move). */
   canEdit?: (task: Task) => boolean
+  /** Events of connected calendars (calendar-event-edits D7): a selected one moves, resizes and deletes with the keys. */
+  events?: EventEdits
 }
 
 /**
@@ -93,12 +99,19 @@ export function focusedDay(dates: readonly string[], today: string, selectedDate
 }
 
 export function useCalendarKeys(c: CalendarKeyContext) {
-  const { placing, setPlacing, selectedId, setSelectedId, order, mode, anchor, today } = c
+  const { placing, setPlacing, selectedId, setSelectedId, order, anchor, today } = c
   const edit = useQueuedEdit()
   const idx = selectedId ? order.indexOf(selectedId) : -1
   const task = selectedId && order.includes(selectedId) ? c.taskMap.get(selectedId) : undefined
   const block = task ? c.days.find((d) => d.date === task.due?.date)?.blocks.get(task.id) : undefined
   const slot = selectedId && isSlotKey(selectedId) ? c.slots?.get(selectedId) : undefined
+  /** A selected event of a connected calendar (calendar-event-edits D7): the same keys, other targets. */
+  const event = selectedId && c.events?.byKey.get(selectedId)
+  const eventKey = (key: Parameters<typeof nudgeOf>[0], e: KeyboardEvent, follow?: boolean): boolean | void => {
+    if (!event || placing || !selectedId) return false
+    const dir = e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 1
+    c.events!.nudge(selectedId, nudgeOf(key, dir), follow ? c.follow : undefined)
+  }
   /** A selected slot (calendar-slots D5): arrows move it, Shift+arrows change its length. */
   const slotKeys = (e: KeyboardEvent): boolean => {
     if (!slot || placing) return false
@@ -152,6 +165,7 @@ export function useCalendarKeys(c: CalendarKeyContext) {
       else setSelectedId(null)
     },
     'calendar.open': (e) => {
+      if (event && selectedId && !placing && !isActivationTarget(e.target)) { requestOpenEvent(selectedId); return }
       if (placing) { c.commit(placing.taskId, { type: 'slot', date: placing.date, start: placing.start }); setPlacing(null); return }
       if (slot) return false
       if (!task || isActivationTarget(e.target)) return false
@@ -168,6 +182,7 @@ export function useCalendarKeys(c: CalendarKeyContext) {
     'calendar.nudge': (e) => {
       const dir = e.key === 'ArrowUp' ? -1 : 1
       if (placing) { ghost({ ...placing, start: clamp(placing.start + dir * SLOT_MINUTES, 0, LAST_SLOT) }); return }
+      if (event) return eventKey('nudge', e)
       // A span is whole days, never a block (multi-day-tasks D3).
       if (task && spanOf(task)) return
       return arrows((tk) => {
@@ -178,6 +193,7 @@ export function useCalendarKeys(c: CalendarKeyContext) {
       const days = e.key === 'ArrowLeft' ? -1 : 1
       if (placing) { ghost({ ...placing, date: addDaysISO(placing.date, days) }); return }
       if (slotKeys(e)) return
+      if (event) return eventKey('shift-day', e, true)
       // A span moves whole: start and due by the same day (multi-day-tasks D4).
       if (task && spanOf(task)) { if (editable(task)) edit(task.id, (x) => spanKeyPatch(x, 'move', days), (_, patch) => patch.due && c.follow(patch.due.date)); return }
       return arrows((tk) => {
@@ -188,18 +204,23 @@ export function useCalendarKeys(c: CalendarKeyContext) {
     'calendar.span-end': (e) => spanKey(e, 'last'),
     'calendar.span-start': (e) => spanKey(e, 'first'),
     // Shift+Up shortens, Shift+Down lengthens: the block's lower edge follows the arrow.
-    'calendar.estimate': arrows((tk, _due, e) => edit(tk.id, (x) => ({ estimate_minutes: stepEstimate(x.estimate_minutes, (e.key === 'ArrowUp' ? -1 : 1) * SLOT_MINUTES) }))),
+    'calendar.estimate': (e) => (event ? eventKey('estimate', e) : arrows((tk, _due, e) => edit(tk.id, (x) => ({ estimate_minutes: stepEstimate(x.estimate_minutes, (e.key === 'ArrowUp' ? -1 : 1) * SLOT_MINUTES) })))(e)),
     // Alt+Shift+Up starts earlier, Alt+Shift+Down later: the upper edge follows the arrow, the end stays (GitHub issue 355).
-    'calendar.estimate-start': arrows((tk, _due, e) => edit(tk.id, (x) => {
+    'calendar.estimate-start': (e) => (event ? eventKey('estimate-start', e) : arrows((tk, _due, ev) => edit(tk.id, (x) => {
       const start = parseTime(x.due?.time)
       if (start === null || !x.due) return null
-      const r = stepStart(start, x.estimate_minutes, (e.key === 'ArrowUp' ? -1 : 1) * SLOT_MINUTES)
+      const r = stepStart(start, x.estimate_minutes, (ev.key === 'ArrowUp' ? -1 : 1) * SLOT_MINUTES)
       return { due: { date: x.due.date, time: toHHMM(r.start) }, estimate_minutes: r.estimate }
-    })),
+    }))(e)),
+    // Delete on a selected event of a connected calendar: hidden at once, deleted after the Undo window (calendar-event-edits D7).
+    'calendar.delete': unlessPlacing(() => {
+      if (!event || !selectedId || !c.events!.remove(selectedId)) return false
+      setSelectedId(order[idx + 1] ?? order[idx - 1] ?? null)
+    }),
     'calendar.next': unlessPlacing(() => setSelectedId(order[Math.min(order.length - 1, idx + 1)] ?? null)),
     'calendar.prev': unlessPlacing(() => setSelectedId(order[Math.max(0, idx - 1)] ?? null)),
-    'calendar.range-prev': unlessPlacing(() => c.goTo(addDaysISO(anchor, mode === 'day' ? -1 : -7))),
-    'calendar.range-next': unlessPlacing(() => c.goTo(addDaysISO(anchor, mode === 'day' ? 1 : 7))),
+    'calendar.range-prev': unlessPlacing(() => c.goTo(addDaysISO(anchor, -c.days.length))),
+    'calendar.range-next': unlessPlacing(() => c.goTo(addDaysISO(anchor, c.days.length))),
     'calendar.today': unlessPlacing(() => c.goTo(today)),
     // Keyboard twin of dropping on the lane: keep the date, clear the time.
     'calendar.unschedule': unlessPlacing(() => { if (!task?.due || task.completed_at || !block) return false; edit(task.id, (tk) => (tk.due ? { due: { date: tk.due.date } } : null)) }),
@@ -208,6 +229,10 @@ export function useCalendarKeys(c: CalendarKeyContext) {
     'calendar.quick-add': unlessPlacing(() => {
       if (!c.onQuickAdd) return false
       c.onQuickAdd(focusedDay(c.days.map((d) => d.date), today, task?.due?.date ?? slot?.slot.date))
+    }),
+    'calendar.new-event': unlessPlacing(() => {
+      if (!c.onNewEvent) return false
+      c.onNewEvent(focusedDay(c.days.map((d) => d.date), today, task?.due?.date ?? slot?.slot.date))
     }),
     'calendar.complete': unlessPlacing(() => {
       if (!task?.due || task.completed_at) return false

@@ -1,3 +1,7 @@
+import { useDateTimeFormat } from './DateTimePrefsProvider'
+import { setUserPref } from '../lib/userPrefs'
+import { act } from './actionError'
+import type { WeekStartPref } from '../lib/types'
 import { saveGridPrefs } from '../lib/localData'
 import { type GridPrefs } from '../lib/calendar'
 import { formatMinutes } from '../lib/duration'
@@ -5,6 +9,7 @@ import { useCalendarSubscriptions } from '../lib/liveData'
 import { Select, Switch } from '../ui'
 import { SettingRow, SettingsSection } from '../ui'
 import { useGridPrefs } from './CalendarView'
+import { SecondZoneSetting } from './calendar/SecondZoneSetting'
 import { t } from '../lib/i18n'
 import { cardCopy, rowCopy } from '../lib/settingsCopy'
 
@@ -21,9 +26,18 @@ export function CalendarSettingsSection() {
 }
 
 export function CalendarSettingsView({ prefs, hasCalendars = false, onSave }: { prefs: GridPrefs; hasCalendars?: boolean; onSave: (patch: Partial<GridPrefs>) => void }) {
+  const dt = useDateTimeFormat()
   const lengths = DAY_LENGTHS.includes(prefs.dayLength) ? DAY_LENGTHS : [...DAY_LENGTHS, prefs.dayLength].sort((a, b) => a - b)
   return (
     <SettingsSection {...cardCopy('calendar')}>
+      <SettingRow label={t('Week starts on')} description={t('Choose the first day of the calendar week. This preference syncs across your devices.')} htmlFor="calendar-week-start" control={
+        <Select id="calendar-week-start" value={dt.prefs?.week_start ?? 'system'} onChange={(e) => act(setUserPref('week_start', e.target.value as WeekStartPref))}>
+          <option value="system">{t('System')}</option><option value="mon">{t('Monday')}</option><option value="sun">{t('Sunday')}</option><option value="sat">{t('Saturday')}</option>
+        </Select>
+      } />
+      <SettingRow label={t('Shade outside grid hours')} description={t('Dim hours before the start and after the end below. All hours remain available.')} control={
+        <Switch checked={!!prefs.shadeOffHours} label={t('Shade outside grid hours')} hideLabel onChange={(shadeOffHours) => onSave({ shadeOffHours })} />
+      } />
       <SettingRow {...rowCopy('calendar', 'gridStart')} htmlFor="grid-start" control={
         <Select id="grid-start" className="sm:w-32" aria-label={t('Grid start hour')} value={prefs.startHour}
           onChange={(e) => onSave({ startHour: Number(e.target.value), endHour: Math.max(prefs.endHour, Number(e.target.value) + 1) })}>
@@ -40,6 +54,7 @@ export function CalendarSettingsView({ prefs, hasCalendars = false, onSave }: { 
           {lengths.map((m) => <option key={m} value={m}>{formatMinutes(m)}</option>)}
         </Select>
       } />
+      <SettingRow {...rowCopy('calendar', 'secondZone')} control={<SecondZoneSetting zone={prefs.secondZone ?? ''} onChange={(secondZone) => onSave({ secondZone })} />} />
       {hasCalendars && (
         <SettingRow {...rowCopy('calendar', 'countEvents')} htmlFor="count-events"
           control={<span data-count-events-switch><Switch id="count-events" checked={prefs.countEvents} onChange={(on) => onSave({ countEvents: on })} label={t('Count meetings in capacity')} hideLabel /></span>} />

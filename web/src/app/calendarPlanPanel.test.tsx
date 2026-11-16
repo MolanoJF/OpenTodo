@@ -10,6 +10,7 @@ import { db } from '../lib/db'
 import { getTask } from '../lib/localData'
 import { createTask, resetDeviceId } from '../lib/ops'
 import { click, flush, key, minWidthPx, render, waitFor } from '../ui/test-utils'
+import { chooseCalendarMode } from './calendarMenu.testkit'
 import { CalendarView } from './CalendarView'
 import { MonthView } from './MonthView'
 import { PlanView } from './PlanView'
@@ -48,7 +49,6 @@ afterEach(() => {
 const planList = () => document.querySelector('[data-panel-frame="calendar-plan"]')
 const header = () => document.querySelector('[data-page-header]')!
 const button = (label: string) => header().querySelector<HTMLElement>(`button[aria-label="${label}"]`)!
-const rangeButton = (label: string) => [...header().querySelectorAll<HTMLElement>('[aria-label="Calendar range"] button')].find((b) => b.textContent === label)!
 
 async function openPlanList() {
   await waitFor(() => !!document.querySelector('[data-page-header] button[aria-label="More actions"]'), 'the page header')
@@ -67,12 +67,12 @@ describe('the planning list across the Calendar', () => {
     for (const step of [
       () => click(button('Next day')),
       () => click(button('Previous day')),
-      () => click(rangeButton('Week')),
+      () => chooseCalendarMode(header(), 'Week'),
       () => click(button('Next week')),
-      () => click(rangeButton('Month')),
+      () => chooseCalendarMode(header(), 'Month'),
       () => click(button('Next month')),
-      () => click(rangeButton('Plan')),
-      () => click(rangeButton('Day')),
+      () => chooseCalendarMode(header(), 'Plan'),
+      () => chooseCalendarMode(header(), 'Day'),
     ]) {
       await step()
       await flush()
@@ -97,7 +97,7 @@ describe('the planning list across the Calendar', () => {
     const id = await createTask({ title: 'Renew passport' })
     const r = await render(<><Calendar /><PanelHost /></>)
     await openPlanList()
-    await click(rangeButton('Month'))
+    await chooseCalendarMode(header(), 'Month')
     await waitFor(() => !!document.querySelector('[data-calendar-page="month"]'), 'the month')
     await waitFor(() => planList()?.querySelector('[data-tray-task]') !== null)
     await key(planList()!.querySelector<HTMLElement>('[data-tray-task]')!, 's')

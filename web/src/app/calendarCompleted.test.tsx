@@ -9,6 +9,7 @@ import { addTaskToSlot, createSlot } from '../lib/slots'
 import { completeTask, createProject, createTask, resetDeviceId, updateTask } from '../lib/ops'
 import { click, key, render, waitFor } from '../ui/test-utils'
 import { PageActions, usePageBar } from '../ui'
+import { calendarControl } from './calendarMenu.testkit'
 import { CalendarView } from './CalendarView'
 import { MonthView } from './MonthView'
 import { PlanView } from './PlanView'
@@ -54,17 +55,13 @@ const modes = {
   plan: () => <PlanView date={DATE} />,
 }
 const taskRow = (root: ParentNode, id: string) => root.querySelector<HTMLElement>(`[data-cal-id="${id}"], [data-month-task="${id}"], [data-plan-task="${id}"]`)
-const toggle = (root: ParentNode) => root.querySelector<HTMLButtonElement>('[data-calendar-completed-toggle]')!
 /** The shell normally renders the overflow menu that a phone header declares. */
 function PhoneMenu() {
   const bar = usePageBar()
   return bar ? <PageActions overflow={bar.overflow} /> : null
 }
 async function controlAtWidth(root: ParentNode) {
-  if (toggle(root)) return toggle(root)
-  await click(root.querySelector('[aria-label="More actions"]')!)
-  await waitFor(() => !!document.querySelector('[data-calendar-completed-toggle]'))
-  return document.querySelector<HTMLButtonElement>('[data-calendar-completed-toggle]')!
+  return calendarControl(root, '[data-calendar-completed-toggle]')
 }
 
 describe.each([1280, 390])('completed calendar tasks at %i px', (width) => {
@@ -84,7 +81,7 @@ describe.each([1280, 390])('completed calendar tasks at %i px', (width) => {
     const writes = await db.outbox.count()
     const control = await controlAtWidth(r.container)
     expect(control.textContent?.trim()).toBe('Show completed tasks')
-    expect(control.getAttribute(width === 1280 ? 'aria-pressed' : 'aria-checked')).toBe('false')
+    expect(control.getAttribute('aria-checked')).toBe('false')
     await click(control)
     await waitFor(() => !!taskRow(r.container, done) && !!taskRow(r.container, lane))
     expect(await getMeta(CALENDAR_COMPLETED_META_KEY, false)).toBe(true)
@@ -99,7 +96,7 @@ describe.each([1280, 390])('completed calendar tasks at %i px', (width) => {
     expect(await db.outbox.count()).toBe(writes)
     const active = await controlAtWidth(r.container)
     expect(active.textContent?.trim()).toBe('Show completed tasks')
-    expect(active.getAttribute(width === 1280 ? 'aria-pressed' : 'aria-checked')).toBe('true')
+    expect(active.getAttribute('aria-checked')).toBe('true')
     await click(active)
     await waitFor(() => !taskRow(r.container, done) && !taskRow(r.container, lane))
     expect(taskRow(r.container, open)).toBeTruthy()
@@ -141,14 +138,16 @@ it.each(['day', 'week', 'month'] as const)('%s keeps counted meetings in capacit
   await completeTask(done)
   const r = await render(modes[mode]())
   const capacity = () => r.container.querySelector(`[data-day-header="${DATE}"] [data-capacity], [data-month-day="${DATE}"] [data-capacity]`)
-  await waitFor(() => capacity()?.textContent === '3h / 8h')
+  await waitFor(() => !!r.container.querySelector('[data-event="meeting"], [data-month-day]'))
+  if (mode === 'month') await waitFor(() => capacity()?.textContent === '3h / 8h')
+  else expect(capacity()).toBeNull()
   const writes = await db.outbox.count()
-  await click(toggle(r.container))
+  await click(await controlAtWidth(r.container))
   await waitFor(() => !!taskRow(r.container, done)?.querySelector('.line-through'))
-  expect(capacity()?.textContent).toBe('3h / 8h')
-  await click(toggle(r.container))
+  expect(capacity()?.textContent).toBe(mode === 'month' ? '3h / 8h' : undefined)
+  await click(await controlAtWidth(r.container))
   await waitFor(() => !taskRow(r.container, done))
-  expect(capacity()?.textContent).toBe('3h / 8h')
+  expect(capacity()?.textContent).toBe(mode === 'month' ? '3h / 8h' : undefined)
   expect(await db.outbox.count()).toBe(writes)
   await r.unmount()
 })
@@ -156,15 +155,15 @@ it.each(['day', 'week', 'month'] as const)('%s keeps counted meetings in capacit
 it('remembers the preference through all modes and remounts without overwriting grid preferences or queuing ops', async () => {
   await setMeta('calendar.grid', { startHour: 8, endHour: 17, dayLength: 360, planDays: 21 })
   const r = await render(modes.day())
-  await click(toggle(r.container))
+  await click(await controlAtWidth(r.container))
   await waitFor(async () => await getMeta(CALENDAR_COMPLETED_META_KEY, false) === true)
   for (const view of Object.values(modes)) {
     await r.rerender(view())
-    await waitFor(() => toggle(r.container).getAttribute('aria-pressed') === 'true')
+    await waitFor(async () => (await controlAtWidth(r.container)).getAttribute('aria-checked') === 'true')
   }
   await r.unmount()
   const reloaded = await render(modes.week())
-  await waitFor(() => toggle(reloaded.container).getAttribute('aria-pressed') === 'true')
+  expect((await controlAtWidth(reloaded.container)).getAttribute('aria-checked')).toBe('true')
   expect(await getMeta('calendar.grid', null)).toEqual({ startHour: 8, endHour: 17, dayLength: 360, planDays: 21 })
   expect(await db.outbox.count()).toBe(0)
   await reloaded.unmount()
@@ -175,7 +174,7 @@ it.each(['true', 1, null])('treats invalid stored preference %s as off', async (
   const r = await render(modes.day())
   const open = await createTask({ title: 'Wait for live data', due: { date: DATE } })
   await waitFor(() => !!taskRow(r.container, open))
-  expect(toggle(r.container).getAttribute('aria-pressed')).toBe('false')
+  expect((await controlAtWidth(r.container)).getAttribute('aria-checked')).toBe('false')
   await r.unmount()
 })
 
@@ -187,6 +186,8 @@ it.each(Object.entries(modes))('%s lets completed tasks be inspected, without ke
   await waitFor(() => !!taskRow(r.container, done))
   const row = taskRow(r.container, done)!
   await click(row)
+  await waitFor(() => !!document.querySelector('[data-task-preview]'))
+  await key(document.activeElement!, 'Escape')
   const stored = await db.tasks.get(done)
   const writes = await db.outbox.count()
   await act(async () => {
@@ -219,8 +220,8 @@ it('updates completion and reopening live, including completed recurring occurre
   await waitFor(() => !!occurrence && !!taskRow(r.container, occurrence)?.querySelector('.line-through') && r.container.querySelectorAll('[data-plan-projected]').length === 12)
   const projections = r.container.querySelectorAll('[data-plan-projected]').length
   const capacities = [...r.container.querySelectorAll('[data-capacity]')].map((e) => e.textContent)
-  await click(toggle(r.container))
-  await waitFor(() => toggle(r.container).getAttribute('aria-pressed') === 'false')
+  await click(await controlAtWidth(r.container))
+  await waitFor(async () => (await controlAtWidth(r.container)).getAttribute('aria-checked') === 'false')
   expect(r.container.querySelectorAll('[data-plan-projected]')).toHaveLength(projections)
   expect([...r.container.querySelectorAll('[data-capacity]')].map((e) => e.textContent)).toEqual(capacities)
   await r.unmount()
@@ -237,7 +238,7 @@ it('marks completed titles in the expanded overlap list and removes its overflow
   await click(r.container.querySelector('[data-overflow]')!)
   await waitFor(() => r.container.querySelectorAll('[data-cal-id] .line-through').length === 8)
   expect([...r.container.querySelectorAll('[data-cal-id]')].every((e) => e.textContent?.includes('(completed)'))).toBe(true)
-  await click(toggle(r.container))
+  await click(await controlAtWidth(r.container))
   await waitFor(() => !r.container.querySelector('[data-overflow], [data-cal-id]'))
   await r.unmount()
 })
@@ -281,13 +282,13 @@ it.each(['day', 'week'] as const)('%s preserves Slots checklists, capacity and c
   const capacity = () => [...r.container.querySelectorAll('[data-capacity]')].map((e) => e.textContent)
   const before = capacity()
   const writes = await db.outbox.count()
-  await click(toggle(r.container))
+  await click(await controlAtWidth(r.container))
   await waitFor(() => !!taskRow(r.container, outside)?.querySelector('.line-through'))
   expect(completedRow().getAttribute('aria-checked')).toBe('true')
   expect(r.container.querySelector(`[data-lane-task="${done}"]`)).toBeNull()
   expect(capacity()).toEqual(before)
   expect(await db.outbox.count()).toBe(writes)
-  await click(toggle(r.container))
+  await click(await controlAtWidth(r.container))
   await waitFor(() => !taskRow(r.container, outside))
   expect(completedRow().getAttribute('aria-checked')).toBe('true')
   expect(capacity()).toEqual(before)

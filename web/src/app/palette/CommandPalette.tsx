@@ -41,6 +41,7 @@ import { t } from '../../lib/i18n'
 import { useAssistantStatus } from '../../lib/assistantStatus'
 import { addFromBar, addManyFromBar, lineToInput, logWinFromBar } from './addFromBar'
 import { slotStateOf } from '../task-list/slotActions'
+import { useWritableCalendars } from '../calendar/useWritableCalendars'
 import { useMissedBlocks } from '../calendar/useMissedBlocks'
 import { AddPanel, AskPanel, BarFooter, ModeSwitch, ShortcutKeys } from './BarParts'
 import { barModes, PREFIX_OF, prefixSwitch, type BarMode } from './modes'
@@ -96,6 +97,7 @@ export default function CommandPalette({ user, onClose, showShortcuts, initialMo
   const agentExclusions = useAgentExclusions()
   const reviewEvery = useReviewEvery()
   const missedBlocks = useMissedBlocks().length
+  const eventsWritable = useWritableCalendars().length > 0
   // Today's earlier tasks, once per data change: ctx follows the text typed, and this
   // read every task on each keystroke (list-rendering-at-scale D6).
   const hideOthers = useMemo(() => (memberships ? todayAssigneeFilter(prefs, [...memberships.values()], user?.id ?? null) : null), [prefs, memberships, user])
@@ -128,8 +130,9 @@ export default function CommandPalette({ user, onClose, showShortcuts, initialMo
       timeSectors: timeSectorsOn(prefs),
       slot: task ? slotStateOf(task.id) : null,
       missedBlocks,
+      eventsWritable,
     }
-  }, [route, user, today, list, task, query, vimEnabled, showShortcuts, projects, memberships, views, labels, tasks, startView, sectionInfo, prefs, agentExclusions, reviewEvery, workspaceState, missedBlocks, earlier])
+  }, [eventsWritable, route, user, today, list, task, query, vimEnabled, showShortcuts, projects, memberships, views, labels, tasks, startView, sectionInfo, prefs, agentExclusions, reviewEvery, workspaceState, missedBlocks, earlier])
 
   const taskEntry = useMemo(() => makeTaskEntry(projects, today), [projects, today])
   const entities = usePaletteEntities(user, today, projects, labels, views, tasks)

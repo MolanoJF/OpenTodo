@@ -15,6 +15,7 @@ import (
 
 	"github.com/OpenTodoApp/opentodo/internal/audit"
 	"github.com/OpenTodoApp/opentodo/internal/calfeed"
+	"github.com/OpenTodoApp/opentodo/internal/calsync"
 	"github.com/OpenTodoApp/opentodo/internal/freetime"
 	ob "github.com/OpenTodoApp/opentodo/internal/outbound"
 	"github.com/OpenTodoApp/opentodo/internal/textutil"
@@ -45,6 +46,7 @@ func (s *Server) registerCalendarFeedRoutes(mux *routes) {
 	mux.handle("DELETE /api/v1/calendar-feeds/subscriptions/{id}", signedIn.DemoDenied(), s.feedsGate(s.handleDeleteSubscription))
 	mux.handle("POST /api/v1/calendar-feeds/subscriptions/{id}/refresh", signedIn.DemoDenied(), s.feedsGate(s.handleRefreshSubscription))
 	mux.handle("GET /api/v1/calendar-feeds/events", signedIn.DemoDenied(), s.eventsGate(s.handleCalendarEvents))
+	mux.handle("GET /api/v1/calendar-feeds/events/{eventId}/guests", signedIn.DemoDenied(), s.eventsGate(s.handleEventGuests))
 	mux.handle("GET /api/v1/calendar-feeds/feed", signedIn.DemoDenied(), s.feedsGate(s.handleGetFeed))
 	mux.handle("POST /api/v1/calendar-feeds/feed", signedIn.Recent().DemoDenied(), s.feedsGate(s.handleRotateFeed))
 	mux.handle("DELETE /api/v1/calendar-feeds/feed", signedIn.DemoDenied(), s.feedsGate(s.handleRevokeFeed))
@@ -260,6 +262,16 @@ func (s *Server) handleCalendarEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		subs = append(subs, more...)
 	}
+	links, err := s.managedLinks(r.Context(), uid, managed)
+	if err != nil {
+		s.internal(w, err)
+		return
+	}
+	for i := range events {
+		if l, ok := links[events[i].SubscriptionID]; ok && events[i].Managed {
+			calsync.Decorate(l.conn, l.calendar, &events[i])
+		}
+	}
 	type subInfo struct {
 		ID            string `json:"id"`
 		Name          string `json:"name"`
@@ -268,12 +280,68 @@ func (s *Server) handleCalendarEvents(w http.ResponseWriter, r *http.Request) {
 		LastSuccessAt *int64 `json:"lastSuccessAt"`
 		// Managed is a calendar sync connection's calendar, not a subscription.
 		Managed bool `json:"managed,omitempty"`
+		// What a connected calendar allows (calendar-event-edits D4); absent for
+		// subscriptions.
+		ConnectionID string        `json:"connectionId,omitempty"`
+		CalendarURL  string        `json:"calendarUrl,omitempty"`
+		Caps         *calsync.Caps `json:"caps,omitempty"`
+		EditEvents   *bool         `json:"editEvents,omitempty"`
+		// MaxReminders is how many reminders an event of the connection takes
+		// (calendar-event-series D3): 5, or 1 for Microsoft.
+		MaxReminders int `json:"maxReminders,omitempty"`
+		// Guests is what OpenTodo does with the guests of the connection's events (calendar-event-guests D1).
+		Guests *calsync.GuestCaps `json:"guests,omitempty"`
 	}
 	info := []subInfo{}
 	for i, sub := range subs {
-		info = append(info, subInfo{sub.ID, sub.Name, sub.Color, sub.Enabled, sub.LastSuccessAt, i >= own})
+		si := subInfo{ID: sub.ID, Name: sub.Name, Color: sub.Color, Enabled: sub.Enabled, LastSuccessAt: sub.LastSuccessAt, Managed: i >= own}
+		if l, ok := links[sub.ID]; ok && si.Managed {
+			caps, on := l.caps(), l.conn.EditEvents
+			si.ConnectionID, si.CalendarURL, si.Caps, si.EditEvents = l.conn.ID, l.calendar, &caps, &on
+			si.MaxReminders = calsync.MaxReminders(l.conn.Provider)
+			gc := l.conn.GuestCaps()
+			si.Guests = &gc
+		}
+		info = append(info, si)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"events": events, "subscriptions": info})
+}
+
+// managedLink is a connected calendar: its connection and the calendar's URL.
+type managedLink struct {
+	conn     *calsync.Connection
+	calendar string
+}
+
+// caps is what the link's calendar allows.
+func (l managedLink) caps() calsync.Caps {
+	if cal := l.conn.Calendar(l.calendar); cal != nil {
+		return cal.EffectiveCaps()
+	}
+	return calsync.Caps{}
+}
+
+// managedLinks maps the managed subscriptions of the user's connections to
+// their connection and calendar (empty unless managed).
+func (s *Server) managedLinks(ctx context.Context, uid string, managed bool) (map[string]managedLink, error) {
+	out := map[string]managedLink{}
+	if !managed || s.calsync == nil {
+		return out, nil
+	}
+	conns, err := s.calsync.Store.List(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+	for i := range conns {
+		list, err := s.calWorker.Store.ManagedOf(ctx, conns[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		for url, m := range list {
+			out[m.SubscriptionID] = managedLink{conn: &conns[i], calendar: url}
+		}
+	}
+	return out, nil
 }
 
 func (s *Server) handleGetFeed(w http.ResponseWriter, r *http.Request) {

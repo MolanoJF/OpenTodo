@@ -517,6 +517,43 @@ export const OVERLAYS = {
     if (!(await editor.waitFor({ timeout: 3000 }).then(() => true, () => false))) { await p.keyboard.press('Escape'); return null }
     return { overlay: editor, kind: 'inline', after: async () => p.keyboard.press('Escape') }
   },
+  // The popover of an event of a connected calendar, with its title, date and times, Save and Delete (calendar-event-edits D7).
+  async 'event-editor'(p) {
+    const trigger = p.locator('[data-event="layout-edit"]')
+    await trigger.click()
+    await p.locator('[data-event-details]').waitFor()
+    return { overlay: overlayLoc(p), trigger, kind: 'popover' }
+  },
+  // The scope menu (calendar-event-series D12): a key press on an occurrence of a repeating event, once the keys settle, asks which events to change.
+  async 'event-scope-menu'(p) {
+    const trigger = p.locator('[data-event="layout-series"]')
+    await trigger.focus()
+    await p.keyboard.press('ArrowDown')
+    await p.locator('[data-event-scope]').first().waitFor({ timeout: 5000 })
+    return { overlay: overlayLoc(p), trigger, kind: 'popover' }
+  },
+  // "Tell 3 guests?" (calendar-event-guests D8, D13): a key press on a meeting the user organises on Outlook asks before the calendar tells the guests.
+  async 'event-notify-guests'(p) {
+    const trigger = p.locator('[data-event="layout-edit"]')
+    await trigger.focus()
+    await p.keyboard.press('ArrowDown')
+    await p.locator('[data-notify-guests]').waitFor({ timeout: 5000 })
+    return { overlay: overlayLoc(p), trigger, kind: 'dialog' }
+  },
+  // The full event editor (calendar-event-editor D11): a double-click on the event opens it, in the side panel from 1024 px and as a sheet below.
+  async 'event-panel'(p) {
+    const trigger = p.locator('[data-event="layout-edit"]')
+    const wide = p.viewportSize().width >= 1024
+    if (wide) await trigger.dblclick()
+    else {
+      // Below 1024 px the first click of a double-click opens the popover as a sheet over the event, so the second lands on the sheet:
+      // go the way a touch screen does, through the popover's "Open editor" button.
+      await trigger.click()
+      await p.locator('[data-event-open-editor]').click()
+    }
+    await p.locator('[data-event-form]').waitFor()
+    return { overlay: p.locator('[data-event-page-route]'), trigger, kind: 'panel' }
+  },
   // The When popover, one segment at a time (task-panel-facets D3).
   async 'when-popover'(p) {
     await p.locator('[data-task-id]').filter({ hasText: 'Get three quotes' }).first().locator('[data-row-open]').press('Enter')

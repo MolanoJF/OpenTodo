@@ -42,6 +42,9 @@ func TestDisclosureCoversEveryReadTool(t *testing.T) {
 		"find_free_time":    "your free time, worked out from your calendar events, frames, slots and timed tasks",
 		// Not offered in the app (assistant notInApp, plan-objectives D7).
 		"list_objectives": "",
+		// Not offered in the app either: event titles are not in the disclosure
+		// (assistant notInApp, calendar-event-edits D8).
+		"list_calendar_events": "",
 	}
 	reg := agenttools.New(nil, agenttools.Options{})
 	reads := 0

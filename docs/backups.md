@@ -374,7 +374,10 @@ until those archives expire, like the rest of the data.
 The database copy is taken with SQLite's `VACUUM INTO` while the server keeps
 running. It contains every account, session, API token, invitation, project,
 task, label and the complete operation log as of one instant, and no WAL file
-is needed to read it.
+is needed to read it. It also holds the server's cache of connected calendars,
+including the names and email addresses of event guests (see
+[Guests, replies and join links](calendar-event-guests.md#privacy)); the cache is
+rebuilt from the calendar on the next sync.
 
 The archive never contains `<data>/secrets/` (destination credentials and the
 passphrase) or `<data>/backups/` (earlier archives): only the database snapshot

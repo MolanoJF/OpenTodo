@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  compareDue, currentDayStart, describeDue, logicalDay, logicalToday, setDayStart, todayISO, dueFromView, dueToInstant, fixDueToZone, instantToLocalDue, localDueOf, onViewerZoneChange,
+  compareDue, currentDayStart, describeDue, logicalDay, logicalToday, setDayStart, todayISO, dueFromView, dueToInstant, eventPointIn, fixDueToZone, instantToLocalDue, localDueOf, onViewerZoneChange,
   refreshViewerZone, releaseDue, viewerZone, watchViewerZone, zonedInstant, zoneHint, quickChoices, setDateTime,
 } from './dates'
 import vectors from './zoned.vectors.json'
@@ -231,5 +231,32 @@ describe('quickChoices', () => {
 
   it('Start offers Someday', () => {
     expect(dates('start', '2026-10-21', monday)).toMatchObject({ today: '2026-10-21', someday: 'someday' })
+  })
+})
+
+describe('eventPointIn (calendar-event-edits D6): the inverse of localDueOf', () => {
+  const TOKYO = 'Asia/Tokyo'
+  const LISBON = 'Europe/Lisbon'
+  it('keeps the event in its own zone when the viewer is behind it', () => {
+    expect(eventPointIn(BERLIN, { date: '2026-11-12', time: '14:00' }, LISBON)).toEqual({ date: '2026-11-12', time: '15:00', tz: BERLIN })
+  })
+  it('crosses the date when the viewer is ahead of the event', () => {
+    expect(eventPointIn(BERLIN, { date: '2026-11-12', time: '03:00' }, TOKYO)).toEqual({ date: '2026-11-11', time: '19:00', tz: BERLIN })
+    expect(eventPointIn(TOKYO, { date: '2026-11-12', time: '03:00' }, BERLIN)).toEqual({ date: '2026-11-12', time: '11:00', tz: TOKYO })
+  })
+  it('follows a daylight saving change in the event zone', () => {
+    // Berlin springs forward on 2026-03-29 at 01:00 UTC.
+    expect(eventPointIn(BERLIN, { date: '2026-03-29', time: '00:30' }, 'UTC')).toEqual({ date: '2026-03-29', time: '01:30', tz: BERLIN })
+    expect(eventPointIn(BERLIN, { date: '2026-03-29', time: '01:30' }, 'UTC')).toEqual({ date: '2026-03-29', time: '03:30', tz: BERLIN })
+  })
+  it('round-trips with localDueOf', () => {
+    const point = { date: '2026-11-12', time: '09:15', tz: BERLIN }
+    const local = localDueOf(point, TOKYO)
+    expect(eventPointIn(BERLIN, local as { date: string; time: string }, TOKYO)).toEqual(point)
+  })
+  it('keeps a floating point floating and an all-day point a date', () => {
+    expect(eventPointIn(undefined, { date: '2026-11-12', time: '14:00' }, TOKYO)).toEqual({ date: '2026-11-12', time: '14:00' })
+    expect(eventPointIn(BERLIN, { date: '2026-11-12' }, TOKYO)).toEqual({ date: '2026-11-12' })
+    expect(eventPointIn(undefined, { date: '2026-11-12' }, TOKYO)).toEqual({ date: '2026-11-12' })
   })
 })

@@ -33,7 +33,7 @@ On the calendar itself, <kbd>j</kbd> / <kbd>k</kbd> select tasks, the arrows mov
 
 ## See whether the day fits
 
-Each day's header adds up the estimates of its open tasks and compares them with your day length, for example `4h 15m / 8h`. When you've planned more than the day holds, the header is marked as over capacity in red.
+Month and Plan add up open-task estimates against your configured day length, for example `4h 15m / 8h`, with over-capacity days marked in red. Day and Week keep the headings clear of these totals.
 
 With **Count meetings in capacity** on, busy [meetings](other-calendars.md) join the total (the tooltip splits the two), and a day whose tasks fit but not around its meetings turns amber: **Over with meetings**.
 

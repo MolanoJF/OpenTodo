@@ -4,11 +4,11 @@
 // Hit testing finds the day column or unscheduled lane under the pointer through
 // data attributes; the pure slot math in lib/calendar turns pixels into minutes.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { dropStart, resizeEstimate, resizeStart } from '../lib/calendar'
+import { dropStart, resizeEstimate, resizeStart, sweepRange } from '../lib/calendar'
 import { registerShortcutScope } from './shortcuts/dispatch'
 import { tick } from './motion'
 
-export type DragKind = 'move' | 'resize' | 'resize-start'
+export type DragKind = 'move' | 'resize' | 'resize-start' | 'create'
 
 export type DropTarget =
   | { type: 'slot'; date: string; start: number }
@@ -18,9 +18,16 @@ export type DropTarget =
   | { type: 'resize-start'; date: string; start: number; estimate: number }
   /** Over a calendar slot: the task is added to it (calendar-slots D3). */
   | { type: 'into-slot'; slotId: string }
+  /** A sweep over an empty stretch of a day column: the range a new task or event covers (calendar-event-editor D10). */
+  | { type: 'range'; date: string; start: number; end: number }
+
+/** What is dragged: a task block (or lane task, slot, projection), or an event of a connected calendar (calendar-event-edits D7). */
+export type DragEntity = 'task' | 'event' | 'range'
 
 export interface DragState {
   taskId: string
+  /** 'event': `taskId` is the block's layout id (`event:<id>`); events never drop into a slot. */
+  entity: DragEntity
   kind: DragKind
   /** Pointer position, for the floating label. */
   x: number
@@ -30,6 +37,7 @@ export interface DragState {
 
 interface Pending {
   taskId: string
+  entity: DragEntity
   kind: DragKind
   pointerId: number
   pointerType: string
@@ -46,12 +54,16 @@ interface Pending {
 }
 
 const MOUSE_THRESHOLD = 4
+/** A sweep waits for this many pixels of vertical movement, so a click or a double-click never starts one. */
+const SWEEP_THRESHOLD = 6
 const TOUCH_SLOP = 8
 const LONG_PRESS_MS = 350
 const EDGE = 48
 
 export interface StartOptions {
   taskId: string
+  /** Defaults to 'task'. */
+  entity?: DragEntity
   kind: DragKind
   grabOffset?: number
   blockStart?: number
@@ -63,7 +75,7 @@ export interface StartOptions {
  * `onDrop` receives the final target; the caller turns it into one `updateTask` call.
  * `scroller` is the scrollable grid container, scrolled when the pointer nears its edge.
  */
-export function useCalendarDrag(opts: { pxPerMinute: number; scroller: React.RefObject<HTMLElement | null>; onDrop: (taskId: string, target: DropTarget) => void }) {
+export function useCalendarDrag(opts: { pxPerMinute: number; scroller: React.RefObject<HTMLElement | null>; onDrop: (taskId: string, target: DropTarget, entity: DragEntity) => void }) {
   const [drag, setDragState] = useState<DragState | null>(null)
   /** The latest target, read on drop (state updaters must stay free of side effects). */
   const targetRef = useRef<DropTarget | null>(null)
@@ -79,6 +91,10 @@ export function useCalendarDrag(opts: { pxPerMinute: number; scroller: React.Ref
 
   const targetAt = useCallback((x: number, y: number, p: Pending): DropTarget | null => {
     const { pxPerMinute } = optsRef.current
+    if (p.kind === 'create') {
+      const col = document.querySelector<HTMLElement>(`[data-drop-day="${p.blockDate}"]`)
+      return col ? { type: 'range', date: p.blockDate, ...sweepRange(p.blockStart, y - col.getBoundingClientRect().top, pxPerMinute) } : null
+    }
     if (p.kind === 'resize' || p.kind === 'resize-start') {
       const col = document.querySelector<HTMLElement>(`[data-drop-day="${p.blockDate}"]`)
       if (!col) return null
@@ -89,7 +105,7 @@ export function useCalendarDrag(opts: { pxPerMinute: number; scroller: React.Ref
     let el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-drop-slot],[data-drop-day],[data-drop-lane]')
     // A task over a slot is added to it (calendar-slots D3); a slot dragged over another lands on the grid.
     if (el?.dataset.dropSlot) {
-      if (!p.taskId.startsWith('slot:')) return { type: 'into-slot', slotId: el.dataset.dropSlot }
+      if (!p.taskId.startsWith('slot:') && p.entity === 'task') return { type: 'into-slot', slotId: el.dataset.dropSlot }
       el = el.closest<HTMLElement>('[data-drop-day]')
     }
     if (!el) return null
@@ -104,7 +120,7 @@ export function useCalendarDrag(opts: { pxPerMinute: number; scroller: React.Ref
     if (p?.timer) clearTimeout(p.timer)
     const target = targetRef.current
     setDrag(null)
-    if (commit && p?.lifted && target) optsRef.current.onDrop(p.taskId, target)
+    if (commit && p?.lifted && target) optsRef.current.onDrop(p.taskId, target, p.entity)
     if (p?.lifted) {
       suppressClick.current = true
       setTimeout(() => (suppressClick.current = false), 0)
@@ -114,14 +130,17 @@ export function useCalendarDrag(opts: { pxPerMinute: number; scroller: React.Ref
   useEffect(() => {
     function lift(p: Pending, x: number, y: number) {
       p.lifted = true
-      setDrag({ taskId: p.taskId, kind: p.kind, x, y, target: targetAt(x, y, p) })
+      setDrag({ taskId: p.taskId, entity: p.entity, kind: p.kind, x, y, target: targetAt(x, y, p) })
     }
     function onMove(e: PointerEvent) {
       const p = pending.current
       if (!p || e.pointerId !== p.pointerId) return
       const dist = Math.hypot(e.clientX - p.startX, e.clientY - p.startY)
       if (!p.lifted) {
-        if (p.pointerType === 'mouse') {
+        if (p.kind === 'create') {
+          if (Math.abs(e.clientY - p.startY) < SWEEP_THRESHOLD) return
+          lift(p, e.clientX, e.clientY)
+        } else if (p.pointerType === 'mouse') {
           if (dist < MOUSE_THRESHOLD) return
           lift(p, e.clientX, e.clientY)
         } else {
@@ -137,7 +156,7 @@ export function useCalendarDrag(opts: { pxPerMinute: number; scroller: React.Ref
         if (e.clientY < r.top + EDGE) sc.scrollTop -= 12
         else if (e.clientY > r.bottom - EDGE) sc.scrollTop += 12
       }
-      setDrag({ taskId: p.taskId, kind: p.kind, x: e.clientX, y: e.clientY, target: targetAt(e.clientX, e.clientY, p) })
+      setDrag({ taskId: p.taskId, entity: p.entity, kind: p.kind, x: e.clientX, y: e.clientY, target: targetAt(e.clientX, e.clientY, p) })
     }
     function onUp(e: PointerEvent) {
       const p = pending.current
@@ -178,13 +197,14 @@ export function useCalendarDrag(opts: { pxPerMinute: number; scroller: React.Ref
   /** Call from a draggable's onPointerDown. */
   const start = useCallback((e: React.PointerEvent, o: StartOptions) => {
     if (e.button !== 0 || pending.current) return
+    if (o.kind === 'create' && e.pointerType === 'touch') return // a vertical drag on touch scrolls: the long press keeps its menu
     if (o.kind !== 'move') e.stopPropagation()
     const p: Pending = {
-      taskId: o.taskId, kind: o.kind, pointerId: e.pointerId, pointerType: e.pointerType, startX: e.clientX, startY: e.clientY,
+      taskId: o.taskId, entity: o.entity ?? 'task', kind: o.kind, pointerId: e.pointerId, pointerType: e.pointerType, startX: e.clientX, startY: e.clientY,
       grabOffset: o.grabOffset ?? 0, blockStart: o.blockStart ?? 0, blockEnd: o.blockEnd ?? 0, blockDate: o.blockDate ?? '', lifted: false,
     }
     pending.current = p
-    if (e.pointerType !== 'mouse') {
+    if (e.pointerType !== 'mouse' && o.kind !== 'create') {
       const x = e.clientX
       const y = e.clientY
       p.timer = setTimeout(() => {
@@ -192,7 +212,7 @@ export function useCalendarDrag(opts: { pxPerMinute: number; scroller: React.Ref
         p.lifted = true
         // The haptic tick follows the user's preference (motion-v2 D6).
         tick()
-        setDrag({ taskId: p.taskId, kind: p.kind, x, y, target: targetAt(x, y, p) })
+        setDrag({ taskId: p.taskId, entity: p.entity, kind: p.kind, x, y, target: targetAt(x, y, p) })
       }, LONG_PRESS_MS)
     }
   }, [targetAt, setDrag])

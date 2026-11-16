@@ -33,7 +33,8 @@ export function ColorByMenuItems({ mode, onChange }: { mode: ColorByMode; onChan
   return (
     <MenuGroup label={t('Colour by')}>
       {(['project', 'label', 'priority'] as const).map((m) => (
-        <MenuItem key={m} label={COLOR_BY_LABEL[m]} checked={mode === m} data-color-by={m} onSelect={() => onChange(m)} />
+        <MenuItem key={m} label={COLOR_BY_LABEL[m]} icon={m === 'project' ? 'folder' : m === 'label' ? 'tag' : 'flag'}
+          description={m === 'project' ? t('Use the project color for each task') : m === 'label' ? t('Use the first colored label on each task') : t('Use priority colors for tasks')} checked={mode === m} data-color-by={m} onSelect={() => onChange(m)} />
       ))}
     </MenuGroup>
   )

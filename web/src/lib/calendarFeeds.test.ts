@@ -15,7 +15,9 @@ vi.mock('./api', () => ({
   },
 }))
 
+import { applyEventPatch, eventPatchBetween, isNoChange, overlayQueued, pendingRowOf } from './calendarEventPatch'
 import { cachedWindow, covers, ensureEventsFor, eventsStatus, fetchRange, refreshEvents, requestRanges, setShowEvents, showEvents } from './calendarFeeds'
+import type { CalendarEvent, EventCommand } from './types'
 import { clearLocalData, db, useDatabase } from './db'
 
 let n = 0
@@ -111,5 +113,75 @@ describe('calendar events cache (5.1, 5.2)', () => {
     // The mock answers every piece with the same event: it is stored once.
     expect(await db.calendarEvents.count()).toBe(1)
     expect(covers(await cachedWindow(), year)).toBe(true)
+  })
+})
+
+describe('queued creates and the new fields (calendar-event-editor D9)', () => {
+  const draft = { clientId: 'k1', connectionId: 'c1', calendarUrl: 'u', subscriptionId: 's1', summary: 'Dentist', start: { date: '2026-10-19', time: '09:00' }, end: { date: '2026-10-19', time: '09:30' }, allDay: false, location: '', description: 'x', free: false }
+  const cmd = (patch: EventCommand['patch'], next?: EventCommand['next']): EventCommand => ({ key: 'c1:pending:k1', connectionId: 'c1', eventId: 'pending:k1', rev: '', base: pendingRowOf(draft), patch, next, notBefore: 0, tries: 0 })
+
+  it('draws a pending row for a queued create, with what waits in next, and none for a discarded one', () => {
+    const events = new Map<string, CalendarEvent>()
+    overlayQueued(events, [cmd({ create: draft })])
+    expect(events.get('pending:k1')).toMatchObject({ summary: 'Dentist', uid: 'k1' })
+    overlayQueued(events, [cmd({ create: draft }, { summary: 'Renamed', location: 'Room 4' })])
+    expect(events.get('pending:k1')).toMatchObject({ summary: 'Renamed', location: 'Room 4' })
+    const gone = new Map<string, CalendarEvent>()
+    overlayQueued(gone, [cmd({ create: draft }, { delete: true })])
+    expect(gone.size).toBe(0)
+  })
+
+  it('applies location and free to a row and finds them in a difference, but never a description', () => {
+    const row = pendingRowOf(draft)
+    const changed = applyEventPatch(row, { location: 'Room 4', free: true, description: 'x' })
+    expect(changed).toMatchObject({ location: 'Room 4', free: true })
+    expect('description' in changed).toBe(false)
+    expect(eventPatchBetween(row, changed)).toEqual({ location: 'Room 4', free: true })
+    expect(isNoChange(row, { description: 'x' })).toBe(false)
+    expect(isNoChange(row, { location: '' })).toBe(true)
+  })
+})
+
+// calendar-event-series D11: a refresh keeps a queued scoped change on its one edited occurrence.
+describe('queued scoped edits over a refresh', () => {
+  const at = (date: string, time: string) => ({ date, time, tz: 'Europe/Berlin' })
+  const occ = (day: number): CalendarEvent => ({
+    id: `o${day}`, subscriptionId: 's1', uid: 'routine', summary: 'Routine', location: '', allDay: false, free: false, rev: 'r1',
+    start: at(`2026-11-${10 + day}`, '07:00'), end: at(`2026-11-${10 + day}`, '08:30'), series: { id: 'ser', rev: 'r1' },
+  })
+  const command = (patch: EventCommand['patch'], scope: EventCommand['scope']): EventCommand => ({ key: 'c1:o2', connectionId: 'c1', eventId: 'o2', rev: 'r1', base: occ(2), patch, notBefore: 0, tries: 0, scope })
+
+  it.each(['following', 'all'] as const)('applies a queued %s change to its occurrence only', (scope) => {
+    const events = new Map([1, 2, 3].map((d) => [`o${d}`, occ(d)]))
+    overlayQueued(events, [command({ start: at('2026-11-12', '09:00'), end: at('2026-11-12', '10:30'), allDay: false }, scope)])
+    expect([...events.values()].map((e) => e.start.time)).toEqual(['07:00', '09:00', '07:00'])
+  })
+
+  it('does not put repeat or reminders on the row', () => {
+    const events = new Map([['o2', occ(2)]])
+    overlayQueued(events, [command({ repeat: { freq: 'daily', interval: 1, ends: { type: 'never' } }, reminders: [10] }, 'all')])
+    expect(events.get('o2')).toEqual(occ(2))
+  })
+
+  it('counts a repeat or reminders change as a change, though no field of the row moves', () => {
+    expect(isNoChange(occ(2), { repeat: null })).toBe(false)
+    expect(isNoChange(occ(2), { reminders: [] })).toBe(false)
+    expect(isNoChange(occ(2), {})).toBe(true)
+  })
+})
+
+// calendar-event-guests D11, D12: the rows keep the summary the server sends and nothing more; a refresh keeps them.
+describe('guests on cached rows', () => {
+  it('keeps guests, conference and notifies through a refresh, and holds no address', async () => {
+    const row = {
+      id: 'g1', subscriptionId: 's1', uid: 'u', summary: 'Review', location: '', start: { date: '2026-10-19', time: '10:00', tz: 'Europe/Berlin' }, end: { date: '2026-10-19', time: '11:00', tz: 'Europe/Berlin' }, allDay: false, free: false,
+      guests: { count: 3, you: 'needs-action', organizer: false, canRespond: true }, conference: { url: 'https://meet.google.com/abc-defg-hij', provider: 'meet' }, access: { update: false, delete: false, reason: 'not_organizer', notifies: false },
+    }
+    calendarEvents.mockResolvedValueOnce({ events: [row] as never, subscriptions: [{ id: 's1', name: 'Work', color: '#3b82f6', enabled: true, lastSuccessAt: 1, guests: { respond: true, silent: true, edit: true }, caps: { create: true, update: true, delete: true, onlineMeeting: true } }] as never })
+    await refreshEvents({ from: '2026-10-19', to: '2026-10-25' })
+    expect(await db.calendarEvents.get('g1')).toEqual(row)
+    expect((await db.calendarSubscriptions.get('s1'))?.guests).toEqual({ respond: true, silent: true, edit: true })
+    expect((await db.calendarSubscriptions.get('s1'))?.caps?.onlineMeeting).toBe(true)
+    expect(JSON.stringify(await db.calendarEvents.toArray())).not.toMatch(/@/)
   })
 })

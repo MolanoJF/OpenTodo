@@ -2,7 +2,7 @@ import Dexie, { type Table } from 'dexie'
 import type { FocusState } from './focus/timer'
 import { platform } from './platform'
 import { forgetShellData } from './shell'
-import { ENTITIES, type Attachment, type Clock, type Entity, type FieldDef, type CalendarEvent, type CalendarSubscription, type ActivityEntry, type AppNotification, type Comment, type Label, type Membership, type Op, type Place, type Project, type Rule, type Frame, type CustomTheme, type MemoryItem, type Objective, type ProjectPrefs, type Reminder, type Review, type RowEncryption, type Note, type Section, type Slot, type Task, type TimeEntry, type UserPrefs, type View, type Workspace, type WorkspaceGroup, type WorkspaceMember } from './types'
+import { ENTITIES, type Attachment, type Clock, type Entity, type FieldDef, type CalendarEvent, type CalendarSubscription, type EventCommand, type ActivityEntry, type AppNotification, type Comment, type Label, type Membership, type Op, type Place, type Project, type Rule, type Frame, type CustomTheme, type MemoryItem, type Objective, type ProjectPrefs, type Reminder, type Review, type RowEncryption, type Note, type Section, type Slot, type Task, type TimeEntry, type UserPrefs, type View, type Workspace, type WorkspaceGroup, type WorkspaceMember } from './types'
 import { createStore } from './store'
 
 export interface OutboxOp extends Op {
@@ -159,6 +159,8 @@ class OpenTodoDB extends Dexie {
   /** Events of subscribed calendars and the subscriptions (calendar-feeds): server data, never ops. */
   calendarEvents!: Table<CalendarEvent, string>
   calendarSubscriptions!: Table<CalendarSubscription, string>
+  /** Queued edits of connected calendars' events, one per event (calendar-event-edits D6): device-local commands, never ops, cleared at sign-out. */
+  eventOutbox!: Table<EventCommand, string>
   /** Time entries (OpenSpec time-tracking): a synced entity, indexed by task, author and start. */
   timeEntries!: Table<TimeEntry, string>
   /** Saved places (OpenSpec task-locations): a synced entity, ordered by position. */
@@ -469,6 +471,7 @@ class OpenTodoDB extends Dexie {
     this.version(28).stores({ themes: 'id, position' }) // v28 (theme-editor): the synced `theme` entity.
     this.version(29).stores({ objectives: 'id, period' }) // v29 (plan-objectives): the synced `objective` entity.
     this.version(30).stores({ memories: 'id, position' }) // v30 (assistant-memory): the synced `memory` entity.
+    this.version(31).stores({ eventOutbox: 'key, notBefore' }) // v31 (calendar-event-edits D6): queued event edits, device-local; `calendarEvents` keeps its schema.
   }
 }
 
@@ -587,10 +590,10 @@ export async function clearLocalData(): Promise<void> {
   bumpLocalEpoch()
   // Sign-out in a native shell: its schedule and the key behind the biometrics go too (native-shells).
   forgetShellData()
-  await db.transaction('rw', [...entityTables(), db.outbox, db.meta, db.memberships, db.notifications, db.assistantThreads, db.assistantUndo, db.pickHistory, db.attachmentBlobs, db.calendarEvents, db.calendarSubscriptions, db.focus, db.workspaces, db.workspaceMembers, db.groups], async () => {
+  await db.transaction('rw', [...entityTables(), db.outbox, db.meta, db.memberships, db.notifications, db.assistantThreads, db.assistantUndo, db.pickHistory, db.attachmentBlobs, db.calendarEvents, db.calendarSubscriptions, db.eventOutbox, db.focus, db.workspaces, db.workspaceMembers, db.groups], async () => {
     await Promise.all([
       ...entityTables().map((t) => t.clear()), db.outbox.clear(), db.meta.clear(), db.memberships.clear(), db.attachmentBlobs.clear(),
-      db.calendarEvents.clear(), db.calendarSubscriptions.clear(),
+      db.calendarEvents.clear(), db.calendarSubscriptions.clear(), db.eventOutbox.clear(),
       db.notifications.clear(), db.assistantThreads.clear(), db.assistantUndo.clear(), db.pickHistory.clear(), db.focus.clear(),
       db.workspaces.clear(), db.workspaceMembers.clear(), db.groups.clear(),
     ])

@@ -30,6 +30,8 @@ export function ToastActionHost() {
   const region = useRef<HTMLDivElement>(null)
   // The focus session reports a failed time entry; this is where it becomes a message.
   useEffect(() => onEntryFailure((failure) => showActionToast(entryFailureMessage(failure))), [])
+  // Calendar event writes that waited for this session are sent by the outbox, loaded only when one waits (calendar-event-edits D6).
+  useEffect(() => { void import('../lib/eventOutboxBoot') }, [])
   /** Where focus was before it entered the toast, to give it back on dismiss. */
   const returnTo = useRef<HTMLElement | null>(null)
   // Removing the focused (or hovered) toast fires no blur (or pointerleave): the hold

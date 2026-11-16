@@ -1,0 +1,1 @@
+- Open event details as normal pages, condense calendar previews, add breathing room and staggered overlap cards, shade weekends, and expose week-start and optional off-hours shading controls. Color menu choices now include icons and descriptions.

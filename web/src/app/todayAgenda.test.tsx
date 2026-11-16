@@ -263,3 +263,59 @@ describe('the agenda', () => {
     await r.unmount()
   })
 })
+
+// ---- Join (OpenSpec change calendar-event-guests, task 5.5, today-agenda "Join from Today's agenda") ----
+describe('Join in the agenda', () => {
+  const zoom = { url: 'https://acme.zoom.us/j/123456789?pwd=abc', provider: 'zoom' as const }
+  const running = ev('running', 'Sprint planning', '09:30', '10:30', { conference: zoom })
+  const over = ev('over', 'Standup', '09:00', '09:15', { conference: zoom })
+  const hostile = ev('hostile', 'Odd one', '11:00', '12:00', { conference: { url: 'javascript:alert(1)', provider: 'zoom' } })
+  const joins = () => [...document.querySelectorAll<HTMLAnchorElement>('[data-agenda-timed] [data-event-join]')]
+
+  it('a meeting in progress has Join at the end of its row; one that ended or has no link has none', async () => {
+    await setTodayEventsShown(true)
+    await seed([running, over, review])
+    const r = await openToday()
+    await waitFor(() => !!agenda() && document.querySelectorAll('[data-agenda-timed] li').length === 3, 'the rows')
+    expect(joins()).toHaveLength(1)
+    const row = joins()[0].closest('li')!
+    expect(row.querySelector('[data-agenda-event]')!.getAttribute('data-agenda-event')).toBe('running')
+    expect(joins()[0].getAttribute('href')).toBe('https://acme.zoom.us/j/123456789?pwd=abc')
+    expect(joins()[0].getAttribute('target')).toBe('_blank')
+    expect(joins()[0].textContent).toContain('Join Zoom')
+    await r.unmount()
+  })
+
+  it('makes no request of its own and still shows offline', async () => {
+    await setTodayEventsShown(true)
+    await seed([running])
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+    const r = await openToday()
+    await waitFor(() => joins().length === 1, 'Join offline')
+    expect(eventCalls().every((c) => !String(c[0]).includes('zoom'))).toBe(true)
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
+    await r.unmount()
+  })
+
+  it('draws no control for an address that is not https', async () => {
+    await setTodayEventsShown(true)
+    await seed([hostile])
+    const r = await openToday()
+    await waitFor(() => document.querySelectorAll('[data-agenda-timed] li').length === 1)
+    expect(joins()).toHaveLength(0)
+    await r.unmount()
+  })
+
+  it('is reached with Tab after its row and does not change the row\'s popover', async () => {
+    await setTodayEventsShown(true)
+    await seed([running])
+    const r = await openToday()
+    await waitFor(() => joins().length === 1)
+    const row = document.querySelector<HTMLElement>('[data-agenda-event="running"]')!
+    expect(row.contains(joins()[0])).toBe(false) // a sibling: no link inside the row's button
+    expect(row.nextElementSibling).toBe(joins()[0])
+    await click(row)
+    await waitFor(() => !!document.querySelector('[data-event-details]'))
+    await r.unmount()
+  })
+})

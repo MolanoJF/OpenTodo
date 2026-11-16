@@ -90,6 +90,7 @@ export const AUDIT_LABELS = translatedMap<AuditEventName>({
   'calendar_connection.created': msg('Calendar connected'),
   'calendar_connection.updated': msg('Calendar connection changed'),
   'calendar_connection.deleted': msg('Calendar disconnected'),
+  'calendar_event.changed': msg('Calendar event changed'),
   'project.agent_access': msg('Project kept away from AI assistants changed'),
   'task_page.published': msg('Task published as a page'),
   'task_page.revoked': msg('Task page revoked'),
@@ -176,6 +177,10 @@ export function eventSummary(ev: AuditEvent): string {
   if (d.setting) parts.push(`${SETTINGS[d.setting] ?? d.setting}: ${d.from ?? '?'} → ${d.to ?? '?'}`)
   else if (d.from || d.to) parts.push(`${d.from ?? '?'} → ${d.to ?? '?'}`)
   if (d.provider) parts.push(d.provider)
+  if (d.event_action) parts.push(d.event_action === 'created' ? t('created') : d.event_action === 'deleted' || d.event_action === 'delete' ? t('deleted') : t('changed'))
+  if (d.event_scope === 'this') parts.push(t('this event'))
+  else if (d.event_scope === 'following') parts.push(t('this and following events'))
+  else if (d.event_scope === 'all') parts.push(t('all events'))
   if (d.channel_kind) parts.push(d.channel_kind)
   if (d.count) {
     const n = Number(d.count)

@@ -236,13 +236,13 @@ func (w *Worker) transport(ctx context.Context, c *Connection) (transport, error
 		if err != nil {
 			return nil, err
 		}
-		return &graphTransport{g: g, store: w.Store, conn: c.ID, zone: c.mailboxZone(), now: w.clock}, nil
+		return &graphTransport{g: g, store: w.Store, conn: c.ID, me: strings.ToLower(strings.TrimSpace(c.Username)), zone: c.mailboxZone(), now: w.clock}, nil
 	}
 	dav, err := w.Client(ctx, c)
 	if err != nil {
 		return nil, err
 	}
-	return davTransport{d: dav}, nil
+	return davTransport{d: dav, owner: func(cal string) string { return ownerAddress(c, cal) }}, nil
 }
 
 // Client builds the DAV client of a connection with its credentials.

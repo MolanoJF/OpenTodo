@@ -1,0 +1,1 @@
+- Calendar events open in a full-width detail page with task-style content and schedule columns. Single-click event and task previews show key details and a clear action to open the full page.

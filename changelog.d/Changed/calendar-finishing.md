@@ -1,0 +1,1 @@
+- Make weekend shading subtler, remove preview action tooltips, align event-page fields with their previews, and allow eligible single events to move between writable connected calendars.

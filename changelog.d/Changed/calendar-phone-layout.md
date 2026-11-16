@@ -1,0 +1,1 @@
+- Keep phone calendar navigation beside the title, extend the grid behind the floating add button, and simplify the event editor with expandable summary rows and a top-bar Add/Save action on a continuous page background.

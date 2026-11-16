@@ -1,0 +1,167 @@
+import { useEventMove, moveSingleEvent, keepEventCopies } from '../../lib/eventMove'
+import { useOnline } from '../../lib/online'
+import { t } from '../../lib/i18n'
+import { showBulkToast } from '../bulk/toastStore'
+// The state of the full event editor (OpenSpec changes calendar-event-editor D11 and calendar-event-series D12): the
+// fields as the person left them over the event as it is (an `edits` object over a `base`, so a description that
+// arrives late does not disturb what was typed), the Save for both modes, Duplicate and Delete. Saving or deleting
+// an occurrence of a repeating event asks which events first, and a change that tells guests asks "Tell N guests?"
+// after that (calendar-event-guests D8); both stay open when the person cancels.
+import { useMemo, useState } from 'react'
+import { addDaysISO } from '../../lib/dates'
+import { formatTime } from '../../lib/calendar'
+import { draftFromEvent, draftFromFull, useCalendarSubscription, useEventCreation } from '../../lib/eventCreate'
+import { eventFullChange, eventFullOf, pointsOf, sameField, switchAllDay, type EventFull } from '../../lib/eventFull'
+import { isMicrosoftCalendar, sameRepeat } from '../../lib/eventRepeat'
+import type { CalendarEvent, CalendarSubscription } from '../../lib/types'
+import { useViewerZone } from '../useViews'
+import { addEvent } from './eventAdd'
+import { askFirst, changeEvent, confirmInvite, deleteEvent } from './eventActions'
+import { type EventEditorRequest, openEventEditor } from './eventEditorStore'
+import type { RemindersFieldProps } from './EventRemindersField'
+import type { RepeatFieldProps } from './EventRepeatField'
+import { useEventDetail, type DescriptionState } from './useEventDetail'
+import { useEventGuestsField } from './useEventGuestsField'
+
+const DEFAULT_START = 9 * 60
+const DEFAULT_LENGTH = 30
+const DEFAULT_MAX_REMINDERS = 5
+
+/** The fields of a new event: a place's start and end (or 09:00 and half an hour), or a draft's own. */
+function createBase(request: Extract<EventEditorRequest, { mode: 'create' }>, viewerZone: string): EventFull {
+  const d = request.draft
+  if (d) return { ...eventFullOf({ id: '', subscriptionId: d.subscriptionId, uid: d.clientId, summary: d.summary, location: d.location, start: d.start, end: d.end, allDay: d.allDay, free: d.free }, viewerZone, d.description, { repeat: d.repeat ?? null, reminders: d.reminders ?? [] }), guestAdds: d.guests ?? [], teams: !!d.onlineMeeting }
+  const date = request.place?.date ?? ''
+  const start = request.place?.start ?? DEFAULT_START
+  const end = Math.max(start + 15, request.place?.end ?? start + DEFAULT_LENGTH)
+  const over = end >= 1440
+  return {
+    title: '', allDay: false, startDate: date, startTime: formatTime(start), endDate: over ? addDaysISO(date, 1) : date, endTime: formatTime(over ? end - 1440 : end),
+    zone: viewerZone, location: '', description: '', free: false, repeat: null, reminders: [], guestAdds: [], guestRemoves: [], teams: false,
+  }
+}
+
+export function useEventEditing(request: EventEditorRequest, close: () => void) {
+  const viewerZone = useViewerZone()
+  const { list, calendar: fallback } = useEventCreation()
+  const editing = request.mode === 'edit'
+  const detail = useEventDetail(editing ? request.eventId : null)
+  const moveReceipt = useEventMove(editing ? request.eventId : undefined)
+  const online = useOnline()
+  const [moving, setMoving] = useState(false)
+  const [moveDone, setMoveDone] = useState(false)
+  const [moveError, setMoveError] = useState<string | null>(null)
+  const ev: CalendarEvent | null = detail.event ?? moveReceipt?.source ?? null
+  const extras = detail.extras
+  const eventCalendar = useCalendarSubscription(ev?.subscriptionId)
+  const [edits, setEdits] = useState<Partial<EventFull>>({})
+  const [chosen, setChosen] = useState<string | null>(request.mode === 'create' ? request.draft?.subscriptionId ?? null : null)
+  const description = useMemo<DescriptionState>(() => (editing ? detail.description : { status: 'ready', text: '', editable: true }), [editing, detail.description])
+  const loaded = description.status === 'ready' && description.editable ? description.text : null
+  const base = useMemo(() => (request.mode === 'create' ? createBase(request, viewerZone) : ev ? eventFullOf(ev, viewerZone, description.status === 'ready' ? description.text : '', extras) : null),
+    [request, ev, viewerZone, description, extras])
+  const form = base ? { ...base, ...edits } : null
+  const calendarChanged = editing && !!chosen && chosen !== ev?.subscriptionId
+  const dirty = !moveReceipt && (!!base && (Object.keys(edits) as (keyof EventFull)[]).some((k) => !sameField(k, edits[k], base[k])) || calendarChanged)
+  const calendar: CalendarSubscription | undefined = editing ? list.find((c) => c.id === chosen) ?? eventCalendar : list.find((c) => c.id === chosen) ?? fallback
+  const timesInvalid = !!form && pointsOf(form) === 'invalid'
+  const invalid = !form || timesInvalid || form.title.trim() === ''
+
+  const set = (patch: Partial<EventFull>) => setEdits((e) => ({ ...e, ...patch }))
+  const setAllDay = (on: boolean) => {
+    if (!form) return
+    const next = switchAllDay(form, on)
+    set({ allDay: next.allDay, startTime: next.startTime, endTime: next.endTime, endDate: next.endDate })
+  }
+
+  // The repeat and the reminders (D12): for a new event always editable; for an existing one they wait for what the calendar has.
+  const sub = editing ? eventCalendar : calendar
+  const microsoft = isMicrosoftCalendar(sub)
+  const custom = !!ev?.series?.custom || !!extras?.custom
+  const repeatKnown = !editing || !ev?.series || ev.series.repeat !== undefined || custom || extras?.repeat !== undefined
+  const waiting = description.status === 'unavailable' ? 'unavailable' : 'loading'
+  const exceptions = extras?.exceptions ?? 0
+  const repeatField: Omit<RepeatFieldProps, 'startDate'> | undefined = form && base ? {
+    value: form.repeat, onChange: (repeat) => set({ repeat }), custom, state: repeatKnown ? 'ready' : waiting,
+    canStop: !(editing && !!ev?.series && microsoft), resets: exceptions > 0 && !sameRepeat(form.repeat, base.repeat),
+  } : undefined
+  // A calendar that did not answer with reminders (an older server) has none to show.
+  const remindersField: Omit<RemindersFieldProps, 'allDay'> | undefined = form && !(editing && description.status === 'ready' && !extras?.reminders) ? {
+    value: form.reminders, onChange: (reminders) => set({ reminders }), max: extras?.remindersMax ?? sub?.maxReminders ?? DEFAULT_MAX_REMINDERS, microsoft, other: extras?.remindersOther ?? 0,
+    state: !editing || extras?.reminders ? 'ready' : waiting, reason: description.status === 'unavailable' ? description.reason : undefined,
+  } : undefined
+
+  const gf = useEventGuestsField({ editing, ev, sub, form, set, info: detail.info, description })
+
+  const canMove = !!ev?.rev && !!ev.access?.update && !!ev.access.delete && !ev.series && !form?.repeat && !form?.guestAdds.length && !form?.teams && !ev.guests?.count && !detail.info?.guests?.count && !ev.conference && !detail.info?.conference && !detail.info?.onlineMeeting && description.status === 'ready' && description.editable && extras?.reminders !== undefined && !extras.remindersOther
+  const moveTargets = eventCalendar ? [eventCalendar, ...list.filter((c) => c.id !== eventCalendar.id)] : list
+  const targetFits = !calendarChanged || !!calendar && (form?.reminders.length ?? 0) <= (calendar.maxReminders ?? DEFAULT_MAX_REMINDERS)
+  const save = async () => {
+    if (moving) return
+    if (moveReceipt || calendarChanged) {
+      if (!online || !ev || !moveReceipt && (!canMove || !calendar || !targetFits || !form || invalid)) return
+      const draft = moveReceipt?.draft ?? (calendar && form ? draftFromFull(form, calendar) : null)
+      const connection = moveReceipt?.sourceConnection ?? eventCalendar?.connectionId
+      if (!draft || !connection) return
+      setMoving(true); setMoveError(null)
+      try {
+        await moveSingleEvent(moveReceipt?.source ?? ev, connection, draft)
+        setMoveDone(true)
+        close()
+        showBulkToast(t('Event moved to another calendar'), null)
+      } catch {
+        setMoveError(t('The event could not be moved. Try again when the calendars are available.'))
+      } finally { setMoving(false) }
+      return
+    }
+    if (editing && !ev?.access?.update) return
+    if (!form || invalid || gf.offlineBlocked) return
+    if (request.mode === 'create') {
+      const draft = calendar && draftFromFull(form, calendar)
+      if (!draft) return
+      // Invited guests are told by the calendar: asked first, and the editor stays open when the person cancels.
+      const sure = await confirmInvite(draft)
+      if (sure === false) return
+      close()
+      await addEvent(draft, sure === true)
+      return
+    }
+    if (!ev) return
+    const change = eventFullChange(ev, form, viewerZone, loaded, extras)
+    if (!change || change === 'invalid') { close(); return }
+    // An occurrence asks which events first, anchored to Save; cancelling leaves the editor as it is.
+    const resets = exceptions > 0 && (change.repeat !== undefined || (microsoft && !!change.start)) ? (change.repeat !== undefined ? 'repeat' as const : 'times' as const) : undefined
+    const asked = await askFirst(ev, change, { from: '[data-event-form-save]', resets })
+    if (!asked) return
+    close()
+    const before = { ...(loaded !== null ? { description: loaded } : {}), ...(ev.series && base ? { repeat: base.repeat } : {}), ...(extras?.reminders && base ? { reminders: base.reminders } : {}) }
+    await changeEvent(ev, change, Object.keys(change).join() === 'summary' ? 'renamed' : 'updated', before, asked.scope, asked.sure)
+  }
+
+  /** Duplicate: the editor again, in create mode, with these fields (as a single event) in this event's calendar (else the default one). */
+  const duplicate = () => {
+    if (!ev || !form) return
+    const cal = list.find((c) => c.id === ev.subscriptionId) ?? fallback
+    const draft = cal && (draftFromFull({ ...form, repeat: null, guestAdds: [], guestRemoves: [], teams: false }, cal) ?? draftFromEvent(ev, loaded ?? '', cal, viewerZone))
+    if (draft) openEventEditor({ mode: 'create', draft })
+  }
+  const remove = async () => {
+    if (!ev?.access?.delete) return
+    const asked = await askFirst(ev, 'delete', { from: '[data-event-form-save]' })
+    if (!asked) return
+    close()
+    await deleteEvent(ev, asked.scope, asked.sure)
+  }
+  const keepBoth = async () => {
+    if (moving || !moveReceipt?.created) return
+    await keepEventCopies(moveReceipt.source.id)
+    close()
+  }
+
+  return {
+    form, base, set, setAllDay, dirty, invalid, timesInvalid, save, duplicate, remove, ev, eventCalendar, description, loaded, gone: editing && !moving && !moveDone && detail.event === null && moveReceipt === null,
+    canMove, moveTargets, calendarChanged, moveReceipt, moving, moveError, keepBoth, moveBlocked: !online || !moveReceipt && calendarChanged && (!canMove || !targetFits),
+    moveNote: calendarChanged && !online ? t('Connect to the internet to change calendars.') : calendarChanged && !targetFits ? t('This calendar allows fewer reminders. Remove a reminder or choose another calendar.') : undefined,
+    calendars: list, calendar, chooseCalendar: setChosen, viewerZone, floating: !!base && base.zone === '' && !!ev, repeatField, remindersField, guestsField: gf.guests, videoCall: gf.videoCall, offlineBlocked: gf.offlineBlocked,
+  }
+}

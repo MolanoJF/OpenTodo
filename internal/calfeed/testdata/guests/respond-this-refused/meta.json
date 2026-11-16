@@ -1,0 +1,7 @@
+{
+  "kind": "respond",
+  "owner": "you@example.com",
+  "response": "accepted",
+  "scope": "this",
+  "error": "ErrRespondThis"
+}

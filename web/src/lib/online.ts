@@ -17,3 +17,8 @@ export function useOnline(): boolean {
     () => true,
   )
 }
+
+/** Browser connectivity now, outside React. True when the browser cannot tell. */
+export function isOnline(): boolean {
+  return typeof navigator === 'undefined' ? true : navigator.onLine !== false
+}

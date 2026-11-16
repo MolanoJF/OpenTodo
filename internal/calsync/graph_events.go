@@ -24,13 +24,24 @@ type graphEvent struct {
 	Removed *struct {
 		Reason string `json:"reason"`
 	} `json:"@removed"`
-	Subject      string         `json:"subject"`
-	Start        *graphDateTime `json:"start"`
-	End          *graphDateTime `json:"end"`
-	IsAllDay     bool           `json:"isAllDay"`
-	IsCancelled  bool           `json:"isCancelled"`
-	ShowAs       string         `json:"showAs"`
-	LastModified string         `json:"lastModifiedDateTime"`
+	Subject     string          `json:"subject"`
+	Start       *graphDateTime  `json:"start"`
+	End         *graphDateTime  `json:"end"`
+	IsAllDay    bool            `json:"isAllDay"`
+	IsCancelled bool            `json:"isCancelled"`
+	Type        string          `json:"type"`
+	IsOrganizer *bool           `json:"isOrganizer"`
+	Attendees   []graphAttendee `json:"attendees"`
+	// What guests, replies and join links read (calendar-event-guests D7).
+	Organizer      *graphPerson     `json:"organizer"`
+	ResponseStatus *graphResponse   `json:"responseStatus"`
+	OnlineMeeting  *graphOnlineMeet `json:"onlineMeeting"`
+	Body           *struct {
+		ContentType string `json:"contentType"`
+		Content     string `json:"content"`
+	} `json:"body"`
+	ShowAs       string `json:"showAs"`
+	LastModified string `json:"lastModifiedDateTime"`
 	Location     *struct {
 		DisplayName string `json:"displayName"`
 	} `json:"location"`
@@ -38,6 +49,20 @@ type graphEvent struct {
 		ID    string `json:"id"`
 		Value string `json:"value"`
 	} `json:"singleValueExtendedProperties"`
+	// What a series write reads (calendar-event-series D9).
+	SeriesMasterID  string           `json:"seriesMasterId"`
+	Recurrence      *graphRecurrence `json:"recurrence"`
+	ReminderMinutes *int             `json:"reminderMinutesBeforeStart"`
+	IsReminderOn    bool             `json:"isReminderOn"`
+	HasAttachments  bool             `json:"hasAttachments"`
+	IsOnlineMeeting bool             `json:"isOnlineMeeting"`
+	Importance      string           `json:"importance"`
+	Sensitivity     string           `json:"sensitivity"`
+	Categories      []string         `json:"categories"`
+	Exceptions      []struct {
+		ID string `json:"id"`
+	} `json:"exceptionOccurrences"`
+	CancelledOccurrences []string `json:"cancelledOccurrences"`
 }
 
 // taskID is the task OpenTodo's property names, "" for another event.
@@ -97,11 +122,44 @@ func (e *graphEvent) event() (calfeed.Event, bool) {
 	if t, err := time.Parse(time.RFC3339Nano, e.LastModified); err == nil {
 		ev.LastModified = t.UnixMilli()
 	}
+	ev.Guests = len(e.Attendees) > 0
 	return ev, true
 }
 
+// inSeries reports an occurrence or exception of a series.
+func (e *graphEvent) inSeries() bool {
+	return strings.EqualFold(e.Type, "occurrence") || strings.EqualFold(e.Type, "exception")
+}
+
+// supported reports whether the event is a single event or an occurrence the
+// editor can address: one of a series needs the id of its master (design D9).
+func (e *graphEvent) supported() bool {
+	switch {
+	case e.Type == "" || strings.EqualFold(e.Type, "singleInstance"):
+		return true
+	case e.inSeries():
+		return e.SeriesMasterID != ""
+	}
+	return false
+}
+
+// locked is the reason the event can not be edited, "" when it can (design D2).
+func (e *graphEvent) locked() string {
+	switch {
+	case !e.supported():
+		return LockSeriesUnsupported
+	case e.IsOrganizer != nil && !*e.IsOrganizer:
+		return LockNotOrganizer // before has_guests: a guest is told so, not "has guests" (calendar-event-guests D9)
+	case len(e.Attendees) > 0 && e.IsOrganizer == nil:
+		return LockGuests // whose meeting it is is not known
+	case e.ETag == "":
+		return LockNoETag
+	}
+	return ""
+}
+
 // remote is the event as the cycle reads it.
-func (e *graphEvent) remote() (remote, bool) {
+func (e *graphEvent) remote(me string) (remote, bool) {
 	ev, ok := e.event()
 	if !ok {
 		return remote{}, false
@@ -110,8 +168,13 @@ func (e *graphEvent) remote() (remote, bool) {
 	if e.Start != nil && e.End != nil {
 		when = e.Start.DateTime + e.Start.TimeZone + e.End.DateTime + e.End.TimeZone
 	}
-	return remote{Href: e.ID, ETag: e.ETag, Events: []calfeed.Event{ev}, TaskID: e.taskID(),
-		Version: e.ETag + "\x00" + hash16(e.Subject+"\x00"+when)}, true
+	r := remote{Href: e.ID, ETag: e.ETag, Events: []calfeed.Event{ev}, TaskID: e.taskID(), Locked: e.locked(),
+		Version: e.ETag + "\x00" + hash16(e.Subject+"\x00"+when)}
+	r.Guests, r.Conference = guestPtr(e.guests(me)), e.conference()
+	if e.inSeries() && e.SeriesMasterID != "" {
+		r.Series = &calfeed.SeriesInfo{Key: e.SeriesMasterID}
+	}
+	return r, true
 }
 
 // mailboxWindows is the Windows id and location of the mailbox zone (an IANA

@@ -13,7 +13,7 @@ order: 63
 
 ## Show completed tasks
 
-Choose **Show completed tasks** in the [Calendar](calendar-views.md) header, or in **More actions** on smaller screens. When the button is pressed or the menu item is checked, finished tasks appear with struck-through titles. Choose **Show completed tasks** again to hide them; the control keeps the same name in both states.
+Choose **Show completed tasks** in the [Calendar](calendar-views.md) **More actions** menu. When the menu item is checked, finished tasks appear with struck-through titles. Choose **Show completed tasks** again to hide them; the control keeps the same name in both states.
 
 Completed tasks are hidden by default. This device remembers your choice across **Day**, **Week**, **Month** and **Plan**, including after a reload and while offline. Other devices keep their own choice.
 

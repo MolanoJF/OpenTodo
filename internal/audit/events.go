@@ -55,6 +55,10 @@ const (
 	CalendarConnectionCreatedName Name = "calendar_connection.created"
 	CalendarConnectionUpdatedName Name = "calendar_connection.updated"
 	CalendarConnectionDeletedName Name = "calendar_connection.deleted"
+	// An event of a connected calendar moved, resized, renamed or deleted from
+	// OpenTodo (OpenSpec change calendar-event-edits): the connection, its
+	// provider and what was done, never the title, time or calendar.
+	CalendarEventChangedName Name = "calendar_event.changed"
 	// OAuth clients for the MCP endpoint (mcp-oauth): the client id and scope
 	// only, never its secret, a code or a refresh token.
 	MCPOAuthClientCreatedName Name = "mcp_oauth.client_created"
@@ -164,7 +168,7 @@ var Names = []Name{
 	CalendarFeedCreatedName, CalendarFeedRotatedName, CalendarFeedRevokedName,
 	EmailInboxCreatedName, EmailInboxRotatedName, EmailInboxUpdatedName,
 	IssueConnectionCreatedName, IssueConnectionUpdatedName, IssueConnectionDeletedName,
-	CalendarConnectionCreatedName, CalendarConnectionUpdatedName, CalendarConnectionDeletedName,
+	CalendarConnectionCreatedName, CalendarConnectionUpdatedName, CalendarConnectionDeletedName, CalendarEventChangedName,
 	MCPOAuthClientCreatedName, MCPOAuthClientDeletedName, MCPOAuthGrantedName, MCPOAuthRevokedName, MCPOAuthRefreshReusedName,
 	NotificationChannelCreatedName, NotificationChannelUpdatedName, NotificationChannelDeletedName,
 	InvitationCreatedName, InvitationAcceptedName, InvitationRevokedName,
@@ -205,7 +209,7 @@ var PersonalNames = []Name{
 	CalendarFeedCreatedName, CalendarFeedRotatedName, CalendarFeedRevokedName,
 	EmailInboxCreatedName, EmailInboxRotatedName, EmailInboxUpdatedName,
 	IssueConnectionCreatedName, IssueConnectionUpdatedName, IssueConnectionDeletedName,
-	CalendarConnectionCreatedName, CalendarConnectionUpdatedName, CalendarConnectionDeletedName,
+	CalendarConnectionCreatedName, CalendarConnectionUpdatedName, CalendarConnectionDeletedName, CalendarEventChangedName,
 	NotificationChannelCreatedName, NotificationChannelUpdatedName, NotificationChannelDeletedName,
 	IdentityLinkedName, IdentityUnlinkedName,
 	PasswordResetCompletedName, PasswordChangedName,
@@ -272,6 +276,10 @@ var allowedDetailKeys = map[string]bool{
 	"to":                true, // new value of a setting or role
 	"provider":          true, // identity provider name, or github | gitlab for an issue connection
 	"connection_id":     true, // id of an issue or calendar connection (never its host, username or secret)
+	"event_action":      true, // what was done to a calendar event: created | updated | deleted | responded (never its title or time)
+	"event_scope":       true, // how much of a repeating series the change reached: this | following | all
+	"event_response":    true, // the answer given to an invitation: accepted | tentative | declined (never a guest or an address)
+	"event_notified":    true, // true when the write told people (an organiser update, a cancellation or a reply to the organiser), false when it told nobody
 	// OAuth clients (mcp-oauth): the client's id, never its secret or a token it
 	// was given, and never a client name it chose for itself.
 	"oauth_client_id": true,
@@ -521,6 +529,36 @@ func CalendarConnectionUpdated(userID, connID, provider, setting string) Event {
 // CalendarConnectionDeleted records a deleted calendar connection (its secret removed).
 func CalendarConnectionDeleted(userID, connID, provider string) Event {
 	return ev(CalendarConnectionDeletedName, Success, userID, "", "connection_id", connID, "provider", provider)
+}
+
+// CalendarEventChanged records an event of a connected calendar changed from
+// OpenTodo: the connection id, its provider, the action (created, updated or
+// deleted) and, for an occurrence of a repeating event, the scope of the change
+// (this, following or all; "" for any other), never the title, the time, the
+// calendar or a repeat rule.
+func CalendarEventChanged(userID, connID, provider, action, scope string) Event {
+	if scope == "" {
+		return ev(CalendarEventChangedName, Success, userID, "", "connection_id", connID, "provider", provider, "event_action", action)
+	}
+	return ev(CalendarEventChangedName, Success, userID, "", "connection_id", connID, "provider", provider, "event_action", action, "event_scope", scope)
+}
+
+// CalendarEventResponded records an answer to an invitation of a connected calendar
+// (calendar-event-guests D3): the connection id, its provider, event_action
+// responded, the answer, the scope for an occurrence of a repeating event and whether
+// the organiser was told (sendResponse). Never a name, an address, a link, the title
+// or the time.
+func CalendarEventResponded(userID, connID, provider, response, scope string, notified bool) Event {
+	return ev(CalendarEventChangedName, Success, userID, "", "connection_id", connID, "provider", provider, "event_action", "responded",
+		"event_response", response, "event_scope", scope, "event_notified", strconv.FormatBool(notified))
+}
+
+// CalendarEventChangedNotified is CalendarEventChanged that also says whether the write
+// told people (calendar-event-guests D8): an update, a cancellation or an invitation the
+// provider sent after the user's confirmation.
+func CalendarEventChangedNotified(userID, connID, provider, action, scope string, notified bool) Event {
+	return ev(CalendarEventChangedName, Success, userID, "", "connection_id", connID, "provider", provider, "event_action", action,
+		"event_scope", scope, "event_notified", strconv.FormatBool(notified))
 }
 
 // ---- OAuth clients for the MCP endpoint ----

@@ -161,7 +161,7 @@ export function TaskPageView({ taskId, userId, readOnly: viewer, projects, label
           <Subtasks task={task} items={m.children} progress={m.progress} readOnly={locked} boxed onToggle={m.toggle} onOpen={onOpen} />
           <AttachmentsRow taskId={task.id} userId={userId} role={roleOf(task.project_id, m.memberships ?? new Map())} dropTarget={root} />
           <ConversationTabs task={task} userId={userId} readOnly={readOnly} onOpen={onOpen} composerHost={footer} page />
-          <div ref={setFooter} data-panel-footer className="sticky bottom-0 bg-surface pb-3 pt-2 empty:hidden" />
+          <div ref={setFooter} data-panel-footer className="bg-surface pb-3 pt-2 empty:hidden lg:sticky lg:bottom-0" />
         </div>
       </div>
       {m.pageDialog && <TaskPageDialog task={task} status={m.pageStatus ?? null} onClose={() => m.setPageDialog(false)} />}

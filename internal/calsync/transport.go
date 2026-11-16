@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 
+	"github.com/OpenTodoApp/opentodo/internal/caldav"
 	"github.com/OpenTodoApp/opentodo/internal/calfeed"
 )
 
@@ -51,6 +52,16 @@ type remote struct {
 	TaskID string
 	// Version identifies this state of the event for op ids.
 	Version string
+	// Locked is why the event can not be edited from OpenTodo ("" when it can):
+	// series_unsupported, has_guests, not_organizer or no_etag (calendar-event-edits D2,
+	// calendar-event-series D10).
+	Locked string
+	// Series says the event is part of a series (nil for a single event).
+	Series *calfeed.SeriesInfo
+	// Guests and Conference are what the event says of its guests and its join link
+	// (calendar-event-guests D2); nil when it says nothing.
+	Guests     *calfeed.GuestInfo
+	Conference *calfeed.Conference
 }
 
 // master returns the event that is not an override.
@@ -64,7 +75,18 @@ func (o remote) master() (calfeed.Event, bool) {
 }
 
 // davTransport is the WebDAV transport (CalDAV and Google's CalDAV API).
-type davTransport struct{ d *DAV }
+type davTransport struct {
+	d *DAV
+	// owner is the user's address on a calendar (ownerAddress), "" when unknown.
+	owner func(calendar string) string
+}
+
+func (t davTransport) ownerOf(cal string) string {
+	if t.owner == nil {
+		return ""
+	}
+	return t.owner(cal)
+}
 
 func (t davTransport) key(href string) string { return hrefKey(href) }
 
@@ -93,12 +115,28 @@ func (t davTransport) changes(ctx context.Context, cal string, ver version, toke
 	return t.d.etagListing(ctx, cal)
 }
 
-func davRemote(o object) remote {
+func davRemote(o object, owner string) remote {
 	r := remote{Href: o.Href, ETag: o.ETag, Version: o.ETag + "\x00" + hash16(string(o.Data))}
-	if cal, err := calfeed.ParseCalendar(o.Data); err == nil {
-		r.Events, r.Warnings = cal.Events, cal.Warnings
+	cal, root, err := calfeed.ParseCalendarRoot(o.Data)
+	if err != nil {
+		r.Locked = noETag(o.ETag)
+		return r
+	}
+	r.Events, r.Warnings = cal.Events, cal.Warnings
+	r.Locked = calfeed.SeriesLocked(root, o.ETag, owner)
+	r.Guests, r.Conference = guestsOfRoot(root, "", owner)
+	if v, err := calfeed.ReadSeries(root); err == nil {
+		r.Series = v.Info()
 	}
 	return r
+}
+
+// noETag is the lock of an object a server gave no version for.
+func noETag(etag string) string {
+	if etag == "" {
+		return LockNoETag
+	}
+	return ""
 }
 
 func (t davTransport) fetch(ctx context.Context, cal string, hrefs []string) (map[string]remote, error) {
@@ -108,7 +146,7 @@ func (t davTransport) fetch(ctx context.Context, cal string, hrefs []string) (ma
 	}
 	out := make(map[string]remote, len(objs))
 	for k, o := range objs {
-		out[k] = davRemote(o)
+		out[k] = davRemote(o, t.ownerOf(cal))
 	}
 	return out, nil
 }
@@ -120,7 +158,7 @@ func (t davTransport) window(ctx context.Context, cal string, win calfeed.Window
 	}
 	out := make([]remote, 0, len(objs))
 	for _, o := range objs {
-		if r := davRemote(o); r.Events != nil {
+		if r := davRemote(o, t.ownerOf(cal)); r.Events != nil {
 			out = append(out, r)
 		}
 	}
@@ -146,3 +184,31 @@ func (t davTransport) remove(ctx context.Context, href, etag string) (int, error
 }
 
 func (davTransport) commit(context.Context) error { return nil }
+
+// Reasons an event can not be edited (calendar-event-edits D2, calendar-event-series D10).
+const (
+	LockGuests            = calfeed.LockGuests
+	LockNotOrganizer      = calfeed.LockNotOrganizer
+	LockNoETag            = calfeed.LockNoETag
+	LockSeriesUnsupported = calfeed.LockSeriesUnsupported // a series OpenTodo cannot write back without loss
+
+	// lockRecurringLegacy is the reason a cache row written before
+	// calendar-event-series carries; it is served as refresh_pending until the
+	// calendar is read again.
+	lockRecurringLegacy = "recurring"
+)
+
+// lockedOf is the reason a CalDAV object can not be edited, "" when it can.
+func lockedOf(root *caldav.Component, etag, owner string) string {
+	return calfeed.SeriesLocked(root, etag, owner)
+}
+
+// guestsOfRoot reads what an object says of its guests and its join link, nil for
+// what it does not say.
+func guestsOfRoot(root *caldav.Component, instance, owner string) (*calfeed.GuestInfo, *calfeed.Conference) {
+	g := calfeed.ReadGuests(root, instance, owner)
+	if g.Empty() {
+		return nil, calfeed.ConferenceOf(root, instance)
+	}
+	return &g, calfeed.ConferenceOf(root, instance)
+}

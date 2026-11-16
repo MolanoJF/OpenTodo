@@ -1,0 +1,16 @@
+{
+  "organizer": null,
+  "isOrganizer": false,
+  "you": "",
+  "guests": [
+    {
+      "name": "",
+      "email": "ben@example.com",
+      "role": "required",
+      "response": "accepted",
+      "you": false
+    }
+  ],
+  "count": 1,
+  "truncated": false
+}

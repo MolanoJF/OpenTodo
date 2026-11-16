@@ -1,3 +1,4 @@
+import { openCalendarTaskPreview } from './taskPreviewStore'
 // Spans in the calendar (OpenSpec change multi-day-tasks, design D3, D4): one bar per
 // task across the days it covers, in the task style (the block recipe: soft project
 // fill, solid leading edge, strong text), squared off with a chevron where it goes on
@@ -105,7 +106,7 @@ function SpanBar({ piece, today, variant, selected, hue, canMove, canEdit, dragg
       <button data-drag-id="span-band" type="button" data-span-bar={task.id} data-cal-id={task.id} data-hue={hue} aria-pressed={selected}
         data-span-first={span.first} data-span-last={span.last}
         onPointerDown={canMove ? drag('move', (e) => grabDay(e, piece.first, piece.cols)) : undefined}
-        onClick={(e) => { e.stopPropagation(); onSelect(task.id) }}
+        onClick={(e) => { e.stopPropagation(); onSelect(task.id); openCalendarTaskPreview(task.id, e.currentTarget, hue) }}
         onDoubleClick={() => onOpen(task.id)}
         className={`ui-block ui-block--row relative flex h-6 w-full min-w-0 touch-manipulation items-center gap-1 overflow-hidden px-1.5 text-left text-meta ${piece.startsBefore ? 'ui-span--before' : ''} ${piece.endsAfter ? 'ui-span--after' : ''} ${task.completed_at || piece.last < today ? 'ui-block--past' : ''} ${selected ? 'ring-1 ring-accent' : ''} ${dragging ? 'shadow-2' : ''} ${canMove ? 'cursor-grab' : ''}`}>
         {pastCols > 0 && piece.last >= today && !task.completed_at && <span aria-hidden className="ui-span-past pointer-events-none absolute inset-y-0 start-0" style={{ width: `${(pastCols / piece.cols) * 100}%` }} />}

@@ -1,0 +1,1 @@
+- Simplify calendar navigation with a view dropdown and custom 2?6 day ranges, separate Today and arrows, move visibility controls to More actions, and quiet the grid with hourly rules, centered headings, month/week titles and no weekend shading, capacity totals or empty lane placeholders in Day and Week.

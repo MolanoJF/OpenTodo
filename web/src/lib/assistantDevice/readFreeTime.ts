@@ -7,7 +7,7 @@ import { GRID_PREFS_META_KEY, normalizeGridPrefs } from '../calendar'
 import { ensureEventsFor } from '../calendarFeeds'
 import { daysBetweenISO, instantToLocalDue } from '../dates'
 import { db, getMeta } from '../db'
-import { freeClock, freeTime, MAX_FREE_DAYS, type FreeWhen } from '../freeTime'
+import { freeClock, freeEventsOf, freeTime, MAX_FREE_DAYS, type FreeWhen } from '../freeTime'
 import type { Frame } from '../types'
 import { ArgError, calendarDate, int, only, str, zone, type Args } from './args'
 import { isDeleted, isOpen, num, str as field, type Row, type Snapshot } from './data'
@@ -60,7 +60,7 @@ export async function findFreeTime(snap: Snapshot, a: Args, now: number) {
     .filter((t) => !!t.due?.time)
   const days = freeTime({
     from, to, zone: tz, day_start: startH * 60, day_end: endH * 60, min_minutes: least, today: at.date, now: at.minute,
-    events, frames: (frames as unknown as Row[]).filter((f) => !isDeleted(f)).map((f) => ({ ...f, position: num(f, 'position') }) as unknown as Frame),
+    events: freeEventsOf(events), frames: (frames as unknown as Row[]).filter((f) => !isDeleted(f)).map((f) => ({ ...f, position: num(f, 'position') }) as unknown as Frame),
     slots: (slots as unknown as Row[]).filter((s) => !isDeleted(s)).map((s) => ({ date: field(s, 'date'), start: field(s, 'start'), minutes: Math.trunc(num(s, 'minutes')) })),
     tasks,
   })

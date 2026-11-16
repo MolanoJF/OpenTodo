@@ -34,8 +34,14 @@ type Calendar struct {
 	Color    string
 	Comps    []string // VEVENT by default
 	ReadOnly bool
-	TimeZone string // IANA, sent as calendar-timezone
-	objects  map[string]*Object
+	// Privileges, when set, replace the default privilege set (read, and write
+	// unless ReadOnly) with read and these (write, write-content, bind, unbind, all);
+	// NoPrivilegeSet leaves the property out, as a server that does not say.
+	Privileges     []string
+	privilegesSet  bool
+	NoPrivilegeSet bool
+	TimeZone       string // IANA, sent as calendar-timezone
+	objects        map[string]*Object
 	// log records changes for sync-collection: seq → member, deleted.
 	log []change
 }
@@ -56,14 +62,83 @@ type Server struct {
 	NoSyncToken bool
 	// NoETagOnPut answers PUT without an ETag header.
 	NoETagOnPut bool
+	// NoETagOnGet answers GET without an ETag header (with NoETagOnPut: a server
+	// that never says the version of an object).
+	NoETagOnGet bool
 	// Prefix is where the account lives ("/dav" by default).
 	Prefix string
+	// Scheduling, Owner, KeepsPartstat and RejectsAttendeeEdits simulate what a server
+	// does about invitations (schedule.go); the default is SchedulingNone. Owner is the
+	// address of the account the calendars belong to.
+	Scheduling           Scheduling
+	Owner                string
+	KeepsPartstat        bool
+	RejectsAttendeeEdits bool
 
-	mu        sync.Mutex
-	cals      map[string]*Calendar
-	seq       int
-	Requests  map[string]int
-	etagCount int
+	mu            sync.Mutex
+	cals          map[string]*Calendar
+	seq           int
+	Requests      map[string]int
+	etagCount     int
+	unconditional int
+	ifNoneMatch   []string
+	writes        []string
+	fails         []*failure
+	messages      []Message
+}
+
+// failure makes the next n PUT or DELETE requests whose object name contains match
+// answer status: without applying them, or, when apply is set, after applying them
+// (a server whose answer was lost).
+type failure struct {
+	method, match string
+	status, n     int
+	apply         bool
+}
+
+// FailNext makes the next n requests of method (PUT or DELETE) to an object whose
+// name contains match answer status without being applied.
+func (s *Server) FailNext(method, match string, status, n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fails = append(s.fails, &failure{method: method, match: match, status: status, n: n})
+}
+
+// FailNextAfterApply is FailNext for requests that are applied and then answered
+// with status, as a server whose answer was lost or that failed after writing.
+func (s *Server) FailNextAfterApply(method, match string, status, n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fails = append(s.fails, &failure{method: method, match: match, status: status, n: n, apply: true})
+}
+
+// Writes lists the PUT and DELETE requests served, in order, as "METHOD object
+// precondition" with the precondition If-Match, If-None-Match or none.
+func (s *Server) Writes() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.writes...)
+}
+
+// failing returns the failure that applies to a request, counting it down.
+func (s *Server) failing(method, member string) *failure {
+	for _, f := range s.fails {
+		if f.n > 0 && f.method == method && strings.Contains(member, f.match) {
+			f.n--
+			return f
+		}
+	}
+	return nil
+}
+
+func precondOf(r *http.Request) string {
+	switch {
+	case r.Header.Get("If-None-Match") != "":
+		return "If-None-Match"
+	case r.Header.Get("If-Match") != "":
+		return "If-Match"
+	}
+	return "none"
 }
 
 // New starts a server with one calendar "work" holding events.
@@ -83,6 +158,29 @@ func (s *Server) AddCalendar(id string, c *Calendar) {
 	}
 	c.objects = map[string]*Object{}
 	s.cals[id] = c
+}
+
+// SetPrivileges makes the calendar's privilege set read plus privs.
+func (s *Server) SetPrivileges(cal string, privs ...string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := s.cals[cal]
+	c.Privileges, c.privilegesSet, c.NoPrivilegeSet = privs, true, false
+}
+
+// NoPrivileges makes the calendar answer without a privilege set.
+func (s *Server) NoPrivileges(cal string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cals[cal].NoPrivilegeSet = true
+}
+
+// Unconditional counts PUT and DELETE requests that carried neither If-Match
+// nor If-None-Match (a write that could overwrite a version nobody saw).
+func (s *Server) Unconditional() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.unconditional
 }
 
 // RemoveCalendar deletes a collection.
@@ -237,11 +335,20 @@ func (s *Server) calProps(id string, c *Calendar) string {
 		comps += `<c:comp name="` + n + `"/>`
 	}
 	priv := `<d:privilege><d:read/></d:privilege>`
-	if !c.ReadOnly {
+	switch {
+	case c.privilegesSet:
+		for _, p := range c.Privileges {
+			priv += `<d:privilege><d:` + p + `/></d:privilege>`
+		}
+	case !c.ReadOnly:
 		priv += `<d:privilege><d:write/></d:privilege>`
 	}
+	privSet := `<d:current-user-privilege-set>` + priv + `</d:current-user-privilege-set>`
+	if c.NoPrivilegeSet {
+		privSet = ""
+	}
 	p := `<d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>` + caldav.Esc(c.Name) + `</d:displayname>` +
-		`<c:supported-calendar-component-set>` + comps + `</c:supported-calendar-component-set><d:current-user-privilege-set>` + priv + `</d:current-user-privilege-set>` +
+		`<c:supported-calendar-component-set>` + comps + `</c:supported-calendar-component-set>` + privSet +
 		`<ic:calendar-color>` + c.Color + `</ic:calendar-color><cs:getctag>` + s.ctag(c) + `</cs:getctag>`
 	if c.TimeZone != "" {
 		p += `<c:calendar-timezone>BEGIN:VCALENDAR&#13;
@@ -407,20 +514,43 @@ func (s *Server) object(w http.ResponseWriter, r *http.Request, c *Calendar, id,
 			http.NotFound(w, r)
 			return
 		}
-		w.Header().Set("ETag", o.ETag)
+		if !s.NoETagOnGet {
+			w.Header().Set("ETag", o.ETag)
+		}
 		w.Header().Set("Content-Type", "text/calendar")
 		_, _ = io.WriteString(w, o.Data)
 	case http.MethodPut:
+		s.ifNoneMatch = append(s.ifNoneMatch, r.Header.Get("If-None-Match"))
+		s.writes = append(s.writes, "PUT "+member+" "+precondOf(r))
+		if r.Header.Get("If-Match") == "" && r.Header.Get("If-None-Match") == "" {
+			s.unconditional++
+		}
 		if c.ReadOnly {
 			http.Error(w, "read-only", http.StatusForbidden)
+			return
+		}
+		f := s.failing(http.MethodPut, member)
+		if f != nil && !f.apply {
+			http.Error(w, "failed", f.status)
 			return
 		}
 		if !precondition(w, r, o) {
 			return
 		}
-		n := &Object{Data: string(body), ETag: s.nextETag(string(body))}
+		data, status, denied := s.schedule(o, string(body))
+		if status != 0 {
+			w.Header().Set("Content-Type", "application/xml")
+			w.WriteHeader(status)
+			_, _ = io.WriteString(w, denied)
+			return
+		}
+		n := &Object{Data: data, ETag: s.nextETag(data)}
 		c.objects[member] = n
 		s.record(c, member, false)
+		if f != nil {
+			http.Error(w, "failed after writing", f.status)
+			return
+		}
 		if !s.NoETagOnPut {
 			w.Header().Set("ETag", n.ETag)
 		}
@@ -430,6 +560,19 @@ func (s *Server) object(w http.ResponseWriter, r *http.Request, c *Calendar, id,
 			w.WriteHeader(http.StatusNoContent)
 		}
 	case http.MethodDelete:
+		s.writes = append(s.writes, "DELETE "+member+" "+precondOf(r))
+		if r.Header.Get("If-Match") == "" {
+			s.unconditional++
+		}
+		if c.ReadOnly {
+			http.Error(w, "read-only", http.StatusForbidden)
+			return
+		}
+		f := s.failing(http.MethodDelete, member)
+		if f != nil && !f.apply {
+			http.Error(w, "failed", f.status)
+			return
+		}
 		if o == nil {
 			http.NotFound(w, r)
 			return
@@ -437,8 +580,13 @@ func (s *Server) object(w http.ResponseWriter, r *http.Request, c *Calendar, id,
 		if !precondition(w, r, o) {
 			return
 		}
+		s.scheduleDelete(o)
 		delete(c.objects, member)
 		s.record(c, member, true)
+		if f != nil {
+			http.Error(w, "failed after deleting", f.status)
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 	default:
 		http.Error(w, "no", http.StatusMethodNotAllowed)
@@ -456,4 +604,23 @@ func precondition(w http.ResponseWriter, r *http.Request, o *Object) bool {
 		return false
 	}
 	return true
+}
+
+// IfNoneMatches lists the If-None-Match header of every PUT served, in order
+// ("" for a PUT that sent none), so a test can see that a create was conditional.
+func (s *Server) IfNoneMatches() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.ifNoneMatch...)
+}
+
+// SetReadOnly makes a calendar refuse writes with 403 (or accept them again)
+// without changing the privileges it advertises, as a server whose claim is wrong.
+func (s *Server) SetReadOnly(cal string, ro bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cals[cal].ReadOnly = ro
+	if ro {
+		s.cals[cal].Privileges, s.cals[cal].privilegesSet = []string{"write"}, true
+	}
 }

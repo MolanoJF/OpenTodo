@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import type { ReactNode } from 'react'
-import { HEX, project, seeded, seedInbox, seedToday, storyUser, task, TODAY, withClock, withSeed } from './stories/fixtures'
+import { HEX, project, seeded, seedCalendarPolish, seedInbox, seedToday, storyUser, task, TODAY, withClock, withSeed } from './stories/fixtures'
 import { setTodayLimit } from '../lib/closedListPrefs'
-import { createTask, setTaskCompleted } from '../lib/ops'
+import { createTask, setTaskCompleted, updateTask } from '../lib/ops'
+import { openEventEditor } from './calendar/eventEditorStore'
 import { navigate } from './router'
 import { Shell } from './Shell'
 import { Sidebar } from './Sidebar'
@@ -82,6 +83,35 @@ export const TaskPage: StoryObj = {
     openTask.set(seeded.inboxTask)
   }),
   render: () => <Viewport><Shell user={storyUser} onLogout={noop} /></Viewport>,
+}
+
+/** Calendar phone regressions use the actual viewport, including the shell chrome. */
+function DeviceViewport({ children }: { children: ReactNode }) {
+  return <div className="-m-4 h-dvh overflow-hidden bg-canvas">{children}</div>
+}
+export const CalendarWeek: StoryObj = {
+  ...withSeed(async () => { await seedCalendarPolish(); navigate({ view: 'week', date: TODAY }) }),
+  render: () => <DeviceViewport><Shell user={storyUser} onLogout={noop} /></DeviceViewport>,
+}
+export const CalendarDay: StoryObj = {
+  ...withSeed(async () => { await seedCalendarPolish(); navigate({ view: 'day', date: TODAY }) }),
+  render: () => <DeviceViewport><Shell user={storyUser} onLogout={noop} /></DeviceViewport>,
+}
+export const NewEvent: StoryObj = {
+  ...withSeed(async () => { await seedCalendarPolish(); navigate({ view: 'week', date: TODAY }); openEventEditor({ mode: 'create', place: { date: TODAY, start: 600, end: 660 } }) }),
+  render: () => <DeviceViewport><Shell user={storyUser} onLogout={noop} /></DeviceViewport>,
+}
+export const EventDetails: StoryObj = {
+  ...withSeed(async () => { await seedCalendarPolish(); navigate({ view: 'week', date: TODAY }); openEventEditor({ mode: 'edit', eventId: 'polish-long' }) }),
+  render: () => <DeviceViewport><Shell user={storyUser} onLogout={noop} /></DeviceViewport>,
+}
+export const LongTaskPage: StoryObj = {
+  ...withSeed(async () => {
+    await seedInbox()
+    await updateTask(seeded.inboxTask, { title: 'Renew passport and prepare the documents for the family trip', description: 'Check the documents and appointment details.\n\n'.repeat(16) })
+    openTask.set(seeded.inboxTask)
+  }),
+  render: () => <DeviceViewport><Shell user={storyUser} onLogout={noop} /></DeviceViewport>,
 }
 
 /** The drawer as the bar's menu button opens it (design D7, precision-phone D3): a 20 rem column of 48 px rows, the footer pinned. */

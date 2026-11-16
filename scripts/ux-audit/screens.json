@@ -351,6 +351,70 @@
   "story": "Screens/Calendar"
  },
  {
+  "id": "calendar-task-preview",
+  "route": "day",
+  "kind": "overlay",
+  "seed": "layout-check",
+  "frequency": "weekly",
+  "core": false,
+  "on": "day",
+  "story": "Screens/Calendar"
+ },
+ {
+  "id": "calendar-event-preview",
+  "route": "day",
+  "kind": "overlay",
+  "seed": "layout-check",
+  "frequency": "weekly",
+  "core": false,
+  "on": "day",
+  "story": "Screens/Calendar"
+ },
+ {
+  "id": "event-editor",
+  "route": "day",
+  "kind": "overlay",
+  "seed": "layout-check",
+  "frequency": "rare",
+  "core": false,
+  "layoutCheck": "event-editor",
+  "on": "day",
+  "story": "Screens/Calendar"
+ },
+ {
+  "id": "event-scope-menu",
+  "route": "day",
+  "kind": "overlay",
+  "seed": "layout-check",
+  "frequency": "rare",
+  "core": false,
+  "layoutCheck": "event-scope-menu",
+  "on": "day",
+  "story": "Screens/Calendar"
+},
+{
+  "id": "event-notify-guests",
+  "route": "day",
+  "kind": "overlay",
+  "seed": "layout-check",
+  "frequency": "rare",
+  "core": false,
+  "layoutCheck": "event-notify-guests",
+  "on": "day",
+  "story": "Screens/Calendar"
+},
+{
+  "id": "event-panel",
+  "route": "day",
+  "kind": "overlay",
+  "seed": "layout-check",
+  "frequency": "rare",
+  "core": false,
+  "layoutCheck": "event-panel",
+  "on": "day",
+  "story": "Screens/Calendar"
+ },
+ {
   "id": "month",
   "route": "month",
   "kind": "screen",

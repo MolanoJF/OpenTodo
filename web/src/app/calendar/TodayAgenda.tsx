@@ -3,7 +3,7 @@
 // Today's list when the account turned it on (D1, D5). Read-only: every event opens the
 // calendar's details popover (D6). The per-device "Calendars" toggle of the grid does
 // not apply here; disabled subscriptions never show (D4).
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { allDayEvents, eventBlocks, formatTime as toHHMM, type EventBlock } from '../../lib/calendar'
 import { cachedWindow, covers, eventsStatus, refreshEvents, STALE_MS, type DayRange } from '../../lib/calendarFeeds'
 import { formatTime as formatWallTime } from '../../lib/dates'
@@ -13,11 +13,14 @@ import { useUserPrefsRow } from '../../lib/localData'
 import { useOnline } from '../../lib/online'
 import type { CalendarEvent, CalendarSubscription } from '../../lib/types'
 import { todayEventsShown } from '../../lib/userPrefs'
-import { hueFor, Popover } from '../../ui'
-import { EventDetails } from '../CalendarEvents'
+import { hueFor, Popover, Skeleton } from '../../ui'
 import { CalendarStatus } from './CalendarStatus'
+import { JoinButton } from './JoinButton'
 import { useNowMinutes } from './useNowMinutes'
 import { resettable } from '../../lib/moduleState'
+
+// The event details (with the editor, the guests and the calendar's editing code) load when a popover opens, not with the first load.
+const EventDetails = lazy(() => import('../CalendarEvents').then((m) => ({ default: m.EventDetails })))
 
 /** When Today's last fetch failed on this device (D3): no new attempt from Today for STALE_MS. */
 let lastMiss = 0
@@ -106,7 +109,7 @@ export function AgendaEvent({ ev, sub, zone, className, data, children, extra }:
         {rest && <span className="sr-only">{`, ${rest}`}</span>}
       </button>
       <Popover open={open} onClose={() => setOpen(false)} anchor={ref} label={ev.summary || t('Event')} width="sm:w-72" className="p-3" align="start">
-        <EventDetails ev={ev} sub={sub} zone={zone} />
+        <Suspense fallback={<Skeleton shape="line" count={2} label={t('Loading the event')} />}><EventDetails ev={ev} sub={sub} zone={zone} /></Suspense>
       </Popover>
     </>
   )
@@ -151,8 +154,10 @@ export function AgendaEvents({ allDay, timed, subMap, zone }: {
             const ev = b.event
             const sub = subMap.get(ev.subscriptionId)
             const past = b.end <= now
+            // A Join link at the row's end, drawn from the cached event while it has not ended (calendar-event-guests D13).
+            const joinable = !past && !!ev.conference
             return (
-              <li key={b.id}>
+              <li key={b.id} className={joinable ? 'flex items-center gap-1.5' : undefined}>
                 <AgendaEvent ev={ev} sub={sub} zone={zone} data={{ 'data-agenda-event': ev.id, 'data-free': ev.free || undefined, 'data-past': past || undefined }}
                   className={`flex w-full items-center gap-2 px-2 py-1 text-meta ${shape(ev.free, past)}`}
                   extra={[sub?.name, ev.free && t('Shown as free'), past && t('Ended')]}>
@@ -161,6 +166,7 @@ export function AgendaEvents({ allDay, timed, subMap, zone }: {
                   <span className="min-w-0 truncate font-medium">{ev.summary || t('Busy')}</span>
                   {ev.location && <span className="min-w-0 flex-1 truncate text-hint">{ev.location}</span>}
                 </AgendaEvent>
+                {joinable && <JoinButton ev={ev} />}
               </li>
             )
           })}

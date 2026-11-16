@@ -123,7 +123,12 @@ func (g *Graph) do(ctx context.Context, method, target string, header map[string
 // get reads a JSON answer; 404 is ReasonCalendarMissing (callers only ask for
 // calendars and their events).
 func (g *Graph) get(ctx context.Context, target string, out any) error {
-	resp, err := g.do(ctx, http.MethodGet, target, nil, nil)
+	return g.getWith(ctx, target, nil, out)
+}
+
+// getWith is get with extra request headers (a Prefer for the body format).
+func (g *Graph) getWith(ctx context.Context, target string, header map[string]string, out any) error {
+	resp, err := g.do(ctx, http.MethodGet, target, header, nil)
 	if err != nil {
 		return err
 	}
@@ -194,17 +199,18 @@ func (g *Graph) Discover(ctx context.Context) (*MicrosoftAccount, error) {
 	} else if r := reasonOf(err); r == ReasonRateLimited || r == ReasonUnauthorized || r == ReasonTimeout || r == ReasonConnection {
 		return nil, err
 	}
-	next := "/me/calendars?" + query(url.Values{"$top": {"50"}, "$select": {"id,name,hexColor,canEdit"}})
+	next := "/me/calendars?" + query(url.Values{"$top": {"50"}, "$select": {"id,name,hexColor,canEdit,allowedOnlineMeetingProviders"}})
 	for page := 0; next != "" && len(acct.Calendars) < MaxCalendars; page++ {
 		if page >= maxGraphPages {
 			return nil, &Error{Reason: ReasonTooLarge}
 		}
 		var p struct {
 			Value []struct {
-				ID       string `json:"id"`
-				Name     string `json:"name"`
-				HexColor string `json:"hexColor"`
-				CanEdit  bool   `json:"canEdit"`
+				ID              string   `json:"id"`
+				Name            string   `json:"name"`
+				HexColor        string   `json:"hexColor"`
+				CanEdit         bool     `json:"canEdit"`
+				OnlineProviders []string `json:"allowedOnlineMeetingProviders"`
 			} `json:"value"`
 			Next string `json:"@odata.nextLink"`
 		}
@@ -216,7 +222,7 @@ func (g *Graph) Discover(ctx context.Context) (*MicrosoftAccount, error) {
 				continue
 			}
 			acct.Calendars = append(acct.Calendars, Calendar{URL: c.ID, Name: firstOf(c.Name, "Calendar"), Color: color(c.HexColor),
-				TimeZone: acct.TimeZone, ReadOnly: !c.CanEdit})
+				TimeZone: acct.TimeZone, ReadOnly: !c.CanEdit, Caps: &Caps{Create: c.CanEdit, Update: c.CanEdit, Delete: c.CanEdit, OnlineMeeting: c.CanEdit && teamsListed(c.OnlineProviders)}})
 		}
 		next = p.Next
 	}

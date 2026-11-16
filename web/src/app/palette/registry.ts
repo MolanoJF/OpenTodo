@@ -85,6 +85,8 @@ export interface PaletteContext {
   timeSectors?: boolean
   /** The selected task's slot command on Today with a limit (today-closed-list D3). */
   slot?: SlotState
+  /** A shown calendar of a connection with "Edit events in OpenTodo" on lets events be created (calendar-event-editor D12): "New event" is offered. */
+  eventsWritable?: boolean
   /** Today's missed blocks (replan-the-day D4): "Re-plan the rest of the day" is offered while there are any. */
   missedBlocks?: number
 }
@@ -391,6 +393,7 @@ export function commands(ctx: PaletteContext): Command[] {
     // Slots (calendar-slots "Create slots"): today at the next free quarter hour; no default key.
     // Routines (routines-engine "Run a routine from the palette"): the open task goes along.
     { id: 'routine:run', label: t('Run routine…'), icon: 'zap', keywords: 'routine rule automation run now', run: async () => (await import('./routineCommand')).runRoutineStep(ctx.task) },
+    ...(ctx.eventsWritable ? [{ id: 'new:event', label: t('New event'), icon: 'calendar-clock' as IconName, keywords: 'event calendar meeting add create', run: () => act(import('../calendar/newEventNow').then((m) => m.newEventNow(ctx.route))) }] : []),
     { id: 'new:slot', label: t('New slot'), icon: 'layers', keywords: 'slot calendar batch small tasks admin errands checklist add create', run: () => act(newSlotNow()) },
     ...ROUTES.map((r): Command => ({ id: `go:${r.route.view}${'step' in r.route && r.route.step ? `:${r.route.step}` : ''}`, label: r.label, icon: r.icon, shortcut: r.shortcut, keywords: r.keywords, run: () => navigate(r.route) })),
     ...(ctx.user ? visibleSections(ctx.user) : []).map((s): Command => ({ id: `go:settings:${s.id}`, label: t('Open Settings: {section}', { section: s.label }), icon: s.icon, run: () => navigate({ view: 'settings', section: s.id }) })),

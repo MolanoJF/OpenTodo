@@ -83,12 +83,7 @@ describe('the Calendar\'s filter', () => {
     expect(r.container.querySelector(`[data-deadline-marker-for="${ids.pitch}"]`)).toBeTruthy()
     expect(r.container.querySelector(`[data-deadline-marker-for="${ids.essay}"]`)).toBeNull()
 
-    // Capacity: 30 + 30 + 60 + 60 minutes, the two Home blocks hidden.
-    const cap = r.container.querySelector<HTMLElement>(`[data-day-header="${TUE}"] [data-capacity]`)!
-    expect(cap.textContent).toContain('3h')
-    cap.focus()
-    await waitFor(() => !!document.querySelector('[data-tooltip]'), 'the capacity tooltip')
-    expect(document.querySelector('[data-tooltip]')!.textContent).toContain('3 tasks hidden by the filter')
+    expect(r.container.querySelector('[data-capacity]')).toBeNull()
     await r.unmount()
   })
 

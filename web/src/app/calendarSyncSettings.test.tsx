@@ -290,3 +290,41 @@ describe('calendar sync texts', () => {
     }
   })
 })
+
+describe('Edit events in OpenTodo (calendar-event-edits D7)', () => {
+  it('is off by default, turns on with one PATCH, and names the shown calendars the account keeps read-only', async () => {
+    const shown: CalendarConnection = { ...base, read: ['https://caldav.fastmail.com/cal/holidays/'] }
+    serve({
+      'GET /api/v1/settings/calendar-sync': { enabled: true, google: false, max_connections: 3 },
+      'GET /api/v1/calendar-sync/connections': { connections: [shown] },
+      'GET /api/v1/settings/calendar-sync/google': { client_id: '', secret_set: false, from_env: false, redirect_uri: 'x' },
+      'PATCH /api/v1/calendar-sync/connections/c1': { connection: { ...shown, edit_events: true } },
+      'GET /api/v1/calendar-feeds/events': { events: [], subscriptions: [] },
+    })
+    const r = await render(<CalendarSyncPanel isOwner />)
+    await waitFor(() => r.container.querySelector('[data-calendar-connection="c1"] [data-edit-events]') !== null)
+    const row = r.container.querySelector('[data-edit-events]')!
+    const toggle = row.querySelector<HTMLElement>('[role="switch"]')!
+    expect(toggle.getAttribute('aria-checked')).toBe('false')
+    expect(row.textContent).toContain('Moving, resizing, renaming or deleting an event in OpenTodo changes it in your calendar')
+    expect(row.querySelector('[data-calendar-read-only]')!.textContent).toBe('Read-only in your account: Holidays')
+    await click(toggle)
+    await waitFor(() => keys().includes('PATCH /api/v1/calendar-sync/connections/c1'))
+    expect(calls.find((c) => c.key === 'PATCH /api/v1/calendar-sync/connections/c1')!.body).toEqual({ edit_events: true })
+    await waitFor(() => r.container.querySelector('[data-edit-events] [role="switch"]')!.getAttribute('aria-checked') === 'true')
+    await r.unmount()
+  })
+
+  it('is not offered before the calendars are chosen', async () => {
+    serve({
+      'GET /api/v1/settings/calendar-sync': { enabled: true, google: false, max_connections: 3 },
+      'GET /api/v1/calendar-sync/connections': { connections: [{ ...base, state: 'choose_calendar', target: '' }] },
+      'GET /api/v1/settings/calendar-sync/google': { client_id: '', secret_set: false, from_env: false, redirect_uri: 'x' },
+      'GET /api/v1/calendar-feeds/events': { events: [], subscriptions: [] },
+    })
+    const r = await render(<CalendarSyncPanel isOwner />)
+    await waitFor(() => r.container.querySelector('[data-calendar-connection="c1"]') !== null)
+    expect(r.container.querySelector('[data-edit-events]')).toBeNull()
+    await r.unmount()
+  })
+})

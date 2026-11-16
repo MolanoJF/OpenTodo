@@ -1,0 +1,6 @@
+{
+  "kind": "respond",
+  "owner": "ana@example.com",
+  "response": "accepted",
+  "error": "ErrIsOrganizer"
+}

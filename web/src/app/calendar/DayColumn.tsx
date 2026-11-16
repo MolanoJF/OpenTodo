@@ -1,23 +1,24 @@
+import { blockGeometry, isWeekend } from '../../lib/calendarPresentation'
+import { openCalendarTaskPreview } from './taskPreviewStore'
 // The Day and Week grid columns (OpenSpec `time-blocking`): the hour gutter, each
 // day's header with capacity and unscheduled lane, and the day column with its
 // task blocks, calendar events, "+N" overflow lists, ghosts and the now line.
 import { useRef } from 'react'
-import { DAY_MINUTES, dayLoad, DEFAULT_BLOCK_MINUTES, MIN_BLOCK_MINUTES, SLOT_MINUTES, slotFromOffset, type GridPrefs } from '../../lib/calendar'
+import { DAY_MINUTES, DEFAULT_BLOCK_MINUTES, MIN_BLOCK_MINUTES, SLOT_MINUTES, slotFromOffset, type GridPrefs } from '../../lib/calendar'
 import type { DayData } from '../../lib/calendarDays'
-import { formatHour, formatDateParts } from '../../lib/dates'
+import { formatDateParts } from '../../lib/dates'
 import { formatMinutes } from '../../lib/duration'
 import { t } from '../../lib/i18n'
 import type { PlacedFrame } from '../../lib/frames'
-import { slotCapacity, slotCount, slotName } from '../../lib/slots'
+import { slotCount, slotName } from '../../lib/slots'
 import type { PlacedBlock, Overflow } from '../../lib/layout'
-import type { CalendarEvent, CalendarSubscription, Task } from '../../lib/types'
+import type { CalendarEvent, CalendarSubscription, Task, WriteState } from '../../lib/types'
 import { Button, Icon, Tooltip, TruncatedText, type HueName } from '../../ui'
 import { EventBlockView, EventChip } from '../CalendarEvents'
 import type { useCalendarDrag } from '../calendarDrag'
 import { ALL_DAY_CAP, toggleAllDay, useAllDayExpanded } from './allDayExpanded'
 import { laneShape, setLaneFold, useLaneFold } from './laneFold'
-import { CapacityLine, capacityTooltip, hiddenByFilter } from './CapacityLine'
-import { isEmptyPlace, startAddHold, type AddHere } from './addHere'
+import { isEmptyPlace, startAddHold, type AddGestures } from './addHere'
 import { DeadlineDiamond, deadlineMark, DeadlineMarker } from './DeadlineMarker'
 import { FrameBands } from './FrameBand'
 import { SlotBlock } from './SlotBlock'
@@ -37,10 +38,10 @@ export const dayProjections = (day: DayData): Projection[] => [...[...day.projec
 /** The projections a day's capacity counts: its drawn ones and the span projections due that day (multi-day-tasks D3). */
 export const dayLoadProjections = (day: DayData): Projection[] => [...dayProjections(day), ...day.spans.flatMap((x) => (x.kind === 'projected' && x.projection.date === day.date ? [x.projection] : []))]
 /** Adding with the pointer (calendar-clarity D2): the dialog and the menu of the view. */
-export type AddGestures = Pick<AddHere, 'add' | 'menuAt'>
+export type { AddGestures } from './addHere'
 
 /** Double-click, right-click and long press on an empty part of an element add at the place `at` reads from the pointer. */
-export function addHandlers(gestures: AddGestures | undefined, at: (e: React.MouseEvent | React.PointerEvent, el: HTMLElement) => { date: string; start?: number }) {
+export function addHandlers(gestures: AddGestures | undefined, at: (e: React.MouseEvent | React.PointerEvent, el: HTMLElement) => { date: string; start?: number }): React.HTMLAttributes<HTMLElement> {
   if (!gestures) return {}
   return {
     onDoubleClick: (e: React.MouseEvent<HTMLElement>) => { if (isEmptyPlace(e.target, e.currentTarget)) gestures.add(at(e, e.currentTarget)) },
@@ -52,24 +53,13 @@ export function addHandlers(gestures: AddGestures | undefined, at: (e: React.Mou
     onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
       if (!isEmptyPlace(e.target, e.currentTarget)) return
       const place = at(e, e.currentTarget)
+      if (gestures.sweep && place.start !== undefined && e.button === 0) gestures.sweep(e, { date: place.date, start: place.start })
       startAddHold(e, (x, y) => gestures.menuAt(place, x, y))
     },
   }
 }
 
-export function HourGutter() {
-  return (
-    <div className="relative w-12 shrink-0" style={{ height: GRID_HEIGHT }} aria-hidden>
-      {Array.from({ length: 24 }, (_, h) => (
-        <div key={h} className="absolute right-1 -translate-y-1/2 text-hint tabular-nums text-faint" data-hour-label style={{ top: h * 60 * PX_PER_MIN }}>
-          {h === 0 ? '' : formatHour(h)}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-export function DayHeader({ day, today, tasks, meetings, prefs, showName, selectedId, subMap, zone, laneTarget, onSelect, onOpen, onPointerDown, hueOf, projectionHue, deadlines = NO_TASKS, hidden = 0, gestures, part = 'all', spanRows = 0, spanHidden = 0, onExtend, compact = false }: {
+export function DayHeader({ day, today, showName, selectedId, subMap, zone, laneTarget, onSelect, onOpen, onPointerDown, hueOf, projectionHue, deadlines = NO_TASKS, gestures, part = 'all', spanRows = 0, spanHidden = 0, onExtend, compact = false }: {
   day: DayData
   /**
    * A touch screen or a narrow window (GitHub issue 775): a lane of more than a few
@@ -108,7 +98,6 @@ export function DayHeader({ day, today, tasks, meetings, prefs, showName, select
   onPointerDown: (e: React.PointerEvent, id: string) => void
   hueOf: HueOf
 }) {
-  const load = dayLoad(tasks, day.date, prefs.dayLength, meetings?.minutes ?? 0, slotCapacity([...day.slots.values()]), dayLoadProjections(day))
   const d = Number(day.date.slice(8))
   const weekdayName = formatDateParts(day.date, { weekday: 'short' })
   const choice = useLaneFold()
@@ -116,31 +105,20 @@ export function DayHeader({ day, today, tasks, meetings, prefs, showName, select
   const shape = compact ? laneShape(count, choice) : { toggle: false, open: true }
   // A folded lane opens while the keyboard selection is one of its tasks, so the selection stays visible.
   const open = shape.open || (selectedId !== null && day.lane.some((tk) => tk.id === selectedId))
-  // A narrow column (Week beside the planning list, issue: "T… 0m / 8h +1?") puts the
-  // capacity under the day's name instead of cutting the name to a letter.
   const head = (
-    <div className="@container/dayhead">
-      <div className="flex flex-col items-start px-1 @min-[10rem]/dayhead:flex-row @min-[10rem]/dayhead:items-baseline @min-[10rem]/dayhead:justify-between @min-[10rem]/dayhead:gap-1">
-        {showName ? (
-          <TruncatedText data-day-name="" className={`max-w-full text-meta font-medium ${day.date === today ? 'text-accent' : 'text-muted'}`} text={`${weekdayName} ${d}`} />
-        ) : <span />}
-        <Tooltip label={[capacityTooltip(load, prefs.dayLength, meetings), hiddenByFilter(hidden)].filter(Boolean).join(' ')}>
-          <CapacityLine load={load} dayLength={prefs.dayLength} unestimated focusable />
-        </Tooltip>
-      </div>
+    <div className="flex min-h-9 items-center justify-center px-1 py-1 text-center">
+      {showName && <TruncatedText data-day-name="" className={`max-w-full text-body font-medium ${day.date === today ? 'text-accent' : 'text-muted'}`} text={`${weekdayName} ${d}`} />}
     </div>
   )
   const body = <>
       {day.allDay.length + deadlines.length + spanHidden > 0 && <AllDayStrip day={day} deadlines={deadlines} today={today} subMap={subMap} zone={zone} onOpen={onOpen} spanRows={spanRows} spanHidden={spanHidden} />}
       <div
         data-drop-lane={day.date}
-        {...addHandlers(gestures, () => ({ date: day.date }))}
         role="group"
         aria-label={t('Unscheduled on {date}', { date: day.date })}
         data-lane-open={shape.toggle ? String(open) : undefined}
-        className={`mt-1 min-h-8 space-y-0.5 rounded-control border border-dashed p-0.5 ${laneTarget ? 'border-accent bg-accent-soft' : 'border-default'}`}
+        className={`space-y-0.5 rounded-control ${laneTarget ? 'mt-1 min-h-8 border border-dashed border-accent bg-accent-soft p-0.5' : count > 0 ? 'mt-1 p-0.5' : 'h-1'}`} data-lane-empty={count === 0 || undefined}
       >
-        {count === 0 && <span className="block px-1 py-1 text-hint text-faint">{t('Unscheduled')}</span>}
         {shape.toggle && (
           // Still the lane's drop target while folded: a task dragged onto the header lands in the lane.
           <button type="button" data-lane-toggle={day.date} aria-expanded={open} onClick={() => setLaneFold(open ? 'closed' : 'open')}
@@ -157,7 +135,7 @@ export function DayHeader({ day, today, tasks, meetings, prefs, showName, select
             data-cal-id={task.id}
             data-lane-task={task.id}
             onPointerDown={task.completed_at ? undefined : (e) => onPointerDown(e, task.id)}
-            onClick={() => onSelect(task.id)}
+            onClick={(e) => { onSelect(task.id); openCalendarTaskPreview(task.id, e.currentTarget, hueOf(task)) }}
             onDoubleClick={() => onOpen(task.id)}
             className={`ui-block ui-block--row relative flex w-full touch-manipulation items-center gap-1 truncate px-1.5 py-0.5 text-left text-meta ${task.completed_at || day.date < today ? 'ui-block--past' : ''} ${selectedId === task.id ? 'ring-1 ring-accent' : ''}`}
             data-hue={hueOf(task)}
@@ -173,10 +151,10 @@ export function DayHeader({ day, today, tasks, meetings, prefs, showName, select
         {open && day.laneProjected.map((p) => <ProjectedItem key={p.id} p={p} hue={projectionHue?.(p)} variant="row" className="truncate" onDrag={(e) => onPointerDown(e, p.id)} />)}
       </div>
   </>
-  if (part === 'head') return <div className="min-w-0 flex-1 border-l border-default px-1 pt-1" data-day-header={day.date}>{head}</div>
-  if (part === 'body') return <div className="min-w-0 flex-1 border-l border-default px-1 pb-1" data-day-strip={day.date}>{body}</div>
+  if (part === 'head') return <div className="min-w-0 flex-1 border-l border-default px-1 pt-1" {...addHandlers(gestures, () => ({ date: day.date }))} data-drop-lane={day.date} data-day-header={day.date} data-weekend={isWeekend(day.date) || undefined}>{head}</div>
+  if (part === 'body') return <div className="min-w-0 flex-1 border-l border-default px-1 pb-1" {...addHandlers(gestures, () => ({ date: day.date }))} data-drop-lane={day.date} data-day-strip={day.date} data-weekend={isWeekend(day.date) || undefined}>{body}</div>
   return (
-    <div className="min-w-0 flex-1 border-l border-default px-1 pb-1 pt-1" data-day-header={day.date}>
+    <div className="min-w-0 flex-1 border-l border-default px-1 pb-1 pt-1" {...addHandlers(gestures, () => ({ date: day.date }))} data-drop-lane={day.date} data-day-header={day.date} data-weekend={isWeekend(day.date) || undefined}>
       {head}
       {body}
     </div>
@@ -190,8 +168,10 @@ export interface ReplanGhosts {
   movesTo: Map<string, number>
 }
 
-export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, taskMap, hueOf, projectionHue, subMap, zone, selectedId, draggingId, slotDrop = null, expanded, setExpanded, preview, replan, frames, gestures, onSelect, onOpen, onDragStart }: {
+export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, taskMap, hueOf, projectionHue, subMap, zone, selectedId, draggingId, savingEvents, slotDrop = null, expanded, setExpanded, preview, replan, frames, gestures, onSelect, onOpen, onDragStart }: {
   day: DayData
+  /** Layout ids of the events with a queued change (calendar-event-edits). */
+  savingEvents?: ReadonlyMap<string, WriteState>
   /** The day's frame occurrences (calendar-frames D3): background bands below every block. */
   frames?: readonly PlacedFrame[]
   prefs: GridPrefs
@@ -223,6 +203,7 @@ export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, tas
   const hover = useRef<HTMLDivElement>(null)
   /** The quarter hour under the pointer. */
   const slotOf = (e: React.MouseEvent | React.PointerEvent, el: HTMLElement) => slotFromOffset(e.clientY - el.getBoundingClientRect().top, PX_PER_MIN)
+  const add = addHandlers(gestures, (e, el) => ({ date: day.date, start: slotOf(e, el) }))
   // A faint highlight of the quarter hour under a fine pointer (calendar-clarity D2), moved without a re-render.
   const track = (e: React.PointerEvent<HTMLDivElement>) => {
     const h = hover.current
@@ -234,20 +215,23 @@ export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, tas
   return (
     <div
       data-drop-day={day.date}
-      {...addHandlers(gestures, (e, el) => ({ date: day.date, start: slotOf(e, el) }))}
+      data-weekend={isWeekend(day.date) || undefined}
+      {...add}
+      data-drag-id="calendar-create"
+      onPointerDown={add.onPointerDown}
       onPointerMove={gestures ? track : undefined}
       onPointerLeave={() => { if (hover.current) hover.current.hidden = true }}
       className="relative min-w-0 flex-1 border-l border-default"
       style={{
         height: GRID_HEIGHT,
-        // Hour lines, fainter 15-minute lines, in the theme's border colour.
-        backgroundImage: 'linear-gradient(to bottom, var(--ot-border) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--ot-border) 45%, transparent) 1px, transparent 1px)',
-        backgroundSize: `100% ${60 * PX_PER_MIN}px, 100% ${SLOT_MINUTES * PX_PER_MIN}px`,
+        // Hour rules only; scheduling and dragging still snap to quarter hours.
+        backgroundImage: 'linear-gradient(to bottom, var(--ot-border) 1px, transparent 1px)',
+        backgroundSize: `100% ${60 * PX_PER_MIN}px`,
       }}
     >
       {/* Outside the configured hours: shaded but still usable. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 bg-sunken" style={{ height: startPx }} />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-sunken" style={{ top: endPx }} />
+      {prefs.shadeOffHours && <div data-off-hours className="pointer-events-none absolute inset-x-0 top-0 bg-sunken" style={{ height: startPx }} />}
+      {prefs.shadeOffHours && <div data-off-hours className="pointer-events-none absolute inset-x-0 bottom-0 bg-sunken" style={{ top: endPx }} />}
       {frames && frames.length > 0 && <FrameBands frames={frames} past={isPast} />}
       {gestures && <div ref={hover} hidden aria-hidden data-slot-hover className="pointer-events-none absolute inset-x-0 bg-hover" style={{ height: SLOT_MINUTES * PX_PER_MIN }} />}
 
@@ -255,16 +239,16 @@ export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, tas
         const ev = day.events.get(b.id)
         if (ev) {
           return <EventBlockView key={b.id} block={ev} lane={b.lane} lanes={b.lanes} overlap={b.overlap} pxPerMinute={PX_PER_MIN}
-            minHeight={MIN_BLOCK_MINUTES * PX_PER_MIN} sub={subMap.get(ev.event.subscriptionId)} zone={zone} />
+            minHeight={MIN_BLOCK_MINUTES * PX_PER_MIN} sub={subMap.get(ev.event.subscriptionId)} zone={zone}
+            edit={{ date: day.date, selected: selectedId === b.id, dragging: draggingId === b.id, saving: savingEvents?.get(b.id), onSelect, onDragStart }} />
         }
         const pj = day.projected.get(b.id)
         if (pj) {
           // A projected occurrence (series-occurrences D3): read-only, in the overlap layout like an event.
           // Dragged by an editor, it moves this occurrence alone (series-exceptions D4).
-          return <ProjectedItem key={b.id} p={pj.projection} hue={projectionHue?.(pj.projection)} variant="block"
+          return <ProjectedItem className="calendar-grid-block" key={b.id} p={pj.projection} hue={projectionHue?.(pj.projection)} variant="block"
             onDrag={(e) => onDragStart(e, { taskId: pj.projection.id, kind: 'move', grabOffset: e.clientY - e.currentTarget.getBoundingClientRect().top })} style={{
-            top: b.start * PX_PER_MIN, height: Math.max(MIN_BLOCK_MINUTES * PX_PER_MIN, (b.end - b.start) * PX_PER_MIN),
-            left: `calc(${(b.lane / b.lanes) * 100}% + 2px)`, width: `calc(${100 / b.lanes}% - 4px)`,
+            ...blockGeometry(b, PX_PER_MIN, MIN_BLOCK_MINUTES * PX_PER_MIN),
           }} />
         }
         const sv = day.slots.get(b.id)
@@ -300,6 +284,7 @@ export function DayColumn({ day, prefs, isToday, isPast = false, nowMinutes, tas
           style={{ top: preview.start * PX_PER_MIN, height: Math.max(SLOT_MINUTES, Math.min(preview.length, DAY_MINUTES - preview.start)) * PX_PER_MIN }}
         >
           <span className="text-hint tabular-nums">{formatTime(preview.start)}</span> <span className="truncate">{preview.title || t('Untitled')}</span>
+          {preview.announce && <span role="status" className="sr-only">{preview.announce}</span>}
         </div>
       )}
 
@@ -329,9 +314,9 @@ function TaskBlock({ b, block, task, date, past, hue, selected, dragging, movesT
   onOpen: (id: string) => void
   onDragStart: DragStart
 }) {
-  const top = b.start * PX_PER_MIN
+  const geometry = blockGeometry(b, PX_PER_MIN, MIN_BLOCK_MINUTES * PX_PER_MIN)
   // At least one title line tall; the layout gives such blocks their own lane (issue 526).
-  const height = Math.max(MIN_BLOCK_MINUTES * PX_PER_MIN, (b.end - b.start) * PX_PER_MIN)
+  const height = geometry.height
   const ghost = dragging ? 'opacity-40' : '' // tone-lint-allow: the dragged block's ghost
   return (
     <div data-drag-id="calendar-block"
@@ -352,20 +337,16 @@ function TaskBlock({ b, block, task, date, past, hue, selected, dragging, movesT
         else if (e.clientY <= rect.top + zone) onDragStart(e, { taskId: b.id, kind: 'resize-start', blockEnd: block.start + (task.estimate_minutes || DEFAULT_BLOCK_MINUTES), blockDate: date })
         else onDragStart(e, { taskId: b.id, kind: 'move', grabOffset: e.clientY - rect.top })
       }}
-      onClick={() => onSelect(b.id)}
+      onClick={(e) => { onSelect(b.id); if (!dragging) openCalendarTaskPreview(task.id, e.currentTarget, hue) }}
       onDoubleClick={() => onOpen(b.id)}
       // Filled, not outlined (surfaces-v2 D1): the project's soft fill, a hue edge, strong text; dashed edge without an estimate.
-      className={`ui-block absolute z-10 ${task.completed_at ? '' : 'cursor-grab'} touch-manipulation overflow-hidden px-1.5 ${height < 20 ? 'py-0 text-hint leading-[10px]' : 'py-0.5 text-meta'} ${block.estimated ? '' : 'ui-block--dashed'} ${past || task.completed_at || movesTo !== undefined ? 'ui-block--past' : ''} ${selected ? 'ring-2 ring-accent' : ''} ${ghost}`}
-      style={{
-        top, height,
-        left: `calc(${(b.lane / b.lanes) * 100}% + 2px)`,
-        width: `calc(${100 / b.lanes}% - 4px)`,
-      }}
+      className={`calendar-grid-block ui-block absolute ${task.completed_at ? '' : 'cursor-grab'} touch-manipulation overflow-hidden px-1.5 ${height < 20 ? 'py-0 text-hint leading-[10px]' : 'py-0.5 text-meta'} ${block.estimated ? '' : 'ui-block--dashed'} ${past || task.completed_at || movesTo !== undefined ? 'ui-block--past' : ''} ${selected ? 'ring-2 ring-accent' : ''} ${ghost}`}
+      style={{ ...geometry, zIndex: selected ? 30 : geometry.zIndex }}
     >
       {/* Named by its content (WCAG 2.5.3 Label in Name): the spoken text is visually hidden, the visible one is not read twice. */}
       <span className="sr-only">{[task.title || t('Untitled'), task.completed_at ? t('(completed)') : '', block.estimated ? t('{time} for {duration}', { time: formatTime(block.start), duration: formatMinutes(task.estimate_minutes!) }) : t('{time}, no estimate', { time: formatTime(block.start) }), b.overlap ? t('overlaps another item') : '', movesTo !== undefined ? t('moves to {time}', { time: formatTime(movesTo) }) : '', task.completed_at ? '' : deadlineMark(task, date)].filter(Boolean).join(', ')}</span>
       <div aria-hidden className="flex items-start gap-1">
-        <span className={`min-w-0 flex-1 truncate font-medium ${task.completed_at ? 'line-through' : ''}`}>{task.title || t('Untitled')}</span>
+        <span className={`min-w-0 flex-1 ${height >= 50 ? 'line-clamp-2 whitespace-normal' : 'truncate'} font-medium ${task.completed_at ? 'line-through' : ''}`}>{task.title || t('Untitled')}</span>
         {task.deadline === date && !task.completed_at && <DeadlineDiamond past={past} className="mt-1" />}
         {b.overlap && <span data-overlap-marker className="shrink-0 text-warning" aria-hidden>⧉</span>}
       </div>
@@ -447,7 +428,7 @@ function OverflowStack({ o, day, taskMap, selectedId, expanded, setExpanded, onS
                   type="button"
                   data-cal-id={id}
                   onPointerDown={tk?.completed_at ? undefined : (e) => onDragStart(e, { taskId: id, kind: 'move' })}
-                  onClick={() => onSelect(id)}
+                  onClick={(e) => { onSelect(id); openCalendarTaskPreview(id, e.currentTarget) }}
                   onDoubleClick={() => onOpen(id)}
                   className={`flex w-full gap-1 truncate rounded-control px-1 py-0.5 text-left text-meta ${selectedId === id ? 'bg-selected-row' : 'hover:bg-hover'}`}
                 >

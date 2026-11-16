@@ -34,6 +34,7 @@ var notPermittedCodes = map[string]bool{
 	"insufficient_scope": true, "forbidden": true, "not_permitted": true,
 	"writes_disabled_by_owner": true, "writes_disabled_by_user": true,
 	"read_only": true, "encryption_enabled": true, "issues_disabled": true,
+	"event_edits_off": true, "calendar_read_only": true,
 }
 
 // exitError carries an exit code and, optionally, the exact JSON envelope to print
@@ -214,6 +215,9 @@ func (c *client) mapError(status int, raw []byte) error {
 	ee := &exitError{code: ExitServer, jsonCode: ae.Code, msg: ae.Message, envelope: raw}
 	if notPermittedCodes[ae.Code] {
 		ee.code = ExitNotPermitted
+	}
+	if ae.Code == "scope_required" {
+		ee.code = ExitUsage
 	}
 	if status == http.StatusUnauthorized {
 		ee.code = ExitAuth

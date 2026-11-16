@@ -171,8 +171,12 @@ func scanWords(words []string) *compState {
 			}
 		case st.spec == nil:
 			if st.spec = findSpecOrAlias(st.top + " " + w); st.spec == nil {
-				st.unknown = true
-				return st
+				// A group of subcommands, like `calendar event` (edit, delete).
+				if !hasSubcommands(st.top + " " + w) {
+					st.unknown = true
+					return st
+				}
+				st.top += " " + w
 			}
 		default:
 			st.pos++
@@ -263,15 +267,30 @@ func subcommandCandidates(top string) []compItem {
 	var out []compItem
 	for _, sp := range cmdSpecs {
 		if sub, ok := strings.CutPrefix(sp.Name, top+" "); ok {
-			out = append(out, compItem{sub, sp.Summary})
+			out = appendSub(out, sub, sp.Summary)
 			for _, al := range sp.Aliases {
 				if s, ok := strings.CutPrefix(al, top+" "); ok {
-					out = append(out, compItem{s, sp.Summary})
+					out = appendSub(out, s, sp.Summary)
 				}
 			}
 		}
 	}
 	return out
+}
+
+// appendSub adds a subcommand candidate; a deeper name (`event edit` under
+// `calendar`) offers its first word once.
+func appendSub(out []compItem, sub, summary string) []compItem {
+	first, deeper, _ := strings.Cut(sub, " ")
+	for _, it := range out {
+		if it.value == first {
+			return out
+		}
+	}
+	if deeper != "" {
+		summary = first
+	}
+	return append(out, compItem{first, summary})
 }
 
 // filterPrefix keeps the items whose value starts with prefix; fold ignores case.

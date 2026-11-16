@@ -18,6 +18,8 @@ type graphTransport struct {
 	g     *Graph
 	store *Store
 	conn  string
+	// me is the mailbox address, what "you" is matched with in a guest list.
+	me string
 	// zone is the mailbox's zone (IANA, "" for UTC).
 	zone    string
 	now     func() time.Time
@@ -153,7 +155,7 @@ func (t *graphTransport) fetch(ctx context.Context, _ string, ids []string) (map
 		if err != nil {
 			return nil, err
 		}
-		if r, ok := ev.remote(); ok {
+		if r, ok := ev.remote(t.me); ok {
 			out[id] = r
 		}
 	}
@@ -164,7 +166,7 @@ func (t *graphTransport) fetch(ctx context.Context, _ string, ids []string) (map
 // their occurrences.
 func (t *graphTransport) window(ctx context.Context, cal string, win calfeed.Window) ([]remote, error) {
 	next := calendarPath(cal) + "/calendarView?" + query(url.Values{"startDateTime": {graphStamp(win.From)}, "endDateTime": {graphStamp(win.To)},
-		"$top": {"250"}, "$expand": {expandProperty}})
+		"$top": {"250"}, "$expand": {expandProperty}, "$select": {windowSelect}})
 	var out []remote
 	for page := 0; next != ""; page++ {
 		if page >= maxGraphPages {
@@ -175,7 +177,7 @@ func (t *graphTransport) window(ctx context.Context, cal string, win calfeed.Win
 			return nil, err
 		}
 		for i := range p.Value {
-			if r, ok := p.Value[i].remote(); ok {
+			if r, ok := p.Value[i].remote(t.me); ok {
 				out = append(out, r)
 			}
 		}
@@ -283,3 +285,7 @@ func (t *graphTransport) commit(ctx context.Context) error {
 	}
 	return nil
 }
+
+// windowSelect is what the window read asks for: a calendarView without $select
+// is not guaranteed to carry seriesMasterId (calendar-event-series D9).
+const windowSelect = "id,subject,start,end,isAllDay,showAs,type,isOrganizer,attendees,location,isCancelled,lastModifiedDateTime,seriesMasterId,organizer,responseStatus,isOnlineMeeting,onlineMeeting"

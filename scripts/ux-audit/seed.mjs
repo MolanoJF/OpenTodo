@@ -19,15 +19,43 @@ export function calendarEvents(now) {
   const day = (n) => new Date(now + n * 86400e3).toISOString().slice(0, 10)
   const ev = (id, summary, start, end, extra = {}) => ({ id, subscriptionId: 'layout-cal', uid: id, summary, location: '', start, end, allDay: !start.time, free: false, ...extra })
   return {
-    subscriptions: [{ id: 'layout-cal', name: 'Work calendar', color: '#2563eb', enabled: true, lastSuccessAt: now }],
+    subscriptions: [
+      { id: 'layout-cal', name: 'Work calendar', color: '#2563eb', enabled: true, lastSuccessAt: now },
+      // A connected calendar with "Edit events in OpenTodo" on (calendar-event-edits): its event can be dragged and edited.
+      { id: 'layout-managed', name: 'Personal calendar', color: '#16a34a', enabled: true, lastSuccessAt: now, managed: true, connectionId: 'layout-conn', calendarUrl: 'https://cal.example/personal/', caps: { create: true, update: true, delete: true, onlineMeeting: true }, editEvents: true, guests: { respond: true, silent: true, edit: true } },
+    ],
     events: [
       ev('layout-sync', 'Team sync', { date: day(0), time: '11:00' }, { date: day(0), time: '11:30' }, { location: 'Room 4' }),
       ev('layout-long', 'Quarterly planning review with the whole department and guests', { date: day(1), time: '09:00' }, { date: day(1), time: '10:30' }),
+      ev('layout-edit', 'Coffee with Sam', { date: day(0), time: '14:00' }, { date: day(0), time: '14:30' }, { subscriptionId: 'layout-managed', rev: 'a41c9d03e2b7f610', access: { update: true, delete: true, notifies: true }, guests: { count: 3, you: 'accepted', organizer: true, canRespond: false }, conference: { url: 'https://meet.google.com/abc-defg-hij', provider: 'meet' } }),
+      // An occurrence of a repeating event (calendar-event-series): moving it asks which events to change.
+      ev('layout-series', 'Morning routine', { date: day(0), time: '08:00' }, { date: day(0), time: '08:30' }, { subscriptionId: 'layout-managed', rev: 'c52d1e14f3a8b720', access: { update: true, delete: true }, series: { id: 'layout-series-1', rrule: 'FREQ=DAILY', repeat: { freq: 'daily', interval: 1, days: [], ends: { type: 'never' } }, custom: false, first: false, rev: '9b7d4c2a10e65f38' } }),
       ev('layout-free', 'Focus time', { date: day(1), time: '13:00' }, { date: day(1), time: '15:00' }, { free: true }),
       ...[8, 10, 12, 15].map((h, i) => ev(`layout-busy-${i}`, `Meeting ${i + 1}`, { date: day(3), time: `${String(h).padStart(2, '0')}:00` }, { date: day(3), time: `${String(h).padStart(2, '0')}:45` })),
       ev('layout-offsite', 'Offsite', { date: day(5) }, { date: day(7) }),
       ev('layout-later', 'Dentist', { date: day(40), time: '08:30' }, { date: day(40), time: '09:00' }),
     ],
+  }
+}
+// What GET /api/v1/calendar-sync/connections/{id}/events/{eventId} gives when the event editor opens (calendar-event-editor D4):
+// the event as the events route serves it and its plain-text description.
+export function calendarEventDetail(now, eventId) {
+  const event = calendarEvents(now).events.find((e) => e.id === eventId) ?? null
+  if (!event) return null
+  const detail = { event, description: 'Ask about the new roast.', descriptionEditable: true }
+  // An event with guests also carries the list and what the editor may do with it (calendar-event-guests D3).
+  return event.guests ? { ...detail, guests: { ...calendarEventGuests(), you: event.guests.you, canRespond: event.guests.canRespond, canEdit: true }, conference: event.conference, onlineMeeting: { available: true, on: false } } : detail
+}
+// What GET /api/v1/calendar-feeds/events/{eventId}/guests gives when a popover lists the guests (calendar-event-guests D3).
+export function calendarEventGuests() {
+  return {
+    organizer: { name: 'Ada Lovelace', email: 'ada@example.com', you: true },
+    guests: [
+      { name: 'Sam Rivera', email: 'sam@example.com', role: 'required', response: 'accepted', you: false },
+      { name: 'Ben Ortiz', email: 'ben@example.com', role: 'optional', response: 'needs-action', you: false },
+      { name: 'Room 4', email: 'room4@example.com', role: 'room', response: 'accepted', you: false },
+    ],
+    count: 3, truncated: false,
   }
 }
 // `now` is the moment the account is seeded around (Unix ms; the layout check passes

@@ -5,6 +5,11 @@ name: UI baselines
 # artifact. Download it and commit the PNGs under web/src/ui/__screenshots__/.
 on:
   workflow_dispatch:
+    inputs:
+      grep:
+        description: 'Only the stories whose test title matches this regular expression (for example settings-integrations-calendar-sync); empty writes every baseline'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -29,7 +34,9 @@ jobs:
         working-directory: web
       - name: Write baselines
         working-directory: scripts/ui-check
-        run: NODE_PATH=$(npm root -g) playwright test -c playwright.config.ts --update-snapshots=all
+        env:
+          STORY_GREP: ${{ inputs.grep }}
+        run: NODE_PATH=$(npm root -g) playwright test -c playwright.config.ts --update-snapshots=all ${STORY_GREP:+--grep "$STORY_GREP"}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ui-baselines

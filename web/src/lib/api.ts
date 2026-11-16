@@ -21,7 +21,7 @@ import type {
   AccountRole, ActivityPage, AttachmentLimits, AttachmentSettings, StorageStatus, CalendarEvent, CalendarFeed, CalendarSubscription, AdminUser, AppNotification, AuditEvent, AuditFilters, AuditSettings, AuthStatus, LinkedIdentity, OidcSettings, OidcSettingsInput, OidcStatus, OidcTestResult, BackupSecretFlags, BackupSecretUpdate, BackupSettings, BackupStatus, RestoreArchive, RestoreSource, RestoreState, StagedRestore, ImportJob, ImportOptions, ImportPreview, Invitation, InvitationPreview, LoginResult, HistoryPage, PendingSignup, SmtpSettings, SmtpSettingsInput, SmtpTestResult, Membership, MfaPolicy, ProjectInvite, ProjectInvitePreview, MfaStatus, Op, Passkey, ProjectRole, PurgeCounts, PushSubscriptionStatus, PushTestResponse, ResetPreview, SyncResponse, TrustedDevice, User, PublicLink, PublicList,
   MemberInvitation, PendingAnswer,
   Webhook, WebhookDelivery, WebhookEvent, WebhookInput, IssueActionResult, IssueConnection, IssueConnectionInput,
-  CalendarConnection, CalendarConnectionPatch, CalendarSyncRun, SyncScope, GoogleClientSetting, MicrosoftClientSetting,
+  CalendarConnection, CalendarConnectionPatch, CalendarEventChange, CalendarEventCreateBody, CalendarEventDetail, CalendarEventReply, CalendarEventUpdate, EventGuestList, EventScope, GuestAnswer, CalendarSyncRun, SyncScope, GoogleClientSetting, MicrosoftClientSetting,
   OwnTaskPage, PublishTaskPageInput, TaskPageCreated, TaskPageStatus,
   AutomationsSetting, RuleRun, RulesStatus, RoutineCatalogueEntry, RoutineInboxRun, RoutineRun, RoutineTestResult, RoutineStep, RuleCondition, RuleTrigger,
   RoutineAIUsage, RoutineProposal, RoutineProposalApplied,
@@ -36,10 +36,13 @@ export class ApiError extends Error {
   /** `message` is translated by code when the client knows it (app-localization D6). */
   /** The input field a 400 invalid_input names, when the server says (issue-connections). */
   readonly field?: string
-  constructor(public status: number, public code: string, message: string, field?: string) {
+  /** Seconds a 429 or 503 asks to wait (Retry-After), when the answer says. */
+  readonly retryAfter?: number
+  constructor(public status: number, public code: string, message: string, field?: string, retryAfter?: number) {
     super(errorMessage(code, message))
     this.serverMessage = message
     this.field = field
+    this.retryAfter = retryAfter
   }
 }
 
@@ -106,7 +109,7 @@ function reauthenticate(): Promise<boolean> {
 }
 
 /** Per-call options: the caller's abort signal (sign-out stops a sync exchange). */
-interface RequestOptions { signal?: AbortSignal }
+interface RequestOptions { signal?: AbortSignal; cache?: RequestCache }
 
 /** Sync protocol additions this client supports (POST /api/v1/sync `features`). */
 export const SYNC_FEATURES = ['clock_skew', 'backfill_ack']
@@ -138,6 +141,7 @@ async function send<T>(method: string, path: string, body?: unknown, opts: Reque
     body: body === undefined ? undefined : JSON.stringify(body),
     credentials: 'same-origin',
     signal: opts.signal,
+    ...(opts.cache ? { cache: opts.cache } : {}),
   })
   return parse<T>(res)
 }
@@ -243,7 +247,8 @@ async function parse<T>(res: Response): Promise<T> {
   })
   if (!res.ok) {
     const err = (data as { error?: { code: string; message: string; field?: string } }).error
-    throw new ApiError(res.status, err?.code ?? 'error', err?.message ?? res.statusText, err?.field)
+    const wait = Number(res.headers?.get('Retry-After'))
+    throw new ApiError(res.status, err?.code ?? 'error', err?.message ?? res.statusText, err?.field, Number.isFinite(wait) && wait > 0 ? wait : undefined)
   }
   return data as T
 }
@@ -561,6 +566,24 @@ export const api = {
     request<{ connection: CalendarConnection }>('POST', '/api/v1/calendar-sync/connections', body),
   patchCalendarConnection: (id: string, body: CalendarConnectionPatch) =>
     request<{ connection: CalendarConnection }>('PATCH', `/api/v1/calendar-sync/connections/${encodeURIComponent(id)}`, body),
+  // Edits of a connected calendar's events (OpenSpec change calendar-event-edits D4): never ops, the calendar is the truth.
+  // `scope` is required for an occurrence of a repeating event and refused otherwise (calendar-event-series D3).
+  // `notifyGuests` (calendar-event-guests D3): true confirms a change, create or delete that tells the guests.
+  updateCalendarEvent: (connectionId: string, eventId: string, body: CalendarEventChange & { rev: string; scope?: EventScope; notifyGuests?: boolean }) =>
+    request<CalendarEventUpdate>('PATCH', `/api/v1/calendar-sync/connections/${encodeURIComponent(connectionId)}/events/${encodeURIComponent(eventId)}`, body),
+  // Creating an event and reading its details (OpenSpec change calendar-event-editor D4): 201, or 200 for a replay.
+  createCalendarEvent: (connectionId: string, body: CalendarEventCreateBody & { notifyGuests?: boolean }) =>
+    request<{ event: CalendarEvent; clientId: string }>('POST', `/api/v1/calendar-sync/connections/${encodeURIComponent(connectionId)}/events`, body),
+  calendarEventDetail: (connectionId: string, eventId: string) =>
+    request<CalendarEventDetail>('GET', `/api/v1/calendar-sync/connections/${encodeURIComponent(connectionId)}/events/${encodeURIComponent(eventId)}`),
+  deleteCalendarEvent: (connectionId: string, eventId: string, rev: string, scope?: EventScope, notifyGuests?: boolean) =>
+    request<void>('DELETE', `/api/v1/calendar-sync/connections/${encodeURIComponent(connectionId)}/events/${encodeURIComponent(eventId)}?rev=${encodeURIComponent(rev)}${scope ? `&scope=${scope}` : ''}${notifyGuests ? '&notifyGuests=true' : ''}`),
+  // Guests (OpenSpec change calendar-event-guests D3). An answer to an invitation is the one write a read-only event allows;
+  // the list comes from the server's cache and is held in memory only (D11), so the request says no-store.
+  respondToCalendarEvent: (connectionId: string, eventId: string, body: { rev: string; response: GuestAnswer; scope?: EventScope; sendResponse?: boolean }) =>
+    request<CalendarEventReply>('POST', `/api/v1/calendar-sync/connections/${encodeURIComponent(connectionId)}/events/${encodeURIComponent(eventId)}/response`, body),
+  calendarEventGuests: (eventId: string, signal?: AbortSignal) =>
+    request<EventGuestList>('GET', `/api/v1/calendar-feeds/events/${encodeURIComponent(eventId)}/guests`, undefined, false, { signal, cache: 'no-store' }),
   deleteCalendarConnection: (id: string) => request<void>('DELETE', `/api/v1/calendar-sync/connections/${encodeURIComponent(id)}`),
   syncCalendarConnection: (id: string) =>
     request<{ ok: boolean; reason?: string; run?: CalendarSyncRun; connection: CalendarConnection }>('POST', `/api/v1/calendar-sync/connections/${encodeURIComponent(id)}/sync`),

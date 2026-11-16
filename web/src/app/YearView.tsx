@@ -4,7 +4,7 @@
 // local rows only, writes nothing and works offline. One keyboard grid across the
 // months (D5); below 640 px a month is the touch target (D6). Loads on first use.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, PageBody, useMediaQuery } from '../ui'
+import { PageBody, useMediaQuery } from '../ui'
 import { calendarTasks, eventsByDay } from '../lib/calendar'
 import { useOnline } from '../lib/online'
 import { CalendarsToggle } from './calendar/CalendarsToggle'
@@ -20,7 +20,7 @@ import { addMonthsISO, monthEnd, monthGrid } from '../lib/month'
 import { planSeries } from '../lib/plan'
 import { slotCapacity, slotsByDate, useSlots } from '../lib/slots'
 import { densityStep, yearCounts, type YearDay } from '../lib/yearView'
-import { CalendarRangeSwitch } from './CalendarRange'
+import { CalendarNavigation, CalendarRangeSwitch } from './CalendarRange'
 import { useDateTimeFormat } from './DateTimePrefsProvider'
 import { CalendarPageHeader, useCalendarChrome } from './calendar/useCalendarChrome'
 import { useCalendarProjectionsOn } from './calendar/projectionSwitches'
@@ -156,16 +156,12 @@ export default function YearView({ date }: { date?: string }) {
   const meta = chrome.chip ? <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-2">{chrome.chip}{status}</span> : status
 
   return (
-    <PageBody width="full" className="flex flex-col" data-calendar-page="year">
-      <CalendarPageHeader chrome={chrome} title={year} meta={meta} overflow={chrome.overflow}
+    <PageBody width="full" className="flex flex-col max-md:pb-(--add-room)" data-calendar-page="year">
+      <CalendarPageHeader chrome={chrome} title={year} meta={meta} overflow={<><CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} />{chrome.overflow}</>}
         actions={<>
-          <CalendarsToggle shown={feeds.eventsShown} count={feeds.subs.length} />
-          <span className="flex items-center" role="group" aria-label={t('Range')}>
-            <Button variant="ghost" size="sm" icon="chevron-left" aria-label={t('Previous year')} onClick={() => goTo(addMonthsISO(focused, -12))} />
-            <Button variant="ghost" size="sm" onClick={() => goTo(today)}>{t('Today')}</Button>
-            <Button variant="ghost" size="sm" icon="chevron-right" aria-label={t('Next year')} onClick={() => goTo(addMonthsISO(focused, 12))} />
-          </span>
           <CalendarRangeSwitch mode="year" date={focused} />
+          <CalendarNavigation onToday={() => goTo(today)} onPrevious={() => goTo(addMonthsISO(focused, -12))} onNext={() => goTo(addMonthsISO(focused, 12))}
+            previousLabel={t('Previous year')} nextLabel={t('Next year')} />
         </>} />
       <div ref={gridRef} data-year-grid={year} className="@container/year"
         onClick={(e) => { const d = (e.target as Element).closest<HTMLElement>('[data-year-day]')?.dataset.yearDay; if (d) openDay(d) }}

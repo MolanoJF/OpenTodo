@@ -297,6 +297,7 @@ export const SETTINGS_COPY = {
       gridStart: { label: msg('Grid starts') },
       gridEnd: { label: msg('Grid ends') },
       dayLength: { label: msg('Day length'), description: msg('Your daily capacity; the Day view warns when planned work goes over it.') },
+      secondZone: { label: msg('Second time zone'), description: msg('Hour labels in another zone, beside your own.') },
       countEvents: { label: msg('Count meetings in capacity'), description: msg('Busy calendar events add to each day in Day, Week and Month.') },
     },
   },

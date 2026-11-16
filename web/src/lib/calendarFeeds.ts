@@ -6,6 +6,7 @@
 import { api } from './api'
 import { addDaysISO, daysBetweenISO, logicalToday } from './dates'
 import { db, getMeta, setMeta } from './db'
+import { resettable } from './moduleState'
 import type { CalendarEvent, CalendarSubscription } from './types'
 
 const WINDOW_KEY = 'calendar.events.window'
@@ -28,6 +29,15 @@ export interface EventsWindow {
 export interface DayRange {
   from: string
   to: string
+}
+
+const afterRefresh = new Set<() => void>()
+resettable('calendarFeedsRefreshHooks', () => afterRefresh.clear())
+
+/** Calls `fn` after every refresh that replaced the cache (the event outbox sends what waits then). */
+export function onEventsRefreshed(fn: () => void): () => void {
+  afterRefresh.add(fn)
+  return () => { afterRefresh.delete(fn) }
 }
 
 export function cachedWindow(): Promise<EventsWindow | null> {
@@ -115,13 +125,20 @@ export async function refreshEvents(range?: DayRange): Promise<boolean> {
         for (const ev of res.events) events.set(ev.id, ev)
         for (const sub of res.subscriptions) subs.set(sub.id, sub)
       }
-      await db.transaction('rw', [db.calendarEvents, db.calendarSubscriptions, db.meta], async () => {
+      // The queued edits are drawn over the rows only while some wait, and their code loads then, not with the first load.
+      const overlay = (await db.eventOutbox.count()) > 0 ? (await import('./calendarEventPatch')).overlayQueued : null
+      await db.transaction('rw', [db.calendarEvents, db.calendarSubscriptions, db.meta, db.eventOutbox], async () => {
+        // A refresh in the middle of an edit keeps the edit (calendar-event-edits D6).
+        const queued = await db.eventOutbox.toArray()
+        if (queued.length && !overlay) throw new Error('an edit was queued during the refresh') // the cache stays; the next refresh draws it
+        overlay?.(events, queued)
         await db.calendarEvents.clear()
         await db.calendarSubscriptions.clear()
         await db.calendarEvents.bulkPut([...events.values()])
         await db.calendarSubscriptions.bulkPut([...subs.values()])
         await setMeta(WINDOW_KEY, { from: target.from, to: target.to, fetchedAt: Date.now() } satisfies EventsWindow)
       })
+      for (const fn of [...afterRefresh]) fn()
       return true
     } catch {
       return false
@@ -130,6 +147,12 @@ export async function refreshEvents(range?: DayRange): Promise<boolean> {
     }
   })()
   return inflight
+}
+
+/** A refresh that starts now: one already running may have read before a write the caller just made. */
+export async function refetchEvents(): Promise<boolean> {
+  if (inflight) await inflight.catch(() => false)
+  return refreshEvents()
 }
 
 /**

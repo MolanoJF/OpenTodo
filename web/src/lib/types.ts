@@ -1317,6 +1317,119 @@ export interface CalendarEvent {
   end: CalendarWhen
   allDay: boolean
   free: boolean
+  /** The version the server saw (calendar-event-edits D4): sent back with an edit. Absent on ICS feed events and older servers. */
+  rev?: string
+  /** What may be done to a connected calendar's event; absent on ICS feed events. */
+  access?: CalendarEventAccess
+  /** An occurrence of a repeating event (calendar-event-series D1): what groups it with the others; absent for a single event. */
+  series?: CalendarEventSeries
+  /** Who else is invited (calendar-event-guests D11): a summary only; the list is read when a popover opens and never stored here. */
+  guests?: CalendarEventGuests
+  /** The call to join (calendar-event-guests D10); an `https` address the server checked. */
+  conference?: CalendarConference
+}
+
+/** A guest's answer; `needs-action` is "not answered yet". */
+export type GuestResponse = 'accepted' | 'tentative' | 'declined' | 'needs-action'
+
+/** What a device keeps of an event's guests: counts and the user's own answer, never a name or an address (D12). */
+export interface CalendarEventGuests {
+  count: number
+  /** The user's own answer; absent when the user is not a guest or their address is unknown. */
+  you?: GuestResponse
+  /** The user organises the event. */
+  organizer: boolean
+  canRespond: boolean
+}
+
+export interface CalendarConference {
+  url: string
+  provider: 'meet' | 'teams' | 'zoom' | 'webex' | 'other'
+}
+
+/** One person on the guest list the cache-only route and the detail answer give (D3). */
+export interface EventGuest {
+  name: string
+  email: string
+  role: 'required' | 'optional' | 'room'
+  response: GuestResponse
+  you: boolean
+}
+
+/** The guest list as the server serves it: held in memory while a popover or an editor is open, never in Dexie. */
+export interface EventGuestList {
+  organizer: { name: string; email: string; you: boolean } | null
+  guests: EventGuest[]
+  count: number
+  truncated: boolean
+}
+
+/** A guest to add (calendar-event-guests D3). */
+export interface GuestInput {
+  email: string
+  name?: string
+  role?: 'required' | 'optional'
+}
+
+/** What a reply answers (D3). */
+export type GuestAnswer = 'accepted' | 'tentative' | 'declined'
+
+/** Which events of a repeating series a change is for (calendar-event-series D1). */
+export type EventScope = 'this' | 'following' | 'all'
+
+/** A repeat rule as the editor edits it, and as the REST routes carry it (calendar-event-series D3). */
+export interface CalendarRepeat {
+  freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
+  /** 1 to 99. */
+  interval: number
+  /** Weekly: `mo` to `su`; empty means the start's weekday. */
+  days?: string[]
+  /** Monthly: the start's day of the month, or its weekday of the month; omitted means the day of the month. */
+  by?: 'monthday' | 'weekday'
+  ends: { type: 'never' } | { type: 'on'; date: string } | { type: 'after'; count: number }
+}
+
+/** What the events route says of an occurrence's series (calendar-event-series D3). */
+export interface CalendarEventSeries {
+  id: string
+  /** The calendar's own rule text, read-only. */
+  rrule?: string
+  /** The rule in the editor's form; null when it is custom, absent when it is loaded on demand (Microsoft). */
+  repeat?: CalendarRepeat | null
+  custom?: boolean
+  /** The series' first occurrence: `following` is not offered on it. */
+  first?: boolean
+  /** The version of the series' calendar object (CalDAV and Google): shared by every occurrence. */
+  rev?: string
+}
+
+/** Why a connected calendar's event cannot be changed (calendar-event-edits D3); the first unmet condition. */
+export type CalendarEventReason = 'cannot_respond' | 'response_not_kept' | 'edits_off' | 'calendar_read_only' | 'series_unsupported' | 'has_guests' | 'not_organizer' | 'no_etag' | 'refresh_pending'
+
+export interface CalendarEventAccess {
+  update: boolean
+  delete: boolean
+  reason?: string
+  /** A change or a delete of this event tells its guests (calendar-event-guests D8): it needs the person's confirmation. */
+  notifies?: boolean
+}
+
+/** What an account lets OpenTodo do in one calendar (calendar-event-edits D3). */
+export interface CalendarCaps {
+  create: boolean
+  update: boolean
+  delete: boolean
+  /** The calendar can make an online meeting (a Teams link) for a new or an existing event. */
+  onlineMeeting?: boolean
+}
+
+/** What OpenTodo may do with the guests of a connection's events (calendar-event-guests D1). */
+export interface GuestCaps {
+  respond: boolean
+  /** The answer can be sent without telling the organiser. */
+  silent: boolean
+  /** An organiser's change, guests added or removed, a delete: the provider tells the guests itself. */
+  edit: boolean
 }
 
 /** A subscribed calendar and its status. */
@@ -1333,6 +1446,15 @@ export interface CalendarSubscription {
   eventCount?: number
   /** A calendar of a calendar sync connection (calendar-two-way), not one of the user's subscriptions. */
   managed?: boolean
+  /** Managed calendars only (calendar-event-edits D4): the connection, the calendar's address, its capabilities and the connection's switch. */
+  connectionId?: string
+  calendarUrl?: string
+  caps?: CalendarCaps
+  editEvents?: boolean
+  /** Managed calendars: how many reminders an event takes (5; 1 for Microsoft), calendar-event-series D3. */
+  maxReminders?: number
+  /** Managed calendars: what the account does with guests (calendar-event-guests D3). */
+  guests?: GuestCaps
 }
 
 /** One calendar of a calendar sync account, as discovery found it. */
@@ -1342,6 +1464,7 @@ export interface SyncCalendar {
   color: string
   time_zone?: string
   read_only: boolean
+  caps?: CalendarCaps
 }
 
 /** What one calendar sync cycle did. */
@@ -1369,6 +1492,8 @@ export interface CalendarConnection {
   include_date_only: boolean
   /** The part of the account written to the calendar (sync-scope); absent from older servers: all. */
   scope?: SyncScope
+  /** "Edit events in OpenTodo" (calendar-event-edits); absent from older servers: off. */
+  edit_events?: boolean
   enabled: boolean
   state: 'off' | 'choose_calendar' | 'pending' | 'ok' | 'failed' | 'reconnect' | 'stopped'
   next_sync_at: number
@@ -1413,6 +1538,7 @@ export interface CalendarConnectionPatch {
   enabled?: boolean
   password?: string
   scope?: SyncScope
+  edit_events?: boolean
 }
 
 /**
@@ -1974,7 +2100,7 @@ export const AUDIT_EVENT_NAMES = [
   'project.member_added', 'project.grant_added', 'project.grant_changed', 'project.grant_removed',
   'workspace_invite.created', 'workspace_invite.accepted', 'workspace_invite.revoked',
   'member_invitation.created', 'member_invitation.accepted', 'member_invitation.declined', 'member_invitation.cancelled',
-  'calendar_connection.created', 'calendar_connection.updated', 'calendar_connection.deleted',
+  'calendar_connection.created', 'calendar_connection.updated', 'calendar_connection.deleted', 'calendar_event.changed',
   'project.agent_access',
   'task_page.published', 'task_page.revoked',
   'mcp_oauth.client_created', 'mcp_oauth.client_deleted', 'mcp_oauth.granted', 'mcp_oauth.revoked', 'mcp_oauth.refresh_reused',
@@ -2554,3 +2680,112 @@ export interface PublicList {
   serverTime: number
 }
 
+
+/** The body of changing a connected calendar's event (calendar-event-edits D4): `start` and `end` go together. */
+export interface CalendarEventChange {
+  summary?: string
+  start?: CalendarWhen
+  end?: CalendarWhen
+  allDay?: boolean
+  location?: string
+  /** Not part of the cached row: carried by the command only (calendar-event-editor D2). */
+  description?: string
+  free?: boolean
+  /** Not part of the cached row: carried by the command only (calendar-event-series D3). Omitted: unchanged; null: stop repeating (this and following only). */
+  repeat?: CalendarRepeat | null
+  /** Minutes before the start; [] removes the ones the form shows. Not on the row either. */
+  reminders?: number[]
+  /** Guests to add and addresses to remove (calendar-event-guests D3). Not on the row: only a request that tells people carries them, never the outbox. */
+  guests?: { add?: GuestInput[]; remove?: string[] }
+  /** Make a Teams meeting; it cannot be turned off again. */
+  onlineMeeting?: boolean
+}
+
+/** An event made on this device, not yet in the calendar (calendar-event-editor D9). */
+export interface CalendarEventDraft {
+  clientId: string
+  connectionId: string
+  calendarUrl: string
+  subscriptionId: string
+  summary: string
+  start: CalendarWhen
+  end: CalendarWhen
+  allDay: boolean
+  location: string
+  description: string
+  free: boolean
+  repeat?: CalendarRepeat
+  reminders?: number[]
+  /** Guests of a new event; a create with guests is sent at once and never queued (calendar-event-guests D11). */
+  guests?: GuestInput[]
+  onlineMeeting?: boolean
+}
+
+/** The body of `POST .../connections/{id}/events` (calendar-event-editor D4): a draft without the device's own ids. */
+export type CalendarEventCreateBody = Omit<CalendarEventDraft, 'connectionId' | 'subscriptionId'>
+
+/** What `GET .../events/{id}` answers when an editor opens (calendar-event-editor D4). */
+export interface CalendarEventDetail {
+  event: CalendarEvent
+  /** Only when the calendar had a newer version than the cache: the id the cached row had. */
+  replaces?: string
+  description: string
+  descriptionEditable: boolean
+  /** An occurrence's series as the editor shows it; absent for a single event (calendar-event-series D3). */
+  series?: { rrule: string; repeat: CalendarRepeat | null; custom: boolean; exceptions: number }
+  reminders?: number[]
+  remindersMax?: number
+  /** Reminders the form cannot show and keeps. */
+  remindersOther?: number
+  /** Read from the calendar now (calendar-event-guests D3). */
+  guests?: EventGuestList & { you?: GuestResponse; canRespond: boolean; canEdit: boolean }
+  conference?: CalendarConference
+  onlineMeeting?: { available: boolean; on: boolean }
+}
+
+/** What `PATCH` answers (calendar-event-series D3): `event` is null when the edited occurrence left the cached window. */
+export interface CalendarEventUpdate {
+  event: CalendarEvent | null
+  replaces: string
+  series?: { id: string; rev?: string }
+  /** Other occurrences changed: read the shown range again. */
+  refetch?: boolean
+}
+
+/** What `POST .../response` answers (calendar-event-guests D3): the event row as the events route serves it. */
+export interface CalendarEventReply {
+  event: CalendarEvent | null
+  replaces: string
+  series?: { id: string; rev?: string }
+  refetch?: boolean
+}
+
+/** One queued edit of a connected calendar's event (calendar-event-edits D6): a device-local command, never an op. */
+export interface EventCommand {
+  /** `${connectionId}:${eventId}`: one row per event. */
+  key: string
+  connectionId: string
+  eventId: string
+  /** The rev the user saw, kept from the first edit. */
+  rev: string
+  /** Which events of a series the command is for; set from the first edit (calendar-event-series D11). */
+  scope?: EventScope
+  /** The row before the first queued edit (rollback, Undo). */
+  base: CalendarEvent
+  patch: CalendarEventChange | { delete: true } | { create: CalendarEventDraft }
+  /** An edit made while this one is in flight. */
+  next?: CalendarEventChange | { delete: true }
+  /** The scope of `next`: an edit with another scope waits for the answer instead of merging. */
+  nextScope?: EventScope
+  /** A delete waits so the toast's Undo can cancel it. */
+  notBefore: number
+  sending?: boolean
+  tries: number
+  /** The device got no answer (offline): kept until it is back, shown as "Waiting to send", never retried on a timer. */
+  offline?: boolean
+  /** The server answered with a failure that is not a refusal (5xx, a rate limit, a refused sign-in): stopped and shown as failed until the person retries or discards it. */
+  failed?: { code: string; status: number; message: string; retryAfter?: number }
+}
+
+/** What a queued calendar event write is doing: on its way, waiting for the device to be online, or failed and waiting for Retry or Discard. */
+export type WriteState = 'saving' | 'waiting' | 'failed'

@@ -1,0 +1,117 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example//EN
+BEGIN:VEVENT
+UID:big-1@example.com
+DTSTART:20261116T090000Z
+DTEND:20261116T100000Z
+DTSTAMP:20261110T091500Z
+ORGANIZER;CN=Ana Silva:mailto:ana@example.com
+SUMMARY:All hands
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 0:mailto:guest0@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 1:mailto:guest1@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 2:mailto:guest2@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 3:mailto:guest3@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 4:mailto:guest4@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 5:mailto:guest5@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 6:mailto:guest6@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 7:mailto:guest7@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 8:mailto:guest8@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 9:mailto:guest9@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 10:mailto:guest10@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 11:mailto:guest11@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 12:mailto:guest12@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 13:mailto:guest13@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 14:mailto:guest14@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 15:mailto:guest15@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 16:mailto:guest16@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 17:mailto:guest17@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 18:mailto:guest18@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 19:mailto:guest19@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 20:mailto:guest20@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 21:mailto:guest21@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 22:mailto:guest22@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 23:mailto:guest23@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 24:mailto:guest24@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 25:mailto:guest25@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 26:mailto:guest26@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 27:mailto:guest27@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 28:mailto:guest28@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 29:mailto:guest29@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 30:mailto:guest30@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 31:mailto:guest31@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 32:mailto:guest32@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 33:mailto:guest33@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 34:mailto:guest34@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 35:mailto:guest35@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 36:mailto:guest36@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 37:mailto:guest37@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 38:mailto:guest38@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 39:mailto:guest39@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 40:mailto:guest40@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 41:mailto:guest41@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 42:mailto:guest42@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 43:mailto:guest43@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 44:mailto:guest44@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 45:mailto:guest45@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 46:mailto:guest46@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 47:mailto:guest47@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 48:mailto:guest48@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 49:mailto:guest49@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 50:mailto:guest50@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 51:mailto:guest51@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 52:mailto:guest52@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 53:mailto:guest53@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 54:mailto:guest54@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 55:mailto:guest55@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 56:mailto:guest56@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 57:mailto:guest57@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 58:mailto:guest58@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 59:mailto:guest59@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 60:mailto:guest60@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 61:mailto:guest61@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 62:mailto:guest62@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 63:mailto:guest63@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 64:mailto:guest64@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 65:mailto:guest65@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 66:mailto:guest66@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 67:mailto:guest67@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 68:mailto:guest68@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 69:mailto:guest69@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 70:mailto:guest70@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 71:mailto:guest71@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 72:mailto:guest72@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 73:mailto:guest73@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 74:mailto:guest74@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 75:mailto:guest75@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 76:mailto:guest76@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 77:mailto:guest77@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 78:mailto:guest78@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 79:mailto:guest79@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 80:mailto:guest80@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 81:mailto:guest81@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 82:mailto:guest82@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 83:mailto:guest83@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 84:mailto:guest84@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 85:mailto:guest85@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 86:mailto:guest86@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 87:mailto:guest87@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 88:mailto:guest88@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 89:mailto:guest89@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 90:mailto:guest90@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 91:mailto:guest91@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 92:mailto:guest92@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 93:mailto:guest93@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 94:mailto:guest94@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 95:mailto:guest95@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 96:mailto:guest96@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 97:mailto:guest97@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 98:mailto:guest98@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 99:mailto:guest99@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 100:mailto:guest100@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 101:mailto:guest101@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 102:mailto:guest102@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 103:mailto:guest103@example.com
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Guest 104:mailto:guest104@example.com
+END:VEVENT
+END:VCALENDAR

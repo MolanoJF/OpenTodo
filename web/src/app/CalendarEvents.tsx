@@ -1,14 +1,29 @@
-// Events of subscribed calendars in Day, Week, Plan and Month (OpenSpec changes
-// calendar-feeds D8 and calendar-events-all-views). Read-only: blocks and chips are buttons that open a popover with the
-// summary, time, location and calendar name; they never start a drag, are never
-// selected with j/k and are never drop targets.
+import { blockGeometry } from '../lib/calendarPresentation'
+// Events of subscribed and connected calendars in Day, Week, Plan and Month (OpenSpec changes
+// calendar-feeds D8, calendar-events-all-views and calendar-event-edits D7). Blocks and chips are
+// buttons that open a popover with the summary, time, location and calendar name. Only a timed block
+// of a connected calendar's event with `access.update` starts a drag, joins the j/k selection and
+// edits in its popover (EventEditor); everything else is read-only and says why. Never a drop target.
 import { hueFor, Icon, Tooltip, Popover } from '../ui'
-import { useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { formatTime as toHHMM, type EventBlock } from '../lib/calendar'
+import { eventAccessText } from '../lib/calendarEventEdits'
+import { eventEditable } from '../lib/eventDrop'
+import { providerOf } from '../lib/eventGuests'
+import './calendar/eventEditToasts' // the toasts of writes that failed, with the calendar's code
+import { openEventEditor } from './calendar/eventEditorStore'
+import { onOpenEventRequest } from './calendar/eventOpen'
+import { RESIZE_ZONE_PX } from './calendar/grid'
+import type { useCalendarDrag } from './calendarDrag'
 import { formatShort, formatTime as formatWallTime, localDueOf } from '../lib/dates'
-import type { CalendarEvent, CalendarSubscription, CalendarWhen } from '../lib/types'
+import type { CalendarEvent, CalendarSubscription, CalendarWhen, WriteState } from '../lib/types'
 import { t } from '../lib/i18n'
 import { formatMinutes } from '../lib/duration'
+
+const EventPreview = lazy(() => import('./calendar/EventPreview'))
+
+/** Opens the full editor on an event the calendar lets the person change. */
+const openEditor = (ev: CalendarEvent) => openEventEditor({ mode: 'edit', eventId: ev.id })
 
 /** Wall time of a timed point in the viewer's zone ("10:00"), or the date for all-day points. */
 function whenText(p: CalendarWhen, zone?: string): string {
@@ -27,25 +42,23 @@ export function eventLabel(ev: CalendarEvent, sub: CalendarSubscription | undefi
   return [ev.summary || t('Busy'), eventTimeText(ev, zone), ev.location, sub?.name].filter(Boolean).join(', ')
 }
 
-export function EventDetails({ ev, sub, zone }: { ev: CalendarEvent; sub?: CalendarSubscription; zone?: string }) {
-  return (
-    <div className="space-y-1 text-body" data-event-details>
-      <p className="font-medium text-strong">{ev.summary || t('Busy')}</p>
-      <p className="flex items-center gap-1.5 text-meta text-muted"><Icon name="clock" size="xs" />{eventTimeText(ev, zone)}</p>
-      {ev.location && <p className="truncate pl-[18px] text-meta text-muted">{ev.location}</p>}
-      {sub && (
-        <p className="flex items-center gap-1.5 text-meta text-muted">
-          <span className="h-2 w-2 shrink-0 rounded-full bg-hue-solid" data-hue={hueFor(sub.color)} aria-hidden />{sub.name}
-        </p>
-      )}
-      {ev.free && <p className="text-meta text-faint">{t('Shown as free')}</p>}
-      <p className="text-meta text-faint">{t('From a subscribed calendar. Edit it in its own app.')}</p>
-    </div>
-  )
+export function EventDetails({ ev, sub, zone, onDone, onClose }: { ev: CalendarEvent; sub?: CalendarSubscription; zone?: string; onDone?: () => void; onClose?: () => void }) {
+  return <Suspense fallback={null}><EventPreview ev={ev} sub={sub} zone={zone} onClose={onDone ?? onClose} /></Suspense>
+}
+
+/** What the grid gives an event block beyond its layout: the day, selection, drag and the saving state. */
+export interface EventBlockEdit {
+  date: string
+  selected: boolean
+  dragging: boolean
+  /** A queued change: on its way, waiting for the device to be online, or failed (Retry or Discard in the popover). */
+  saving?: WriteState
+  onSelect: (id: string) => void
+  onDragStart: ReturnType<typeof useCalendarDrag>['start']
 }
 
 /** One timed event in a day column, laid out with the task blocks. */
-export function EventBlockView({ block, lane, lanes, overlap, pxPerMinute, minHeight, sub, zone }: {
+export function EventBlockView({ block, lane, lanes, overlap, pxPerMinute, minHeight, sub, zone, edit }: {
   block: EventBlock
   lane: number
   lanes: number
@@ -54,40 +67,61 @@ export function EventBlockView({ block, lane, lanes, overlap, pxPerMinute, minHe
   minHeight: number
   sub?: CalendarSubscription
   zone?: string
+  edit?: EventBlockEdit
 }) {
   const ref = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   const ev = block.event
-  const height = Math.max(minHeight, (block.end - block.start) * pxPerMinute)
+  const geometry = blockGeometry({ ...block, lane, lanes }, pxPerMinute, minHeight)
+  const height = geometry.height
+  const editable = !!edit && eventEditable(ev, zone)
+  const faded = edit?.dragging || edit?.saving === 'saving' || edit?.saving === 'waiting' ? 'opacity-40' : '' // tone-lint-allow: the dragged or saving block's ghost
+  const reason = ev.access && !ev.access.update ? eventAccessText(ev.access.reason, providerOf(sub)) : ''
+  // The keyboard (Enter on the selected block) opens the same popover.
+  useEffect(() => onOpenEventRequest((id) => { if (id === block.id) setOpen(true) }), [block.id])
+  const pointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    e.stopPropagation()
+    if (!editable || !edit) return
+    // The lowest few pixels resize the end, the highest few the start; the rest moves the block (as a task block does).
+    const rect = e.currentTarget.getBoundingClientRect()
+    const edge = Math.min(RESIZE_ZONE_PX, rect.height / 3)
+    const at = { taskId: block.id, entity: 'event' as const, blockDate: edit.date }
+    if (e.clientY >= rect.bottom - edge) edit.onDragStart(e, { ...at, kind: 'resize', blockStart: block.start })
+    else if (e.clientY <= rect.top + edge) edit.onDragStart(e, { ...at, kind: 'resize-start', blockEnd: block.end })
+    else edit.onDragStart(e, { ...at, kind: 'move', grabOffset: e.clientY - rect.top })
+  }
   return (
     <>
-      <Tooltip label={eventLabel(ev, sub, zone)} side="right">
+      <Tooltip label={[eventLabel(ev, sub, zone), reason].filter(Boolean).join('. ')} side="right">
       <button
         ref={ref}
         type="button"
+        data-drag-id="calendar-event"
         data-event={ev.id}
+        data-cal-id={block.id}
+        data-editable={editable || undefined}
         data-free={ev.free || undefined}
         data-overlap={overlap || undefined}
         data-hue={hueFor(sub?.color)}
         aria-haspopup="dialog"
-        // Not a drag source: the grid's pointer handling never sees it.
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={() => setOpen((o) => !o)}
-        className={`absolute z-10 overflow-hidden px-1.5 text-left ${height < 20 ? 'py-0 text-hint leading-none' : 'py-0.5 text-meta'} ${ev.free ? 'rounded-control border border-dashed border-hue-solid bg-transparent text-hue' : 'ui-block ui-block--event'} focus-visible:outline-2 focus-visible:outline-focus`}
-        style={{
-          top: block.start * pxPerMinute, height,
-          left: `calc(${(lane / lanes) * 100}% + 2px)`,
-          width: `calc(${100 / lanes}% - 4px)`,
-        }}
+        aria-busy={edit?.saving === 'saving' || undefined}
+        data-write={edit?.saving === 'waiting' || edit?.saving === 'failed' ? edit.saving : undefined}
+        onPointerDown={pointerDown}
+        onClick={() => { edit?.onSelect(block.id); setOpen((o) => !o) }}
+        onDoubleClick={() => { setOpen(false); openEditor(ev) }}
+        className={`calendar-grid-block absolute flex flex-col items-stretch justify-start overflow-hidden px-1.5 text-left ${editable ? 'cursor-grab touch-manipulation' : ''} ${height < 20 ? 'py-0 text-hint leading-none' : 'py-0.5 text-meta'} ${ev.free ? 'rounded-control border border-dashed border-hue-solid bg-transparent text-hue' : 'ui-block ui-block--event'} ${edit?.selected ? 'ring-2 ring-accent' : edit?.saving === 'failed' ? 'ring-2 ring-danger' : ''} ${faded} focus-visible:outline-2 focus-visible:outline-focus`}
+        style={{ ...geometry, zIndex: edit?.selected ? 30 : geometry.zIndex }}
       >
-        <span className="flex min-w-0 items-center gap-1 font-medium">{!ev.free && <span aria-hidden className="ui-block-dot" />}<span className="truncate">{ev.summary || t('Busy')}</span></span>
+        <span className="flex min-w-0 items-center gap-1 font-medium">{!ev.free && <span aria-hidden className="ui-block-dot" />}<span className={height >= 50 ? "line-clamp-2 whitespace-normal" : "truncate"}>{ev.summary || t('Busy')}</span>{edit?.saving === 'failed' && <Icon name="circle-alert" size="xs" className="shrink-0 text-danger" />}</span>
         {/* Named by its visible summary, then the time, location and calendar as hidden text (WCAG 2.5.3 Label in Name): the short time line below is not read twice. */}
-        <span className="sr-only">{eventLabel(ev, sub, zone).slice((ev.summary || t('Busy')).length)}</span>
-        {height >= 30 && <span aria-hidden className="block truncate text-hint tabular-nums" data-event-time>{formatWallTime(toHHMM(block.start))}{ev.location ? ` · ${ev.location}` : ''}</span>}
+        <span className="sr-only">{eventLabel(ev, sub, zone).slice((ev.summary || t('Busy')).length)}{edit?.saving === 'failed' ? `. ${t('Not saved')}` : edit?.saving === 'waiting' ? `. ${t('Waiting to send')}` : ''}</span>
+        {height >= 30 && <span aria-hidden className="block truncate text-hint tabular-nums" data-event-time>{formatWallTime(toHHMM(block.start))}–{formatWallTime(toHHMM(block.end))}</span>}
+        {editable && <span aria-hidden data-resize-start-handle className="absolute inset-x-0 top-0 h-1.5 cursor-ns-resize touch-none hover:bg-accent/30" />}
+        {editable && <span aria-hidden data-resize-handle className="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize touch-none hover:bg-accent/30" />}
       </button>
       </Tooltip>
-      <Popover open={open} onClose={() => setOpen(false)} anchor={ref} label={ev.summary || t('Event')} width="sm:w-72" className="p-3" align="start">
-        <EventDetails ev={ev} sub={sub} zone={zone} />
+      <Popover open={open} onClose={() => setOpen(false)} anchor={ref} label={ev.summary || t('Event')} width="sm:w-[21rem]" className="p-0" align="start">
+        <EventDetails ev={ev} sub={sub} zone={zone} onDone={() => setOpen(false)} />
       </Popover>
     </>
   )
@@ -109,13 +143,15 @@ export function EventChip({ ev, sub, zone }: { ev: CalendarEvent; sub?: Calendar
         aria-haspopup="dialog"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={() => setOpen((o) => !o)}
+        onDoubleClick={() => { setOpen(false); openEditor(ev) }}
+        onKeyDown={(e) => { if (e.key === 'Enter' && ev.access?.update) { e.preventDefault(); setOpen(false); openEditor(ev) } }}
         className={`flex w-full min-w-0 items-center gap-1 px-1.5 py-0.5 text-left text-hint ${ev.free ? 'rounded-chip border border-dashed border-hue-solid text-hue' : 'ui-block ui-block--row ui-block--event'} focus-visible:outline-2 focus-visible:outline-focus`}
       >
         {!ev.free && <span aria-hidden className="ui-block-dot" />}
         <span className="truncate">{ev.summary || t('Busy')}</span>
       </button>
-      <Popover open={open} onClose={() => setOpen(false)} anchor={ref} label={ev.summary || t('Event')} width="sm:w-72" className="p-3" align="start">
-        <EventDetails ev={ev} sub={sub} zone={zone} />
+      <Popover open={open} onClose={() => setOpen(false)} anchor={ref} label={ev.summary || t('Event')} width="sm:w-[25rem]" className="p-0" align="start">
+        <EventDetails ev={ev} sub={sub} zone={zone} onClose={() => setOpen(false)} />
       </Popover>
     </>
   )
@@ -155,6 +191,7 @@ export function EventRow({ ev, start, end, sub, zone, variant = 'plan' }: { ev: 
         aria-haspopup="dialog"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }}
+        onDoubleClick={(e) => { e.stopPropagation(); setOpen(false); openEditor(ev) }}
         className={`flex w-full min-w-0 items-center text-left ${ROW_CLASS[variant]} ${ev.free ? 'rounded-chip border border-dashed border-hue-solid text-hue' : 'ui-block ui-block--row ui-block--event'} focus-visible:outline-2 focus-visible:outline-focus`}
       >
         {/* Named by its visible content (WCAG 2.5.3 Label in Name); the location and calendar are not shown, so they follow as hidden text. */}
@@ -164,8 +201,8 @@ export function EventRow({ ev, start, end, sub, zone, variant = 'plan' }: { ev: 
         {length && <span className="shrink-0 text-hint tabular-nums">{length}</span>}
         {(ev.location || sub?.name) && <span className="sr-only">{`, ${[ev.location, sub?.name].filter(Boolean).join(', ')}`}</span>}
       </button>
-      <Popover open={open} onClose={() => setOpen(false)} anchor={ref} label={ev.summary || t('Event')} width="sm:w-72" className="p-3" align="start">
-        <EventDetails ev={ev} sub={sub} zone={zone} />
+      <Popover open={open} onClose={() => setOpen(false)} anchor={ref} label={ev.summary || t('Event')} width="sm:w-[25rem]" className="p-0" align="start">
+        <EventDetails ev={ev} sub={sub} zone={zone} onClose={() => setOpen(false)} />
       </Popover>
     </>
   )

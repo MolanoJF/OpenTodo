@@ -2,7 +2,7 @@
 // Week views, the drag layer and the keyboard handlers only turn pixels and keys into
 // minutes through these, and every write they produce is an ordinary `due` or
 // `estimate_minutes` edit (design D1, D5).
-import { addDaysISO, localDueOf } from './dates'
+import { addDaysISO, isKnownZone, localDueOf } from './dates'
 import { formatMinutes, MAX_ESTIMATE_MINUTES } from './duration'
 import type { CalendarEvent, CalendarWhen, Due, Project, Task } from './types'
 import { spanClip, spanOf } from './span'
@@ -53,6 +53,15 @@ export function dropStart(pointerOffsetPx: number, grabOffsetPx: number, pxPerMi
   if (!(pxPerMinute > 0)) return 0
   const minutes = (pointerOffsetPx - grabOffsetPx) / pxPerMinute
   return clamp(Math.round(minutes / SLOT_MINUTES) * SLOT_MINUTES, 0, LAST_SLOT)
+}
+
+/**
+ * The range a sweep over an empty stretch of a day column covers (calendar-event-editor D10): it starts in the
+ * slot `anchor` was pressed in and follows the pointer, snapped to 15 minutes, at least one slot, never past midnight.
+ */
+export function sweepRange(anchor: number, pointerOffsetPx: number, pxPerMinute: number): { start: number; end: number } {
+  const m = pxPerMinute > 0 ? clamp(Math.round(pointerOffsetPx / pxPerMinute / SLOT_MINUTES) * SLOT_MINUTES, 0, DAY_MINUTES) : anchor
+  return m > anchor ? { start: anchor, end: m } : { start: m, end: anchor + SLOT_MINUTES }
 }
 
 /** Estimate from dragging a block's lower edge: whole slots, at least one, at most one week. */
@@ -394,6 +403,10 @@ export interface GridPrefs {
   planDays: 7 | 14 | 21
   /** "Count meetings in capacity" (meeting-aware-capacity D2): busy event minutes join Day, Week and Month capacity. */
   countEvents: boolean
+  /** A second hour column in Day and Week (calendar-time-zones D1): an IANA zone, absent when off. */
+  secondZone?: string
+  /** Shade times outside startHour/endHour; off by default on this device. */
+  shadeOffHours?: boolean
 }
 
 export const DEFAULT_GRID_PREFS: GridPrefs = { startHour: 6, endHour: 22, dayLength: 480, planDays: 14, countEvents: false }
@@ -413,5 +426,6 @@ export function normalizeGridPrefs(raw: unknown): GridPrefs {
   }
   const dayLength = int(r.dayLength, SLOT_MINUTES, DAY_MINUTES) ?? DEFAULT_GRID_PREFS.dayLength
   const planDays = r.planDays === 7 || r.planDays === 21 ? r.planDays : DEFAULT_GRID_PREFS.planDays
-  return { startHour, endHour, dayLength, planDays, countEvents: r.countEvents === true }
+  const secondZone = typeof r.secondZone === 'string' && isKnownZone(r.secondZone) ? r.secondZone : ''
+  return { startHour, endHour, dayLength, planDays, countEvents: r.countEvents === true, ...(secondZone ? { secondZone } : {}), ...(r.shadeOffHours === true ? { shadeOffHours: true } : {}) }
 }

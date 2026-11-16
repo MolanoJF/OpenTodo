@@ -234,6 +234,42 @@
       }
     },
     {
+      "name": "list_calendar_events",
+      "title": "List calendar events",
+      "description": "List the user's calendar events from..to (dates YYYY-MM-DD, at most 92 days, both inclusive): the events of their connected calendars and calendar feeds, as the calendar view shows them. Each event has an id, start and end ({date, time, tz}; all-day events have a date only, the end exclusive) and, for a connected calendar's event, connection_id, rev and access ({update, delete, reason}). calendars lists the writable calendars (connection_id, calendar_url, name, can_create) that create_calendar_event can use; can_create is false while the user has editing events turned off for that connection. To change one, pass connection_id, the id and the rev to update_calendar_event or delete_calendar_event. An event with access.update false cannot be changed, and the reason says why. An event with guests or a join link has guests ({count, you (the user's own answer), organizer (true: the user organises it), can_respond}) and conference ({provider}), with no name or address: pass include_guests true to get the organiser, the guests and the join link, inside untrusted_text. access.notifies true means that changing or deleting the event makes the calendar tell its guests, so update_calendar_event and delete_calendar_event then need notify_guests true. respond_to_calendar_event answers an invitation (guests.can_respond true). An event with a series ({id, repeats, first, custom, repeat}) is an occurrence of a repeating event: changing or deleting it needs scope (this, following or all) on update_calendar_event and delete_calendar_event; custom means it repeats in a way repeat cannot show.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "description": "First day (YYYY-MM-DD).",
+            "format": "date",
+            "type": "string"
+          },
+          "include_guests": {
+            "description": "true: add each event's organiser, guests (at most 50) and join link, inside untrusted_text. Default false.",
+            "type": "boolean"
+          },
+          "to": {
+            "description": "Last day (YYYY-MM-DD), not before from, at most 91 days after it.",
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true,
+        "title": "List calendar events"
+      }
+    },
+    {
       "name": "list_frames",
       "title": "List frames",
       "description": "List the occurrences of the user's calendar frames (recurring windows such as \"Deep work\" on weekdays 09:00-11:00) on the days from..to, with floating wall times and the planning source (project:, label: or view: id) that says which tasks belong in each. Default: the seven days from today in timezone; at most 31 days. Frames guide planning: propose ordinary due dates and times inside them.",
