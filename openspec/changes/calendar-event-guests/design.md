@@ -88,12 +88,12 @@ const googleRespond = false
 - **"You".** The user's own address is known only where it can be read from the account, never guessed: Microsoft `Connection.Username`; Google the id segment of the principal (`current-user-principal` URL after `/caldav/v2/`), falling back to the calendar-home URL, and **only for the calendar whose id equals it** (a calendar shared in from a colleague has the colleague's id, so replies there are never offered: the user would answer as someone else); generic CalDAV none. `ownerAddress(c *Connection, calendarURL string) string` returns "" when unknown; with "" nothing is "you", `guests.you` is omitted and the event keeps its `has_guests` lock.
 - **Conservative rule.** A capability that is not known to be true is false, and the UI hides what it cannot honour. A control is never shown with a promise (for example "Tell the organizer") the provider is not known to keep.
 
-### D2. Migration `0069` and what the cache learns
+### D2. Migration `0077` and what the cache learns
 
-Migration number **0069** (`0068_calendar_event_series.sql` is the last file). One idempotent side table keyed like `calendar_event_remote` (`0066`), no `ALTER`:
+Migration number **0077** (`0076_calendar_event_series.sql` is the last file). One idempotent side table keyed like `calendar_event_remote` (`0074`), no `ALTER`:
 
 ```sql
--- 0069_calendar_event_guests.sql
+-- 0077_calendar_event_guests.sql
 -- Who is invited to an occurrence of a managed calendar, how the user answered, and the
 -- join link, so the events route can summarise them and a popover can list them without
 -- asking the calendar. Server data, never an op. Personal data: guest names and
@@ -358,7 +358,7 @@ var (
 `internal/calfeed/managed.go`:
 
 ```go
-// GuestRow is what the cache keeps of an occurrence's guests (migration 0069).
+// GuestRow is what the cache keeps of an occurrence's guests (migration 0077).
 type GuestRow struct {
 	Info       GuestInfo
 	Conference *Conference

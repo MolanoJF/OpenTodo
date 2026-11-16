@@ -4,7 +4,7 @@
 
 Phases 1 and 2 (`calendar-event-edits`, `calendar-event-editor`, archived 2026-11-12) are the base: the remote calendar is the truth, an event write is a server command with an ETag precondition and not an op, `rev` is a hash of the ETag, a device queues one command per event in `eventOutbox`, the editor is a panel. This change reuses all of that. What the code does today, and the facts the design had to work around:
 
-- **Every occurrence is locked as `recurring`.** `davLocked` (`internal/calsync/transport.go:164`) locks an object whose events have `RRULE`, `RDATE`, `EXDATE` or `RECURRENCE-ID`; `graphEvent.locked` (`graph_events.go`) locks every `type` other than `singleInstance`. The refs table holds the lock per uid (`calendar_event_remote.locked`, `0066`).
+- **Every occurrence is locked as `recurring`.** `davLocked` (`internal/calsync/transport.go:164`) locks an object whose events have `RRULE`, `RDATE`, `EXDATE` or `RECURRENCE-ID`; `graphEvent.locked` (`graph_events.go`) locks every `type` other than `singleInstance`. The refs table holds the lock per uid (`calendar_event_remote.locked`, `0074`).
 - **The cache holds expanded occurrences, not series.** `readCalendars` (`internal/calsync/shown.go:57`) reads each shown calendar with a `calendar-query` time-range REPORT (`DAV.query`, `remote.go:174`, no server-side expand, so a master and its exceptions arrive together) and runs `calfeed.ExpandContext` over `StoreWindow` (62 days back, 400 forward). It stores one `calendar_events` row per occurrence and one `calendar_event_remote` row per occurrence, all sharing the object's `href` and `etag` (`refs[ev.UID]`, `shown.go:92`). The master, its rule and its exceptions are not cached; a write has to read the object.
 - **Instance keys are stable for exceptions.** `instanceKey` (`internal/calfeed/vevent.go:301`) is the UTC instant of the original slot (`...Z`) for zoned and UTC points, the wall time for floating, the date for all-day. `Expand` stores an exception under its `RECURRENCE-ID` (`expand.go:112-115`, `o.Instance = ov.RecurrenceID`), not under its new start. So `id = EventID(subscription, uid, instance)` does **not** change when one occurrence is moved as an exception. The "ids change when moved" rule of phase 1 holds for single events only (`OccurrenceOf` uses the start as the instance) and for Microsoft occurrences.
 - **`Expand` already understands series.** `parseRule` supports `DAILY`/`WEEKLY`/`MONTHLY`/`YEARLY`, `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` with ordinals, `BYMONTHDAY`, `BYMONTH`, `BYSETPOS`, `WKST` and rejects `BYHOUR`, `BYMINUTE`, `BYSECOND`, `BYYEARDAY`, `BYWEEKNO` (`expand.go:253`); `EXDATE`, `RDATE` and `RECURRENCE-ID` overrides are applied. Gaps that matter for writing: `parseEvent` keeps only the last `RRULE` (`vevent.go:133`) so several rules are invisible; `Range` is read but `THISANDFUTURE` is only approximated (`expand.go:99`); a cancelled override is dropped.
@@ -31,12 +31,12 @@ Phases 1 and 2 (`calendar-event-edits`, `calendar-event-editor`, archived 2026-1
 - **Identity.** `this` keeps the event `id` on CalDAV (the instance is the `RECURRENCE-ID`); the answer still carries `replaces` (equal to `id`). `all` that moves times changes the instance of every occurrence, `following` moves the later ones to a new uid, and Microsoft `this` changes the id as in phase 1 (instance = start). Rather than a list of `replaces`, the answer says `refetch: true` when other ids changed and the device refetches the shown range (D12): `refreshEvents` already replaces the table wholesale, so no new client code reads a list. The edited occurrence's new row is still returned as `event` so the open popover, selection and Undo follow it (`adoptEvent`, phase 2).
 - **`series` on every served occurrence:** `{id, rrule?, repeat, custom, first, rev?}`. `id` is `hash16(subscription, uid)` for CalDAV and `hash16(subscription, seriesMasterId)` for Microsoft, the same for all occurrences, never the uid. `rev` is present for CalDAV: every occurrence of an object shares the object's ETag, so after any write the device gives all cached occurrences of `series.id` the new `series.rev` (a Dexie `modify`, no network) and a second drag on another occurrence of the same series is not refused as stale.
 
-### D2. Migration `0068` and what the cache learns
+### D2. Migration `0076` and what the cache learns
 
-Migration number **0068** (`0067_calendar_event_created.sql` is the last). The brief preferred none; the cache has nowhere to say "this row is an occurrence of a series" (`calendar_events` has no such column and phase 1 chose side tables on purpose), and encoding it in `locked` would overload a column the write checks read. One idempotent side table, no `ALTER`, as `0066` and `0067`:
+Migration number **0076** (`0075_calendar_event_created.sql` is the last). The brief preferred none; the cache has nowhere to say "this row is an occurrence of a series" (`calendar_events` has no such column and phase 1 chose side tables on purpose), and encoding it in `locked` would overload a column the write checks read. One idempotent side table, no `ALTER`, as `0074` and `0075`:
 
 ```sql
--- 0068_calendar_event_series.sql
+-- 0076_calendar_event_series.sql
 -- The series an occurrence of a managed calendar belongs to, so the events route can say
 -- "this repeats" and the write routes can ask for a scope. Server data, never an op.
 -- (calendar-event-series D2)
@@ -58,7 +58,7 @@ UPDATE calendar_subscriptions SET etag = ''
 ```
 
 - `calfeed.EventRemote` gains `Series *SeriesInfo` (`{ID, RRule, Repeat string, First string}`); `storeRefs` writes one row per uid that has it, in the transaction that replaces the events, and deletes the subscription's rows first (rows never outlive their events, as refs). `EventRow` gains `Series *SeriesView` (never serialised by the store, filled by the route like `Access`). `Store.RefByEvent` joins the table so `find` knows the event is an occurrence.
-- Until a calendar is re-read, an old row says `locked = 'recurring'`; `AccessOf` and `check` treat that legacy value as `refresh_pending` (the grid shows `refresh_pending` and unlocks after the next read, as `0066` did).
+- Until a calendar is re-read, an old row says `locked = 'recurring'`; `AccessOf` and `check` treat that legacy value as `refresh_pending` (the grid shows `refresh_pending` and unlocks after the next read, as `0074` did).
 - For Microsoft the table has one row per occurrence uid (`series_id` from `seriesMasterId`); `rrule` and `repeat` stay empty and the editor reads the master's pattern with the detail call (D8).
 - Downgrade: an older binary ignores the table; the reset `etag` costs it one refetch, on which it writes its own refs with its own `recurring` lock again.
 

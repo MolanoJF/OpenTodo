@@ -33,12 +33,12 @@ Events live in somebody else's calendar and are cached server-side only (`calend
 
 Rejected: an `event_override` op entity (a second truth, orphaned when the remote changes, raises E2EE and export questions); reusing the cycle's task-snapshot comparison for event writes (it compares task snapshots and cannot express "this foreign event changed"). Event writes do go through `internal/calsync` on the server: they take the connection's cycle lock (`Worker.lock(connID)`) and use the cycle's transports and conditional writes (`If-Match`). The browser only sends the command.
 
-### D2. Event identity and the migration (0066)
+### D2. Event identity and the migration (0074)
 
 The client identifies an event by **`(connection id, event id)`**, where the event id is the existing `EventRow.id` (24 hex characters). The server resolves it to the remote address (connection -> calendar URL -> event href or Graph id) through a new table, so the client never sees or sends an href:
 
 ```sql
--- 0066_calendar_event_edits.sql (idempotent: IF NOT EXISTS only, no ALTER)
+-- 0074_calendar_event_edits.sql (idempotent: IF NOT EXISTS only, no ALTER)
 CREATE TABLE IF NOT EXISTS calendar_event_remote (
   subscription_id TEXT NOT NULL REFERENCES calendar_subscriptions(id) ON DELETE CASCADE,
   uid             TEXT NOT NULL,
@@ -61,7 +61,7 @@ UPDATE calendar_subscriptions SET etag = ''
   WHERE id IN (SELECT subscription_id FROM calsync_calendars);
 ```
 
-Why side tables and not nullable columns on `calendar_events` and `calsync_connections`: SQLite's `ALTER TABLE ADD COLUMN` cannot be repeated, so each column needs a Go step (`internal/store/audit_chain.go` is the pattern; `0037` explains). Side tables need none, are idempotent as plain SQL, and follow `calsync_scopes` (`0063_sync_scope.sql`): an older binary never reads them, a row without one means "off", and `calendar_events` and `calsync_connections` keep their exact columns, so downgrade-safety is stronger than with columns. This departs from "add nullable cache columns" on purpose and keeps its intent. The closing `UPDATE` makes the next cycle re-read every managed calendar once (`readCalendars` skips a calendar whose version equals `m.Version`, stored in `calendar_subscriptions.etag`), which fills `calendar_event_remote`; until then `access.reason` is `refresh_pending`. Migration number: **0066** (`0065_app_sign_in.sql` is the last). Downgrade: an older binary ignores both tables, and the reset `etag` costs it one refetch.
+Why side tables and not nullable columns on `calendar_events` and `calsync_connections`: SQLite's `ALTER TABLE ADD COLUMN` cannot be repeated, so each column needs a Go step (`internal/store/audit_chain.go` is the pattern; `0037` explains). Side tables need none, are idempotent as plain SQL, and follow `calsync_scopes` (`0063_sync_scope.sql`): an older binary never reads them, a row without one means "off", and `calendar_events` and `calsync_connections` keep their exact columns, so downgrade-safety is stronger than with columns. This departs from "add nullable cache columns" on purpose and keeps its intent. The closing `UPDATE` makes the next cycle re-read every managed calendar once (`readCalendars` skips a calendar whose version equals `m.Version`, stored in `calendar_subscriptions.etag`), which fills `calendar_event_remote`; until then `access.reason` is `refresh_pending`. Migration number: **0074** (`0073_note_pages.sql` is the last). Downgrade: an older binary ignores both tables, and the reset `etag` costs it one refetch.
 
 `StoreManaged` gains a sibling `StoreManagedRefs` (same transaction, implemented as `Result.Refs`, a `calfeed.EventRemote` per uid that `Store.Success` writes with the occurrences; `StoreManaged` itself leaves a calendar without refs until its next read): `readCalendars` builds `uid -> {href, etag, locked}` from the `remote` objects it already holds (`o.Href`, `o.ETag`, the parsed events) and writes one `calendar_event_remote` row per stored occurrence. `EventRow` carries the join (`Rev`, and `Managed`, `Known`, `Locked` that are never serialised); the events route turns them into `access` with `calsync.AccessOf`, which `Worker.EditEvent` uses for its answer too. The `event_id` is the hash `EventsOf` computes today, moved into one exported helper `calfeed.EventID(subscriptionID, uid, instance)`. Rows of a re-read calendar are replaced together with its events (delete, then insert, as `Success` does for `calendar_events`), so refs never outlive their events.
 

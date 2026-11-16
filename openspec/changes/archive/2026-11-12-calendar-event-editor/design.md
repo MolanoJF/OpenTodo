@@ -4,7 +4,7 @@
 
 Phase 1 (`calendar-event-edits`, archived 2026-11-12) is the base; this change reuses its decisions (the remote calendar is the truth, event writes are server commands with ETag preconditions and not ops, `rev` is a hash of the ETag, ids change on a move, a device-local outbox). What the code does today, and the facts this design had to work around:
 
-- **What the cache holds.** `calendar_events` (`0031_calendar_feeds.sql`) already stores `summary`, `location`, `free`, the times and `all_day`; `EventRow` already serves `location` and `free`. **Descriptions are not parsed (`calfeed.Event` has no field), stored or served.** `calendar_event_remote` (`0066`) holds href, ETag and the lock reason.
+- **What the cache holds.** `calendar_events` (`0031_calendar_feeds.sql`) already stores `summary`, `location`, `free`, the times and `all_day`; `EventRow` already serves `location` and `free`. **Descriptions are not parsed (`calfeed.Event` has no field), stored or served.** `calendar_event_remote` (`0074`) holds href, ETag and the lock reason.
 - **Only shown calendars have a cache.** A calendar gets a managed subscription only when its connection shows it (`internal/calsync/shown.go:57`, `EnsureManaged`). A new event has to appear in the grid, so it can only be created in a shown calendar.
 - **Creating is already a proven write.** `DAV.put` with etag `"*"` sends `If-None-Match: *` (`remote.go:195`) and writes task events at `<calendar><id>.ics` (`transport.go`, `davTransport.create`); Graph task events are created with `POST /me/calendars/{id}/events` and a `transactionId` (`graph_transport.go:208-215`). `caldav.VTimezone`, `addZone` and `pointProp` (`event_dav.go`) already write zoned, floating and all-day points.
 - **Graph events are read in UTC.** `graphDateTime.point` returns `Zone: "UTC"` for every timed Graph event (`graph_events.go:85`), and Google's CalDAV answers often use `Z` times. So an event's served `tz` is often `UTC` without being the event's meaningful zone.
@@ -32,14 +32,14 @@ The Event choice appears only when this list is not empty. The **default calenda
 
 Creating an event while this device hides calendars (`setShowEvents(false)`) turns them on first and says so in the toast, so a new event is never invisible.
 
-### D2. Read path and migration `0067`
+### D2. Read path and migration `0075`
 
 Location and busy or free are cached and served already: no change. **Descriptions stay out of the cache and out of every list.** They can be large (Graph bodies), they are free text from a foreign calendar, and a grid never needs them. They are read from the calendar when an editor opens (D4 `GET`), held in memory by the editor, and written back only when the person changed them. Consequence: offline, the description field is disabled with the reason and is not sent, so a queued or retried edit never overwrites a description the person did not see.
 
-One new side table, idempotent, no `ALTER` (the pattern of `0066`; `0066_calendar_event_edits.sql` is the last migration, so the next number is **0067**):
+One new side table, idempotent, no `ALTER` (the pattern of `0074`; `0074_calendar_event_edits.sql` is the last migration, so the next number is **0075**):
 
 ```sql
--- 0067_calendar_event_created.sql
+-- 0075_calendar_event_created.sql
 -- The events OpenTodo created for a client id, so a create sent twice makes one event and
 -- an event deleted since is not made again. Server data, never an op. (calendar-event-editor D2)
 CREATE TABLE IF NOT EXISTS calendar_event_created (
@@ -361,7 +361,7 @@ Web (`npm test`, `npm run build` in `web/`): `eventCreate.test.ts` and an extend
 
 Server half, in the order of the tasks. Where this differs from the decisions above, this section wins.
 
-- **Store (D2, D5).** `0067_calendar_event_created.sql` is the statement of D2 verbatim. `calfeed.Store.AddEvent`, `CreatedBy` and `RefByUID` are D5 verbatim; `ReplaceEvent` and `AddEvent` share one `insertEvent`. `RefByUID` returns the first instance by key when a uid has several (a created event has one).
+- **Store (D2, D5).** `0075_calendar_event_created.sql` is the statement of D2 verbatim. `calfeed.Store.AddEvent`, `CreatedBy` and `RefByUID` are D5 verbatim; `ReplaceEvent` and `AddEvent` share one `insertEvent`. `RefByUID` returns the first instance by key when a uid has several (a created event has one).
 - **Test servers (task 1.4).** `calsynctest.Server.NoETagOnPut` already existed; it gained `NoETagOnGet` (a server that never gives an ETag), `IfNoneMatches()` (the header of every PUT) and `SetReadOnly(cal, bool)` (a 403 on writes while the privilege set still claims write). `graphtest` already had `POST .../events` with `transactionId`; it gained `Event.BodyType`, `Location` and `ShowAs`, `location`, `showAs` and `body.contentType` in the request and the answer, and the `Prefer: outlook.body-content-type="text"` read of an html body (markup stripped, an Outlook skeleton reads as `""`). Each has a `server_test.go` self-test.
 - **Writers (D6, D7).** `davEvents.Create` is in `event_dav_create.go`, `graphEvents.Create` and `Detail` in `event_graph_create.go`; the new members of `Update` are `editText` (DAV) and `editMembers` (Graph). `href_taken` is `calsync.ReasonHrefTaken`. A DAV create whose `PUT` and following `GET` give no ETag is returned with `Locked = no_etag` (read-only), not refused. A Graph create does not return `ErrEventExists`: Graph's repeat of a `transactionId` is unverified (open question 2) and the fake returns the first event with `201`; the `calendar_event_created` record in `Worker.CreateEvent` is the replay guard. A Graph `Update` with a description pre-reads the body (`Detail`) and answers `ErrEventLocked` with `description_rich` after the ETag and lock checks, so a stale client gets `event_changed` first.
 - **Worker (D4, D5).** The `EventError` code `EventInvalid` (`invalid_input`) carries the field name in `Reason` (`clientId` or `calendarUrl`); `CreateEvent` checks the client id itself (`calsync.ValidClientID`) so the agent tools and CLI cannot bypass it. A `404` for the object between a `412` and the `GET` that follows is reported as `calendar_unreachable`, never as `event_gone`. `EventDetail` stores the remote's newer state and wakes devices only when the ETag changed; `Replaces` then names the old id, which can equal the new one (a rename keeps the start, so the id), and `DescriptionEditable` is `!DescriptionLocked` whatever the event's lock.

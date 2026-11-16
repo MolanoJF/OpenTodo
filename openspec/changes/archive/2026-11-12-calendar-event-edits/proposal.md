@@ -39,7 +39,7 @@ This advances the roadmap's calendar sync line (`calendar-two-way`, `outlook-cal
 
 ## Impact
 
-- **Server:** `internal/calsync` (new `events.go`, `event_dav.go`, `event_graph.go`, capabilities in `discover.go`, `graph.go`), `internal/calfeed` (`vevent.go` guest flag, `managed.go` and `store.go` remote refs, `EventRow.Rev` and `Access`), `internal/httpapi` (`calsync_events.go`, routes in `calsync.go`, the connection patch and view), `internal/store/migrations/0066_calendar_event_edits.sql`, `internal/agenttools`, `internal/cli`.
+- **Server:** `internal/calsync` (new `events.go`, `event_dav.go`, `event_graph.go`, capabilities in `discover.go`, `graph.go`), `internal/calfeed` (`vevent.go` guest flag, `managed.go` and `store.go` remote refs, `EventRow.Rev` and `Access`), `internal/httpapi` (`calsync_events.go`, routes in `calsync.go`, the connection patch and view), `internal/store/migrations/0074_calendar_event_edits.sql`, `internal/agenttools`, `internal/cli`.
 - **Web:** `web/src/lib/calendarEventEdits.ts` (new), `calendarFeeds.ts`, `db.ts` (Dexie v31), `api.ts`, `types.ts`; `web/src/app/CalendarEvents.tsx`, `calendarDrag.ts`, `calendar/DayColumn.tsx`, `calendar/useCalendarKeys.ts`, `CalendarSyncDialogs.tsx`.
 - **Docs and checks:** `docs/calendar-sync.md`, `docs/calendar-feeds.md`, `docs/calendar-views.md`, `docs/api.md`, `docs/mcp.md`, `docs/cli.md`, `docs/keyboard.md` (generated), `scripts/ux-audit/drag-alternatives.json`, `scripts/ux-audit/screens.json`, `changelog.d/Added/calendar-event-edits.md`.
 - **Data:** only new tables (no column added to an existing one), so a downgraded binary ignores them (design D2).

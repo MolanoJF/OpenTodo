@@ -12,7 +12,7 @@ const command: EventCommand = {
   key: 'c1:e1', connectionId: 'c1', eventId: 'e1', rev: 'r1', base: ev, patch: { summary: 'Planning' }, notBefore: 0, tries: 0,
 }
 
-describe('eventOutbox (Dexie v31)', () => {
+describe('eventOutbox (Dexie v33)', () => {
   it('upgrades a v30 database, keeps its events and adds the table', async () => {
     const name = `v30-${Math.random()}`
     const old = new Dexie(name)

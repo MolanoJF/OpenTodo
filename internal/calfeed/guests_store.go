@@ -12,7 +12,7 @@ import (
 // data, never an op, and personal data of people who are not users of this server:
 // nothing here logs a name, an address or a link.
 
-// GuestRow is what the cache keeps of an occurrence's guests (migration 0069).
+// GuestRow is what the cache keeps of an occurrence's guests (migration 0077).
 type GuestRow struct {
 	Info       GuestInfo
 	Conference *Conference

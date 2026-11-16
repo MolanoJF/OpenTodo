@@ -73,7 +73,7 @@ func TestMultigetHalvesALargeBatch(t *testing.T) {
 		hrefs = append(hrefs, h.srv.CalendarURL("work")+name)
 	}
 	d := basicDAV(h.w, h.srv.URL, h.srv.User, h.srv.Password)
-	got, err := davTransport{d}.fetch(h.ctx, h.srv.CalendarURL("work"), hrefs)
+	got, err := davTransport{d: d}.fetch(h.ctx, h.srv.CalendarURL("work"), hrefs)
 	if err != nil {
 		t.Fatal(err)
 	}

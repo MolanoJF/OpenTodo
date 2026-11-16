@@ -27,7 +27,7 @@ The pieces are in place: the remote calendar is the truth, writes are conditiona
 - Microsoft "stop repeating" on an existing series (`repeat: null`), and relative-yearly patterns: kept read-only until verified against a real mailbox.
 - Delivering reminders from OpenTodo.
 
-This advances the roadmap's calendar sync line after `calendar-event-editor`; add a `calendar-event-series` row to `ROADMAP.md` on archive. Nothing is **BREAKING**: additive JSON fields and one error code, one idempotent migration of a new table (`0068`), no environment variable, no op field, no Dexie version.
+This advances the roadmap's calendar sync line after `calendar-event-editor`; add a `calendar-event-series` row to `ROADMAP.md` on archive. Nothing is **BREAKING**: additive JSON fields and one error code, one idempotent migration of a new table (`0076`), no environment variable, no op field, no Dexie version.
 
 ## Capabilities
 
@@ -43,7 +43,7 @@ None. Everything extends existing capabilities.
 
 ## Impact
 
-- **Server:** new pure engine `internal/calfeed/series*.go` (and `testdata/series/` goldens); `internal/calfeed/{vevent.go,managed.go,store.go}`; `internal/calsync/{events.go,event_dav.go,event_dav_series.go,event_graph.go,event_graph_series.go,event_edit.go,event_series.go,transport.go,graph_events.go,graph_transport.go}`; `internal/httpapi/{calsync_events.go,calsync_event_create.go,agent_calendar_events.go}`; `internal/store/migrations/0068_calendar_event_series.sql`; `internal/audit`; `internal/agenttools`; `internal/cli`.
+- **Server:** new pure engine `internal/calfeed/series*.go` (and `testdata/series/` goldens); `internal/calfeed/{vevent.go,managed.go,store.go}`; `internal/calsync/{events.go,event_dav.go,event_dav_series.go,event_graph.go,event_graph_series.go,event_edit.go,event_series.go,transport.go,graph_events.go,graph_transport.go}`; `internal/httpapi/{calsync_events.go,calsync_event_create.go,agent_calendar_events.go}`; `internal/store/migrations/0076_calendar_event_series.sql`; `internal/audit`; `internal/agenttools`; `internal/cli`.
 - **Web:** `web/src/lib/{types,api,calendarEventEdits,calendarFeeds,eventDrop,eventFull,eventScope,eventRepeat}.ts`, `web/src/app/calendar/{ScopeMenu,EventRepeatField,EventRemindersField,EventForm,EventPanel,useEventEditing,EventLocked}.tsx`, `web/src/app/{CalendarEvents,useEventEdits}`, `web/src/locales/*`, `web/bundle-budget.json`.
 - **Docs and checks:** `docs/{calendar-sync,calendar-views,calendar-feeds,api,mcp,cli,keyboard,accessibility}.md`, `scripts/ux-audit/*`, `changelog.d/Added/calendar-event-series.md`, `ROADMAP.md`, `internal/httpapi/testdata/v1_surface.json`.
 - **Data:** one new table (`calendar_event_series`); no column added to an existing table, so a downgraded binary ignores it.

@@ -82,8 +82,8 @@ Why each milestone exists, and the order inside it, is in [ROADMAP.md](../ROADMA
 | `obsidian-vault-sync` | Vault sync from inside Obsidian (built; waiting for the manual runs on devices) | In progress (14 of 15) |
 | `voice-ramble` | Speak a brain dump or drop a photo of notes; review the proposed tasks | Shipped in 0.20 |
 | `outlook-calendar-sync` | Microsoft 365 and Outlook in calendar sync | Shipped in 0.20 |
-| `calendar-event-edits` | Move, resize, rename and delete the events of a connected calendar in Day and Week, off until turned on per connection; the calendar stays the source of truth (built and verified against Radicale; proposed in #1233) | Shipped |
-| `calendar-event-editor` | Add events to a connected calendar from Day and Week, edit all their details in a side panel, duplicate them and turn them into tasks; off until turned on per connection (built and verified against Radicale; proposed in #1233) | Shipped |
+| `calendar-event-edits` | Move, resize, rename and delete the events of a connected calendar in Day and Week, off until turned on per connection; the calendar stays the source of truth (built and verified against Radicale; proposed in #1233) | Shipped in 1.5 |
+| `calendar-event-editor` | Add events to a connected calendar from Day and Week, edit all their details in a side panel, duplicate them and turn them into tasks; off until turned on per connection (built and verified against Radicale; proposed in #1233) | Shipped in 1.5 |
 | `calendar-event-series` | Change repeating events of a connected calendar for this event, this and following events or all events, and set their repeat and reminders in the editor (built; proposed in #1233) | In progress (35 of 38) |
 | `calendar-event-guests` | See guests, answer invitations, change meetings you organise on Outlook after one confirmation and join calls from the calendar; Google replies stay off until verified (built; proposed in #1233) | In progress (37 of 40) |
 | `calendar-mobile` | Stable phone detail pages, clear event actions and narrow calendar fields | In progress (4 of 4) |
