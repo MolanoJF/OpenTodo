@@ -52,3 +52,5 @@ gosec.sarif
 # build, dev, test and typecheck: not committed, so docs edits in parallel pull
 # requests never conflict over it.
 /web/src/generated/help.json
+.obsidian/workspace*.json
+.trash/
